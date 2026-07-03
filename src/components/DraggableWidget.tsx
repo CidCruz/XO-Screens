@@ -13,21 +13,22 @@ interface Props {
   className?: string
   baseWidth?: number
   baseHeight?: number
+  initialScale?: number
 }
 
 const MIN_SCALE = 0.8
 const MAX_SCALE = 1.8
 
-export default function DraggableWidget({ children, initialX, initialY, className = '', baseWidth = 0, baseHeight = 0 }: Props) {
+export default function DraggableWidget({ children, initialX, initialY, className = '', baseWidth = 0, baseHeight = 0, initialScale = 1 }: Props) {
   const [pos, setPos] = useState({ x: initialX, y: initialY })
-  const [scale, setScale] = useState(1)
+  const [scale, setScale] = useState(initialScale)
   const [isDragging, setIsDragging] = useState(false)
   const dragging = useRef(false)
   const resizing = useRef(false)
   const offset = useRef({ x: 0, y: 0 })
   const isHovered = useRef(false)
   const resizeData = useRef({ x: 0, y: 0, scale: 1, dx: 1, dy: 1, posX: 0, posY: 0 })
-  const scaleRef = useRef(1)
+  const scaleRef = useRef(initialScale)
 
   function onMouseEnter() {
     isHovered.current = true
