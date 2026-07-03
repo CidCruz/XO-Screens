@@ -86,13 +86,6 @@ export default function DraggableWidget({ children, initialX, initialY, classNam
       }}
       className={className}
     >
-      {/* Visible drag handle — always shown at top of widget */}
-      <div
-        className="flex items-center justify-center w-full pb-1"
-        style={{ cursor: isDragging ? 'grabbing' : 'grab' }}
-      >
-        <div className="w-10 h-1 rounded-full bg-white/25 hover:bg-white/50 transition-colors" />
-      </div>
       {children}
     </div>
   )

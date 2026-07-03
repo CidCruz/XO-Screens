@@ -62,7 +62,7 @@ export default function AppHub({ apps, activeApp, onSelect }: Props) {
     <div className="glass-dark rounded-2xl shadow-2xl select-none flex flex-col" style={{ width: 64 }}>
 
       {/* Logo */}
-      <div className="flex items-center justify-center py-5">
+      <div className="flex items-center justify-center py-5 border-b border-white/10">
         <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0">
           <span className="text-white font-black text-sm tracking-tight" style={{ textShadow: '0 0 12px rgba(255,255,255,0.9), 0 0 24px rgba(255,255,255,0.5)' }}>XO</span>
         </div>
@@ -100,7 +100,7 @@ export default function AppHub({ apps, activeApp, onSelect }: Props) {
       </div>
 
       {/* Hide button */}
-      <div className="flex items-center justify-center py-3">
+      <div className="flex items-center justify-center py-3 border-t border-white/10">
         <button
           data-no-drag
           onClick={() => window.xo?.hide()}
