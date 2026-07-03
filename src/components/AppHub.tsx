@@ -115,7 +115,7 @@ export default function AppHub({ apps, activeApp, onSelect }: Props) {
           onClick={() => window.xo?.quit()}
           title="Quit"
           className="w-10 h-10 rounded-xl flex items-center justify-center text-white/25
-            hover:text-red-400 hover:bg-red-500/10 transition-all cursor-pointer"
+            hover:text-red-400 transition-all cursor-pointer"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
