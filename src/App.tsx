@@ -36,10 +36,15 @@ export default function App() {
   useEffect(() => {
     window.xo?.onShow(() => {
       if (exitTimer.current) clearTimeout(exitTimer.current)
+      // Reset any lingering :active/:focus state from before the window was hidden
+      if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
+      document.body.focus()
       setWindowAnim('entering')
       setTimeout(() => setWindowAnim('visible'), 260)
     })
     window.xo?.onHideAnimate(() => {
+      // Blur everything before animating out so state is clean on next show
+      if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
       setWindowAnim('exiting')
       exitTimer.current = setTimeout(() => {
         window.xo?.readyToHide()
