@@ -1,3 +1,4 @@
+import { useRef, useState, useEffect } from 'react'
 import type { AppItem } from '../types'
 
 function AppIcon({ id }: { id: string }) {
@@ -64,9 +65,67 @@ interface Props {
   onSelect: (id: string) => void
 }
 
+const MIN_SCALE = 0.6
+const MAX_SCALE = 1.8
+
 export default function AppHub({ apps, activeApp, onSelect }: Props) {
+  const [scale, setScale] = useState(1)
+  const resizing = useRef(false)
+  const startData = useRef({ x: 0, y: 0, scale: 1, dir: { x: 1, y: 1 } })
+
+  function onCornerDown(e: React.MouseEvent, dx: number, dy: number) {
+    e.stopPropagation()
+    e.preventDefault()
+    resizing.current = true
+    startData.current = { x: e.clientX, y: e.clientY, scale, dir: { x: dx, y: dy } }
+  }
+
+  useEffect(() => {
+    function onMove(e: MouseEvent) {
+      if (!resizing.current) return
+      const { x, y, scale: s, dir } = startData.current
+      const dx = (e.clientX - x) * dir.x
+      const dy = (e.clientY - y) * dir.y
+      const delta = (dx + dy) / 200
+      setScale(Math.min(MAX_SCALE, Math.max(MIN_SCALE, s + delta)))
+    }
+    function onUp() { resizing.current = false }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+    return () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp) }
+  }, [])
+
+  const corners = [
+    { top: -6, left: -6, dx: -1, dy: -1 },
+    { top: -6, right: -6, dx: 1, dy: -1 },
+    { bottom: -6, left: -6, dx: -1, dy: 1 },
+    { bottom: -6, right: -6, dx: 1, dy: 1 },
+  ]
+
   return (
-    <div className="glass-dark rounded-2xl shadow-2xl select-none flex flex-col" style={{ width: 64, overflow: 'visible' }}>
+    <div style={{ transform: `scale(${scale})`, transformOrigin: 'top left' }}>
+    <div className="glass-dark rounded-2xl shadow-2xl select-none flex flex-col" style={{ width: 64, overflow: 'visible', position: 'relative' }}>
+      {corners.map((c, i) => (
+        <div
+          key={i}
+          data-no-drag
+          onMouseDown={e => onCornerDown(e, c.dx, c.dy)}
+          style={{
+            position: 'absolute', width: 16, height: 16, zIndex: 10,
+            top: c.top, left: (c as { left?: number }).left, right: (c as { right?: number }).right, bottom: (c as { bottom?: number }).bottom,
+            cursor: 'nwse-resize',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}
+        >
+          <svg width="10" height="10" viewBox="0 0 10 10" className="corner-handle" style={{ opacity: 0, transition: 'opacity 0.15s', pointerEvents: 'none',
+            transform: i === 0 ? 'rotate(180deg)' : i === 1 ? 'rotate(270deg)' : i === 2 ? 'rotate(90deg)' : 'rotate(0deg)'
+          }}>
+            <line x1="9" y1="3" x2="3" y2="9" stroke="white" strokeWidth="1.5" strokeLinecap="round" />
+            <line x1="9" y1="6" x2="6" y2="9" stroke="white" strokeWidth="1.5" strokeLinecap="round" />
+          </svg>
+        </div>
+      ))}
+
 
       {/* Logo */}
       <div className="flex items-center justify-center py-5 border-b border-white/10">
@@ -123,6 +182,7 @@ export default function AppHub({ apps, activeApp, onSelect }: Props) {
         </button>
       </div>
 
+    </div>
     </div>
   )
 }
