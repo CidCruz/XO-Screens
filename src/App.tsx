@@ -54,13 +54,13 @@ export default function App() {
   return (
     <div className="w-screen h-screen" style={{ background: 'transparent', pointerEvents: 'none', opacity: appVisible ? 1 : 0, transition: 'opacity 0.6s ease' }}>
 
-      <DraggableWidget initialX={20} initialY={20}>
-        <AppHub apps={APPS} activeApp={visibleApp} onSelect={handleSelect} />
+      <DraggableWidget initialX={20} initialY={20} baseWidth={64} baseHeight={300}>
+        {(onCornerDown) => <AppHub apps={APPS} activeApp={visibleApp} onSelect={handleSelect} onCornerDown={onCornerDown} />}
       </DraggableWidget>
 
       {chatOpen && (
-        <DraggableWidget initialX={260} initialY={20} className="w-80">
-          <ChatBox onClose={() => setChatOpen(false)} />
+        <DraggableWidget initialX={320} initialY={20} baseWidth={320} baseHeight={480}>
+          {(onCornerDown) => <ChatBox onClose={() => setChatOpen(false)} onCornerDown={onCornerDown} />}
         </DraggableWidget>
       )}
 

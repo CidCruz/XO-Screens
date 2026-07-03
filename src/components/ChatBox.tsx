@@ -2,17 +2,26 @@ import { useState, useRef, useEffect } from 'react'
 import type { Message } from '../types'
 import { sendToGemini } from '../gemini'
 
-export default function ChatBox({ onClose }: { onClose: () => void }) {
+const corners = [
+  { top: -6, left: -6,   dx: -1, dy: -1, rotate: 'rotate(180deg)', cursor: 'nwse-resize' },
+  { top: -6, right: -6,  dx:  1, dy: -1, rotate: 'rotate(270deg)', cursor: 'nesw-resize' },
+  { bottom: -6, left: -6,  dx: -1, dy:  1, rotate: 'rotate(90deg)',  cursor: 'nesw-resize' },
+  { bottom: -6, right: -6, dx:  1, dy:  1, rotate: 'rotate(0deg)',   cursor: 'nwse-resize' },
+]
+
+interface Props {
+  onClose: () => void
+  onCornerDown: (e: React.MouseEvent, dx: number, dy: number) => void
+}
+
+export default function ChatBox({ onClose, onCornerDown }: Props) {
   const [messages, setMessages] = useState<Message[]>([
-    {
-      id: '0',
-      role: 'assistant',
-      content: 'Hey! I\'m XO, your AI assistant. How can I help you today?',
-      timestamp: new Date(),
-    },
+    { id: '0', role: 'assistant', content: "Hey! I'm XO, your AI assistant. How can I help you today?", timestamp: new Date() },
   ])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
+  const [closestCorner, setClosestCorner] = useState<number | null>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -22,12 +31,10 @@ export default function ChatBox({ onClose }: { onClose: () => void }) {
   async function handleSend() {
     const text = input.trim()
     if (!text || loading) return
-
     const userMsg: Message = { id: Date.now().toString(), role: 'user', content: text, timestamp: new Date() }
     setMessages(prev => [...prev, userMsg])
     setInput('')
     setLoading(true)
-
     try {
       const reply = await sendToGemini(messages, text)
       setMessages(prev => [...prev, { id: Date.now().toString(), role: 'assistant', content: reply, timestamp: new Date() }])
@@ -39,89 +46,149 @@ export default function ChatBox({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <div className="glass-dark rounded-2xl flex flex-col shadow-2xl overflow-hidden" style={{ height: '480px' }}>
-      {/* Header */}
-      <div className="flex items-center gap-3 px-4 py-3 border-b border-white/10">
-        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center">
-          <span className="text-white text-xs font-bold">XO</span>
-        </div>
-        <div>
-          <p className="text-white text-sm font-semibold">XO Assistant</p>
-          <p className="text-white/40 text-xs">Powered by Gemini</p>
-        </div>
-        <div className="ml-auto flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-          <span className="text-white/40 text-xs">Online</span>
-          <button
-            data-no-drag
-            onClick={onClose}
-            className="w-6 h-6 rounded-lg flex items-center justify-center text-white/30
-              hover:text-white hover:bg-white/10 transition-all cursor-pointer ml-1"
-          >✕</button>
-        </div>
-      </div>
-
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto chat-scroll px-4 py-3 flex flex-col gap-3">
-        {messages.map(msg => (
-          <div key={msg.id} className={`fade-in flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-            {msg.role === 'assistant' && (
-              <div className="w-6 h-6 rounded-md bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center mr-2 mt-1 shrink-0">
-                <span className="text-white text-[9px] font-bold">XO</span>
-              </div>
-            )}
-            <div className={`max-w-[75%] px-3 py-2 rounded-2xl text-sm leading-relaxed ${
-              msg.role === 'user'
-                ? 'bg-violet-500/50 text-white rounded-tr-sm border border-violet-400/30'
-                : 'glass text-white/90 rounded-tl-sm'
-            }`}>
-              {msg.content}
-            </div>
-          </div>
-        ))}
-
-        {loading && (
-          <div className="fade-in flex justify-start">
-            <div className="w-6 h-6 rounded-md bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center mr-2 mt-1 shrink-0">
-              <span className="text-white text-[9px] font-bold">XO</span>
-            </div>
-            <div className="glass px-4 py-3 rounded-2xl rounded-tl-sm">
-              <div className="flex gap-1 items-center">
-                <span className="w-1.5 h-1.5 bg-violet-400 rounded-full animate-bounce [animation-delay:0ms]" />
-                <span className="w-1.5 h-1.5 bg-violet-400 rounded-full animate-bounce [animation-delay:150ms]" />
-                <span className="w-1.5 h-1.5 bg-violet-400 rounded-full animate-bounce [animation-delay:300ms]" />
-              </div>
-            </div>
-          </div>
-        )}
-        <div ref={bottomRef} />
-      </div>
-
-      {/* Input */}
-      <div className="px-4 py-3 border-t border-white/10">
-        <div className="flex gap-2 items-end">
-          <textarea
-            value={input}
-            onChange={e => setInput(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() } }}
-            placeholder="Ask XO anything..."
-            rows={1}
-            className="flex-1 glass-input rounded-xl px-3 py-2.5 text-white text-sm placeholder-white/30
-              outline-none resize-none focus:border-violet-400/50 transition-colors"
-            style={{ maxHeight: '120px' }}
-          />
-          <button
-            onClick={handleSend}
-            disabled={!input.trim() || loading}
-            className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-fuchsia-500
-              flex items-center justify-center shrink-0 transition-all duration-200
-              hover:scale-105 hover:shadow-lg hover:shadow-violet-500/30
-              disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100"
+    <div
+      ref={containerRef}
+      style={{ position: 'relative', overflow: 'visible' }}
+      onMouseMove={e => {
+        if (!containerRef.current) return
+        const r = containerRef.current.getBoundingClientRect()
+        const x = e.clientX - r.left
+        const y = e.clientY - r.top
+        const pts = [
+          { cx: 0,      cy: 0 },
+          { cx: r.width, cy: 0 },
+          { cx: 0,      cy: r.height },
+          { cx: r.width, cy: r.height },
+        ]
+        let closest = -1
+        let minDist = 14 // only show if within 14px
+        pts.forEach((p, i) => {
+          const d = Math.hypot(x - p.cx, y - p.cy)
+          if (d < minDist) { minDist = d; closest = i }
+        })
+        setClosestCorner(closest)
+      }}
+      onMouseLeave={() => setClosestCorner(null)}
+    >
+      {/* Corner handles */}
+      {corners.map((c, i) => (
+        <div
+          key={i}
+          onMouseDown={e => onCornerDown(e, c.dx, c.dy)}
+          style={{
+            position: 'absolute', width: 16, height: 16, zIndex: 10,
+            top: (c as { top?: number }).top, left: (c as { left?: number }).left,
+            right: (c as { right?: number }).right, bottom: (c as { bottom?: number }).bottom,
+            cursor: c.cursor, display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}
+        >
+          <svg width="10" height="10" viewBox="0 0 10 10"
+            style={{ opacity: closestCorner === i ? 0.35 : 0, transition: 'opacity 0.15s', pointerEvents: 'none', transform: c.rotate }}
           >
-            <svg className="w-4 h-4 text-white rotate-90" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
-            </svg>
-          </button>
+            <line x1="9" y1="3" x2="3" y2="9" stroke="white" strokeWidth="1.5" strokeLinecap="round" />
+            <line x1="9" y1="6" x2="6" y2="9" stroke="white" strokeWidth="1.5" strokeLinecap="round" />
+          </svg>
+        </div>
+      ))}
+
+      {/* Chat panel */}
+      <div style={{
+        width: 320, height: 480, display: 'flex', flexDirection: 'column',
+        background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(24px) saturate(200%)',
+        WebkitBackdropFilter: 'blur(24px) saturate(200%)',
+        border: '1px solid rgba(255,255,255,0.1)', borderRadius: 20,
+        overflow: 'hidden', boxShadow: '0 24px 60px rgba(0,0,0,0.5)',
+      }}>
+        {/* Header */}
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '14px 16px', borderBottom: '1px solid rgba(255,255,255,0.08)', flexShrink: 0,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ color: '#fff', fontWeight: 900, fontSize: 14, letterSpacing: '-0.02em', textShadow: '0 0 12px rgba(255,255,255,0.9), 0 0 24px rgba(255,255,255,0.5)' }}>XO</span>
+            <span style={{ color: 'rgba(255,255,255,0.25)', fontSize: 12 }}>Assistant</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#34d399', display: 'inline-block' }} />
+            <button
+              data-no-drag
+              onClick={onClose}
+              style={{ width: 28, height: 28, borderRadius: 10, border: 'none', background: 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,255,255,0.3)', cursor: 'pointer', transition: 'all 0.15s' }}
+              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.1)'; (e.currentTarget as HTMLButtonElement).style.color = '#fff' }}
+              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; (e.currentTarget as HTMLButtonElement).style.color = 'rgba(255,255,255,0.3)' }}
+            >
+              <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        {/* Messages */}
+        <div className="chat-scroll" style={{ flex: 1, overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {messages.map(msg => (
+            <div key={msg.id} className="fade-in" style={{ display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
+              <div style={{
+                maxWidth: '78%', padding: '9px 13px', borderRadius: 14, fontSize: 12, lineHeight: 1.6,
+                ...(msg.role === 'user'
+                  ? { background: 'rgba(255,255,255,0.1)', color: '#fff', border: '1px solid rgba(255,255,255,0.1)' }
+                  : { color: 'rgba(255,255,255,0.7)' }),
+              }}>
+                {msg.content}
+              </div>
+            </div>
+          ))}
+          {loading && (
+            <div className="fade-in" style={{ display: 'flex', justifyContent: 'flex-start' }}>
+              <div style={{ display: 'flex', gap: 4, alignItems: 'center', padding: '8px 4px' }}>
+                {[0, 150, 300].map(delay => (
+                  <span key={delay} className="animate-bounce" style={{ width: 4, height: 4, borderRadius: '50%', background: 'rgba(255,255,255,0.35)', display: 'inline-block', animationDelay: `${delay}ms` }} />
+                ))}
+              </div>
+            </div>
+          )}
+          <div ref={bottomRef} />
+        </div>
+
+        {/* Input */}
+        <div style={{ padding: '12px 16px', borderTop: '1px solid rgba(255,255,255,0.08)', flexShrink: 0 }}>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end' }}>
+            <textarea
+              value={input}
+              onChange={e => setInput(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() } }}
+              placeholder="Ask anything..."
+              rows={1}
+              style={{
+                flex: 1, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)',
+                borderRadius: 12, padding: '9px 13px', color: '#fff', fontSize: 12,
+                outline: 'none', resize: 'none', maxHeight: 100, fontFamily: 'inherit',
+              }}
+            />
+            <button
+              data-no-drag
+              onClick={input.trim() ? handleSend : undefined}
+              disabled={loading}
+              style={{
+                minHeight: 36, width: 42, borderRadius: 10, border: '1px solid rgba(255,255,255,0.1)',
+                background: '#fff', color: 'rgba(0,0,0,0.7)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                cursor: 'pointer', flexShrink: 0, transition: 'all 0.15s',
+                alignSelf: 'stretch', opacity: loading ? 0.3 : 1,
+              }}
+            >
+              {input.trim() ? (
+                <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24" style={{ transform: 'rotate(-45deg)' }}>
+                  <path d="M2 21l21-9L2 3v7l15 2-15 2z" />
+                </svg>
+              ) : (
+                <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+                  <path d="M19 10v2a7 7 0 0 1-14 0v-2H3v2a9 9 0 0 0 8 8.94V23h2v-2.06A9 9 0 0 0 21 12v-2h-2z" />
+                </svg>
+              )}
+            </button>
+          </div>
         </div>
       </div>
     </div>
