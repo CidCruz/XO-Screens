@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import AppHub from './components/AppHub'
 import ChatBox from './components/ChatBox'
 import NotesApp from './components/NotesApp'
@@ -20,6 +20,9 @@ export default function App() {
   const [activeApp, setActiveApp] = useState('chat')
   const [chatOpen, setChatOpen] = useState(true)
   const [notesOpen, setNotesOpen] = useState(false)
+  // 'visible' | 'entering' | 'exiting'
+  const [windowAnim, setWindowAnim] = useState<'visible' | 'entering' | 'exiting'>('visible')
+  const exitTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     const fadeInTimer = setTimeout(() => setFadeIn(true), 50)
@@ -27,6 +30,21 @@ export default function App() {
     const hide = setTimeout(() => setSplash(false), 4200)
     const appFadeIn = setTimeout(() => setAppVisible(true), 4250)
     return () => { clearTimeout(fadeInTimer); clearTimeout(fadeOutTimer); clearTimeout(hide); clearTimeout(appFadeIn) }
+  }, [])
+
+  // Listen for show/hide signals from main process
+  useEffect(() => {
+    window.xo?.onShow(() => {
+      if (exitTimer.current) clearTimeout(exitTimer.current)
+      setWindowAnim('entering')
+      setTimeout(() => setWindowAnim('visible'), 260)
+    })
+    window.xo?.onHideAnimate(() => {
+      setWindowAnim('exiting')
+      exitTimer.current = setTimeout(() => {
+        window.xo?.readyToHide()
+      }, 210)
+    })
   }, [])
 
   function handleSelect(id: string) {
@@ -40,6 +58,10 @@ export default function App() {
     ...(chatOpen ? ['chat'] : []),
     ...(notesOpen ? ['notes'] : []),
   ])
+
+  const animClass = windowAnim === 'entering' ? 'app-enter'
+    : windowAnim === 'exiting' ? 'app-exit'
+    : ''
 
   if (splash) return (
     <div style={{
@@ -59,7 +81,7 @@ export default function App() {
   )
 
   return (
-    <div className="w-screen h-screen" style={{ background: 'transparent', pointerEvents: 'none', opacity: appVisible ? 1 : 0, transition: 'opacity 0.6s ease' }}>
+    <div className={`w-screen h-screen ${animClass}`} style={{ background: 'transparent', pointerEvents: 'none', opacity: appVisible ? 1 : 0, transition: appVisible ? undefined : 'opacity 0.6s ease' }}>
 
       <DraggableWidget initialX={20} initialY={Math.round((window.innerHeight - 300) / 2)} baseWidth={64} baseHeight={300}>
         {(onCornerDown) => <AppHub apps={APPS} openApps={openApps} onSelect={handleSelect} onCornerDown={onCornerDown} />}

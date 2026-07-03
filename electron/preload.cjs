@@ -19,5 +19,9 @@ contextBridge.exposeInMainWorld('xo', {
   platform: process.platform,
   hide: () => ipcRenderer.send('hide-window'),
   quit: () => ipcRenderer.send('quit-app'),
+  minimizeToTray: () => ipcRenderer.send('minimize-to-tray'),
+  readyToHide: () => ipcRenderer.send('ready-to-hide'),
+  onShow: (cb) => ipcRenderer.on('show-window', cb),
+  onHideAnimate: (cb) => ipcRenderer.on('hide-window-animate', cb),
   setIgnoreMouse,
 })

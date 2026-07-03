@@ -2,7 +2,16 @@ import { useRef, useState, useEffect, ReactNode } from 'react'
 
 declare global {
   interface Window {
-    xo?: { hide: () => void; platform: string; setIgnoreMouse: (v: boolean) => void }
+    xo?: {
+      hide: () => void
+      platform: string
+      setIgnoreMouse: (v: boolean) => void
+      quit: () => void
+      minimizeToTray: () => void
+      readyToHide: () => void
+      onShow: (cb: () => void) => void
+      onHideAnimate: (cb: () => void) => void
+    }
   }
 }
 

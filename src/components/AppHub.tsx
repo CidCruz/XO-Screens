@@ -124,11 +124,16 @@ export default function AppHub({ apps, openApps, onSelect, onCornerDown }: Props
       ))}
 
 
-      {/* Logo */}
+      {/* Logo — click to minimize to tray */}
       <div className="flex items-center justify-center py-5 border-b border-white/10">
-        <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0">
+        <button
+          data-no-drag
+          onClick={() => window.xo?.minimizeToTray()}
+          title="Minimize to tray"
+          className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 cursor-pointer transition-all duration-150 hover:bg-white/10"
+        >
           <span className="text-white font-black text-sm tracking-tight" style={{ textShadow: '0 0 12px rgba(255,255,255,0.9), 0 0 24px rgba(255,255,255,0.5)' }}>XO</span>
-        </div>
+        </button>
       </div>
 
       {/* Nav icons */}
