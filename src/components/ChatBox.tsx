@@ -98,7 +98,7 @@ export default function ChatBox({ onClose, onCornerDown }: Props) {
       {/* Chat panel */}
       <div style={{
         width: 320, height: 480, display: 'flex', flexDirection: 'column',
-        background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(24px) saturate(200%)',
+        background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(24px) saturate(200%)',
         WebkitBackdropFilter: 'blur(24px) saturate(200%)',
         border: '1px solid rgba(255,255,255,0.1)', borderRadius: 20,
         overflow: 'hidden', boxShadow: '0 24px 60px rgba(0,0,0,0.5)',
