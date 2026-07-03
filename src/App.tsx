@@ -22,11 +22,13 @@ export default function App() {
     if (id === 'chat') setChatOpen(prev => !prev)
   }
 
+  const visibleApp = chatOpen ? activeApp : ''
+
   return (
     <div className="w-screen h-screen" style={{ background: 'transparent', pointerEvents: 'none' }}>
 
       <DraggableWidget initialX={20} initialY={20}>
-        <AppHub apps={APPS} activeApp={activeApp} onSelect={handleSelect} />
+        <AppHub apps={APPS} activeApp={visibleApp} onSelect={handleSelect} />
       </DraggableWidget>
 
       {chatOpen && (
