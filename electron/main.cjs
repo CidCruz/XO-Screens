@@ -43,6 +43,14 @@ function createWindow() {
   // Renderer tells main when mouse is over a widget (capture) or not (passthrough)
   ipcMain.on('set-ignore-mouse', (_, ignore) => {
     win.setIgnoreMouseEvents(ignore, { forward: true })
+    if (!ignore) {
+      if (!win.isFocused()) win.focus()
+    }
+  })
+
+  // Focus window on any click so first click always works
+  win.webContents.on('before-input-event', (_event, input) => {
+    if (input.type === 'mouseDown' && !win.isFocused()) win.focus()
   })
 
   ipcMain.on('hide-window', () => win.hide())

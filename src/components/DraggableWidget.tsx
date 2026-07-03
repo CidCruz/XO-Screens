@@ -35,6 +35,11 @@ export default function DraggableWidget({ children, initialX, initialY, classNam
     window.xo?.setIgnoreMouse(false)
   }
 
+  function onMouseMove() {
+    if (!isHovered.current) return
+    window.xo?.setIgnoreMouse(false)
+  }
+
   function onMouseLeave() {
     isHovered.current = false
     if (!dragging.current && !resizing.current) window.xo?.setIgnoreMouse(true)
@@ -89,6 +94,7 @@ export default function DraggableWidget({ children, initialX, initialY, classNam
   return (
     <div
       onMouseEnter={onMouseEnter}
+      onMouseMove={onMouseMove}
       onMouseLeave={onMouseLeave}
       onMouseDown={onMouseDown}
       style={{
