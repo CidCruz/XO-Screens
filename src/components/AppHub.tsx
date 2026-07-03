@@ -69,7 +69,7 @@ export default function AppHub({ apps, activeApp, onSelect }: Props) {
       </div>
 
       {/* Nav icons */}
-      <div className="flex flex-col items-center gap-2 py-5 px-3 flex-1">
+      <div className="flex flex-col items-center gap-2 px-3 flex-1" style={{ paddingTop: 20, paddingBottom: 20 }}>
         {apps.map(app => {
           const isActive = activeApp === app.id
           return (
