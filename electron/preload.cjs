@@ -18,5 +18,6 @@ function setIgnoreMouse(ignore) {
 contextBridge.exposeInMainWorld('xo', {
   platform: process.platform,
   hide: () => ipcRenderer.send('hide-window'),
+  quit: () => ipcRenderer.send('quit-app'),
   setIgnoreMouse,
 })

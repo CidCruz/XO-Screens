@@ -47,6 +47,11 @@ function createWindow() {
 
   ipcMain.on('hide-window', () => win.hide())
 
+  ipcMain.on('quit-app', () => {
+    globalShortcut.unregisterAll()
+    app.quit()
+  })
+
   globalShortcut.register('CommandOrControl+Shift+Space', () => {
     if (win.isVisible()) win.hide()
     else { win.show(); win.focus() }

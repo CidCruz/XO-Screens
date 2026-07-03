@@ -112,8 +112,8 @@ export default function AppHub({ apps, activeApp, onSelect }: Props) {
       <div className="flex items-center justify-center py-3 border-t border-white/10">
         <button
           data-no-drag
-          onClick={() => window.xo?.hide()}
-          title="Hide"
+          onClick={() => window.xo?.quit()}
+          title="Quit"
           className="w-10 h-10 rounded-xl flex items-center justify-center text-white/25
             hover:text-red-400 hover:bg-red-500/10 transition-all cursor-pointer"
         >
