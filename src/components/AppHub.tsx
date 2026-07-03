@@ -66,7 +66,7 @@ interface Props {
 
 export default function AppHub({ apps, activeApp, onSelect }: Props) {
   return (
-    <div className="glass-dark rounded-2xl shadow-2xl select-none flex flex-col" style={{ width: 64 }}>
+    <div className="glass-dark rounded-2xl shadow-2xl select-none flex flex-col" style={{ width: 64, overflow: 'visible' }}>
 
       {/* Logo */}
       <div className="flex items-center justify-center py-5 border-b border-white/10">
@@ -80,28 +80,30 @@ export default function AppHub({ apps, activeApp, onSelect }: Props) {
         {apps.map(app => {
           const isActive = activeApp === app.id
           return (
-            <button
-              key={app.id}
-              data-no-drag
-              onClick={() => onSelect(app.id)}
-              title={app.label}
-              className={`
-                group relative w-10 h-10 rounded-xl flex items-center justify-center
-                transition-all duration-200 cursor-pointer
-                ${isActive
-                  ? 'bg-white text-black'
-                  : 'text-white/40 hover:text-white hover:bg-white/10'
-                }
-              `}
-            >
-              <AppIcon id={app.id} />
-              {/* Tooltip */}
-              <span className="pointer-events-none absolute left-full ml-3 px-2 py-1 rounded-md
-                bg-black/80 text-white text-xs whitespace-nowrap opacity-0 group-hover:opacity-100
-                transition-opacity duration-150 z-50">
+            <div key={app.id} className="group relative flex items-center">
+              <button
+                data-no-drag
+                onClick={() => onSelect(app.id)}
+                title={app.label}
+                className={`
+                  w-10 h-10 rounded-xl flex items-center justify-center
+                  transition-all duration-200 cursor-pointer
+                  ${isActive
+                    ? 'bg-white text-black'
+                    : 'text-white/40 hover:text-white hover:bg-white/10'
+                  }
+                `}
+              >
+                <AppIcon id={app.id} />
+              </button>
+              {/* Tooltip — outside AppHub via fixed positioning */}
+              <span className="pointer-events-none fixed ml-3 px-3 py-1.5 rounded-lg
+                text-white text-xs whitespace-nowrap opacity-0 group-hover:opacity-100
+                transition-opacity duration-150 z-[99999]"
+                style={{ left: 72, background: 'rgba(255,255,255,0.08)', backdropFilter: 'blur(12px)', border: '1px solid rgba(255,255,255,0.12)', paddingLeft: 16, paddingRight: 16 }}>
                 {app.label}
               </span>
-            </button>
+            </div>
           )
         })}
       </div>
