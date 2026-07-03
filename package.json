@@ -14,10 +14,16 @@
   "build": {
     "appId": "com.xo.screens",
     "productName": "XO Screens",
-    "files": ["dist/**/*", "electron/**/*"],
-    "directories": { "output": "release" }
+    "files": [
+      "dist/**/*",
+      "electron/**/*"
+    ],
+    "directories": {
+      "output": "release"
+    }
   },
   "dependencies": {
+    "@google/genai": "^2.10.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7"
   },

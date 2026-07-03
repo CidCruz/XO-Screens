@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import type { Message } from '../types'
 import { sendToGemini } from '../gemini'
+import VoiceCall from './VoiceCall'
 
 const corners = [
   { top: -6, left: -6,   dx: -1, dy: -1, rotate: 'rotate(180deg)', cursor: 'nwse-resize' },
@@ -20,6 +21,7 @@ export default function ChatBox({ onClose, onCornerDown }: Props) {
   ])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
+  const [voiceCall, setVoiceCall] = useState(false)
   const [closestCorner, setClosestCorner] = useState<number | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -46,6 +48,8 @@ export default function ChatBox({ onClose, onCornerDown }: Props) {
   }
 
   return (
+    <>
+    {voiceCall && <VoiceCall onEnd={() => setVoiceCall(false)} />}
     <div
       ref={containerRef}
       style={{ position: 'relative', overflow: 'visible' }}
@@ -167,7 +171,7 @@ export default function ChatBox({ onClose, onCornerDown }: Props) {
             />
             <button
               data-no-drag
-              onClick={input.trim() ? handleSend : undefined}
+              onClick={input.trim() ? handleSend : () => { window.xo?.setIgnoreMouse(false); setVoiceCall(true) }}
               disabled={loading}
               style={{
                 minHeight: 36, width: 42, borderRadius: 10, border: '1px solid rgba(255,255,255,0.1)',
@@ -175,6 +179,7 @@ export default function ChatBox({ onClose, onCornerDown }: Props) {
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 cursor: 'pointer', flexShrink: 0, transition: 'all 0.15s',
                 alignSelf: 'stretch', opacity: loading ? 0.3 : 1,
+                pointerEvents: 'auto',
               }}
             >
               {input.trim() ? (
@@ -192,5 +197,6 @@ export default function ChatBox({ onClose, onCornerDown }: Props) {
         </div>
       </div>
     </div>
+    </>
   )
 }
