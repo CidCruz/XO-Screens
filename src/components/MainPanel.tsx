@@ -4,7 +4,7 @@ interface Props {
 
 export default function MainPanel({ activeApp }: Props) {
   const panels: Record<string, { icon: string; title: string; desc: string }> = {
-    chat: { icon: '💬', title: 'AI Chat', desc: 'Chat with XO on the right →' },
+    chat: { icon: '💬', title: 'Assistant', desc: 'Chat with XO on the right →' },
     notes: { icon: '📝', title: 'Quick Notes', desc: 'Jot down ideas instantly.' },
     search: { icon: '🔍', title: 'Smart Search', desc: 'Search anything with AI.' },
     clipboard: { icon: '📋', title: 'Clipboard', desc: 'Your clipboard history.' },

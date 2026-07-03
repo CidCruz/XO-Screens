@@ -61,7 +61,7 @@ function AppIcon({ id }: { id: string }) {
 
 interface Props {
   apps: AppItem[]
-  activeApp: string
+  openApps: Set<string>
   onSelect: (id: string) => void
   onCornerDown: (e: React.MouseEvent, dx: number, dy: number) => void
 }
@@ -73,7 +73,7 @@ const hubCorners = [
   { bottom: -6, right: -6, dx:  1, dy:  1, rotate: 'rotate(0deg)',   cursor: 'nwse-resize' },
 ]
 
-export default function AppHub({ apps, activeApp, onSelect, onCornerDown }: Props) {
+export default function AppHub({ apps, openApps, onSelect, onCornerDown }: Props) {
   const [closestCorner, setClosestCorner] = useState<number | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -134,7 +134,7 @@ export default function AppHub({ apps, activeApp, onSelect, onCornerDown }: Prop
       {/* Nav icons */}
       <div className="flex flex-col items-center gap-2 px-3 flex-1" style={{ paddingTop: 20, paddingBottom: 20 }}>
         {apps.map(app => {
-          const isActive = activeApp === app.id
+          const isActive = openApps.has(app.id)
           return (
             <div key={app.id} className="group relative flex items-center">
               <button

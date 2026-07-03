@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react'
 import AppHub from './components/AppHub'
 import ChatBox from './components/ChatBox'
+import NotesApp from './components/NotesApp'
 import DraggableWidget from './components/DraggableWidget'
 import type { AppItem } from './types'
 
 const APPS: AppItem[] = [
-  { id: 'chat',     label: 'AI Chat'        },
+  { id: 'chat',     label: 'Assistant'      },
   { id: 'notes',    label: 'Notes'          },
   { id: 'usage',    label: 'Usage Tracking' },
   { id: 'settings', label: 'Settings'       },
@@ -18,6 +19,7 @@ export default function App() {
   const [appVisible, setAppVisible] = useState(false)
   const [activeApp, setActiveApp] = useState('chat')
   const [chatOpen, setChatOpen] = useState(true)
+  const [notesOpen, setNotesOpen] = useState(false)
 
   useEffect(() => {
     const fadeInTimer = setTimeout(() => setFadeIn(true), 50)
@@ -30,9 +32,14 @@ export default function App() {
   function handleSelect(id: string) {
     setActiveApp(id)
     if (id === 'chat') setChatOpen(prev => !prev)
+    if (id === 'notes') setNotesOpen(prev => !prev)
   }
 
-  const visibleApp = chatOpen ? activeApp : ''
+  // Track which apps are currently open so the hub highlights them correctly
+  const openApps = new Set([
+    ...(chatOpen ? ['chat'] : []),
+    ...(notesOpen ? ['notes'] : []),
+  ])
 
   if (splash) return (
     <div style={{
@@ -55,12 +62,18 @@ export default function App() {
     <div className="w-screen h-screen" style={{ background: 'transparent', pointerEvents: 'none', opacity: appVisible ? 1 : 0, transition: 'opacity 0.6s ease' }}>
 
       <DraggableWidget initialX={20} initialY={Math.round((window.innerHeight - 300) / 2)} baseWidth={64} baseHeight={300}>
-        {(onCornerDown) => <AppHub apps={APPS} activeApp={visibleApp} onSelect={handleSelect} onCornerDown={onCornerDown} />}
+        {(onCornerDown) => <AppHub apps={APPS} openApps={openApps} onSelect={handleSelect} onCornerDown={onCornerDown} />}
       </DraggableWidget>
 
       {chatOpen && (
         <DraggableWidget initialX={Math.round(window.innerWidth - 320 * 1.2 - 20)} initialY={20} baseWidth={320} baseHeight={480} initialScale={1.2}>
           {(onCornerDown) => <ChatBox onClose={() => setChatOpen(false)} onCornerDown={onCornerDown} />}
+        </DraggableWidget>
+      )}
+
+      {notesOpen && (
+        <DraggableWidget initialX={Math.round(window.innerWidth - 320 * 1.2 - 20 - 420)} initialY={20} baseWidth={380} baseHeight={520}>
+          {(onCornerDown) => <NotesApp onClose={() => setNotesOpen(false)} onCornerDown={onCornerDown} />}
         </DraggableWidget>
       )}
 

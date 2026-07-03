@@ -35,6 +35,34 @@ export async function sendAudioToGemini(messages: Message[], audioBlob: Blob): P
   return data.candidates?.[0]?.content?.parts?.[0]?.text ?? 'No response.'
 }
 
+export async function sendToGeminiWithSystem(messages: Message[], userMessage: string, systemPrompt: string): Promise<string> {
+  const history = messages.map(m => ({
+    role: m.role === 'assistant' ? 'model' : 'user',
+    parts: [{ text: m.content }],
+  }))
+
+  const body = {
+    contents: [
+      ...history,
+      { role: 'user', parts: [{ text: userMessage }] },
+    ],
+    systemInstruction: {
+      parts: [{ text: systemPrompt }],
+    },
+    generationConfig: { temperature: 0.9, maxOutputTokens: 1024 },
+  }
+
+  const res = await fetch(API_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+
+  if (!res.ok) throw new Error(`Gemini API error: ${res.status}`)
+  const data = await res.json()
+  return data.candidates?.[0]?.content?.parts?.[0]?.text ?? 'No response.'
+}
+
 export async function sendToGemini(messages: Message[], userMessage: string): Promise<string> {
   const history = messages.map(m => ({
     role: m.role === 'assistant' ? 'model' : 'user',
