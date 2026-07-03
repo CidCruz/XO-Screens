@@ -5,12 +5,10 @@ import DraggableWidget from './components/DraggableWidget'
 import type { AppItem } from './types'
 
 const APPS: AppItem[] = [
-  { id: 'chat',       label: 'AI Chat'    },
-  { id: 'notes',      label: 'Notes'      },
-  { id: 'search',     label: 'Search'     },
-  { id: 'clipboard',  label: 'Clipboard'  },
-  { id: 'screenshot', label: 'Screenshot' },
-  { id: 'settings',   label: 'Settings'   },
+  { id: 'chat',     label: 'AI Chat'        },
+  { id: 'notes',    label: 'Notes'          },
+  { id: 'usage',    label: 'Usage Tracking' },
+  { id: 'settings', label: 'Settings'       },
 ]
 
 export default function App() {
