@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import type { Note, Message } from '../types'
-import { sendToGeminiWithSystem } from '../gemini'
+import type { Note } from '../types'
 
 const STORAGE_KEY = 'xo-notes'
 
@@ -57,9 +56,10 @@ const corners = [
 interface Props {
   onClose: () => void
   onCornerDown: (e: React.MouseEvent, dx: number, dy: number) => void
+  onNoteChange?: (note: Note | null) => void
 }
 
-export default function NotesApp({ onClose, onCornerDown }: Props) {
+export default function NotesApp({ onClose, onCornerDown, onNoteChange }: Props) {
   const [notes, setNotes] = useState<Note[]>(() => {
     const loaded = loadNotes()
     return loaded.length > 0 ? loaded : [newNote()]
@@ -68,22 +68,19 @@ export default function NotesApp({ onClose, onCornerDown }: Props) {
     const loaded = loadNotes()
     return loaded.length > 0 ? loaded[0].id : ''
   })
-  const [aiOpen, setAiOpen] = useState(false)
-  const [aiMessages, setAiMessages] = useState<Message[]>([])
-  const [aiInput, setAiInput] = useState('')
-  const [aiLoading, setAiLoading] = useState(false)
   const [closestCorner, setClosestCorner] = useState<number | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
-  const aiBottomRef = useRef<HTMLDivElement>(null)
   const titleRef = useRef<HTMLInputElement>(null)
 
   const activeNote = notes.find(n => n.id === activeId) ?? notes[0]
   const activeColor = activeNote ? colorFromBg(activeNote.color) : NOTE_COLORS[0]
 
   useEffect(() => { saveNotes(notes) }, [notes])
+
+  // Keep parent (ChatBox) informed of the active note
   useEffect(() => {
-    aiBottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [aiMessages, aiLoading])
+    onNoteChange?.(activeNote ?? null)
+  }, [activeNote, onNoteChange])
 
   const updateNote = useCallback((id: string, patch: Partial<Note>) => {
     setNotes(prev => prev.map(n => n.id === id ? { ...n, ...patch, updatedAt: Date.now() } : n))
@@ -106,35 +103,6 @@ export default function NotesApp({ onClose, onCornerDown }: Props) {
       }
       if (activeId === id) setActiveId(next[0].id)
       return next
-    })
-  }
-
-  async function handleAiSend() {
-    const text = aiInput.trim()
-    if (!text || aiLoading) return
-    const userMsg: Message = { id: Date.now().toString(), role: 'user', content: text, timestamp: new Date() }
-    setAiMessages(prev => [...prev, userMsg])
-    setAiInput('')
-    setAiLoading(true)
-    const noteCtx = activeNote
-      ? `User is editing note "${activeNote.title || 'Untitled'}":\n"""\n${activeNote.content || '(empty)'}\n"""\n\n`
-      : ''
-    const systemPrompt = `You are XO, an AI assistant in a notes app. ${noteCtx}Help brainstorm, expand, summarize, or improve notes. Be concise.`
-    try {
-      const reply = await sendToGeminiWithSystem(aiMessages, text, systemPrompt)
-      setAiMessages(prev => [...prev, { id: Date.now().toString(), role: 'assistant', content: reply, timestamp: new Date() }])
-    } catch {
-      setAiMessages(prev => [...prev, { id: Date.now().toString(), role: 'assistant', content: '⚠️ Failed to reach XO.', timestamp: new Date() }])
-    } finally {
-      setAiLoading(false)
-    }
-  }
-
-  async function handleInsert() {
-    const last = [...aiMessages].reverse().find(m => m.role === 'assistant')
-    if (!last || !activeNote) return
-    updateNote(activeNote.id, {
-      content: activeNote.content ? activeNote.content + '\n\n' + last.content : last.content,
     })
   }
 
@@ -194,7 +162,6 @@ export default function NotesApp({ onClose, onCornerDown }: Props) {
           borderBottom: '1px solid rgba(255,255,255,0.06)',
           flexShrink: 0,
         }}>
-          {/* Brand */}
           <span style={{
             color: '#fff', fontWeight: 900, fontSize: 13,
             letterSpacing: '-0.03em',
@@ -213,12 +180,9 @@ export default function NotesApp({ onClose, onCornerDown }: Props) {
                   key={c.bg}
                   data-no-drag
                   onClick={() => updateNote(activeNote.id, { color: c.bg })}
-                  title={c.dot}
                   style={{
                     width: 10, height: 10, borderRadius: '50%', padding: 0,
-                    border: activeNote.color === c.bg
-                      ? `2px solid ${c.dot}`
-                      : '2px solid transparent',
+                    border: activeNote.color === c.bg ? `2px solid ${c.dot}` : '2px solid transparent',
                     background: c.dot,
                     cursor: 'pointer',
                     transform: activeNote.color === c.bg ? 'scale(1.25)' : 'scale(1)',
@@ -246,22 +210,6 @@ export default function NotesApp({ onClose, onCornerDown }: Props) {
             </button>
           )}
 
-          {/* AI toggle */}
-          <button data-no-drag onClick={() => setAiOpen(v => !v)} title="Ask XO"
-            style={{
-              width: 26, height: 26, borderRadius: 8, border: 'none', cursor: 'pointer', transition: 'all 0.15s', flexShrink: 0,
-              background: aiOpen ? 'rgba(139,92,246,0.3)' : 'transparent',
-              color: aiOpen ? 'rgba(139,92,246,1)' : 'rgba(255,255,255,0.25)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}
-            onMouseEnter={e => { if (!aiOpen) { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.08)'; (e.currentTarget as HTMLButtonElement).style.color = '#fff' } }}
-            onMouseLeave={e => { if (!aiOpen) { (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; (e.currentTarget as HTMLButtonElement).style.color = 'rgba(255,255,255,0.25)' } }}
-          >
-            <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-            </svg>
-          </button>
-
           {/* New note */}
           <button data-no-drag onClick={addNote} title="New note"
             style={{ width: 26, height: 26, borderRadius: 8, border: 'none', background: 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,255,255,0.25)', cursor: 'pointer', transition: 'all 0.15s', flexShrink: 0 }}
@@ -279,14 +227,10 @@ export default function NotesApp({ onClose, onCornerDown }: Props) {
 
           {/* Sidebar */}
           <div className="chat-scroll" style={{
-            width: 136,
-            flexShrink: 0,
+            width: 136, flexShrink: 0,
             borderRight: '1px solid rgba(255,255,255,0.05)',
-            overflowY: 'auto',
-            padding: '10px 8px',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 3,
+            overflowY: 'auto', padding: '10px 8px',
+            display: 'flex', flexDirection: 'column', gap: 3,
             background: 'rgba(0,0,0,0.15)',
           }}>
             {notes.map(n => {
@@ -299,19 +243,14 @@ export default function NotesApp({ onClose, onCornerDown }: Props) {
                   onClick={() => setActiveId(n.id)}
                   style={{
                     width: '100%', textAlign: 'left',
-                    padding: '9px 10px',
-                    borderRadius: 11,
-                    border: isActive
-                      ? `1px solid ${nc.dot.replace('0.9', '0.35')}`
-                      : '1px solid transparent',
+                    padding: '9px 10px', borderRadius: 11,
+                    border: isActive ? `1px solid ${nc.dot.replace('0.9', '0.35')}` : '1px solid transparent',
                     background: isActive ? nc.bg || 'rgba(255,255,255,0.06)' : 'transparent',
-                    cursor: 'pointer',
-                    transition: 'all 0.15s',
+                    cursor: 'pointer', transition: 'all 0.15s',
                   }}
                   onMouseEnter={e => { if (!isActive) (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.04)' }}
                   onMouseLeave={e => { if (!isActive) (e.currentTarget as HTMLButtonElement).style.background = 'transparent' }}
                 >
-                  {/* Color dot + title */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
                     <span style={{ width: 5, height: 5, borderRadius: '50%', background: nc.dot, flexShrink: 0, opacity: 0.8 }} />
                     <span style={{
@@ -343,7 +282,6 @@ export default function NotesApp({ onClose, onCornerDown }: Props) {
           }}>
             {activeNote && (
               <>
-                {/* Title */}
                 <input
                   ref={titleRef}
                   data-no-drag
@@ -351,19 +289,13 @@ export default function NotesApp({ onClose, onCornerDown }: Props) {
                   onChange={e => updateNote(activeNote.id, { title: e.target.value })}
                   placeholder="Title"
                   style={{
-                    flexShrink: 0,
-                    background: 'transparent', border: 'none', outline: 'none',
+                    flexShrink: 0, background: 'transparent', border: 'none', outline: 'none',
                     color: '#fff', fontSize: 15, fontWeight: 700,
-                    padding: '16px 16px 6px',
-                    fontFamily: 'inherit', width: '100%',
+                    padding: '16px 16px 6px', fontFamily: 'inherit', width: '100%',
                     letterSpacing: '-0.02em',
                   }}
                 />
-
-                {/* Separator */}
                 <div style={{ height: 1, margin: '0 16px', background: 'rgba(255,255,255,0.06)', flexShrink: 0 }} />
-
-                {/* Body */}
                 <textarea
                   data-no-drag
                   value={activeNote.content}
@@ -376,8 +308,6 @@ export default function NotesApp({ onClose, onCornerDown }: Props) {
                     padding: '10px 16px 8px', fontFamily: 'inherit', overflowY: 'auto',
                   }}
                 />
-
-                {/* Footer meta */}
                 <div style={{
                   display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                   padding: '6px 16px 10px', flexShrink: 0,
@@ -393,110 +323,6 @@ export default function NotesApp({ onClose, onCornerDown }: Props) {
             )}
           </div>
         </div>
-
-        {/* ── XO AI drawer ── */}
-        {aiOpen && (
-          <div style={{
-            borderTop: '1px solid rgba(139,92,246,0.2)',
-            display: 'flex', flexDirection: 'column', flexShrink: 0,
-            background: 'rgba(139,92,246,0.05)',
-            maxHeight: 260,
-          }}>
-            {/* AI bar */}
-            <div style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-              padding: '9px 14px',
-              borderBottom: '1px solid rgba(139,92,246,0.12)',
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#34d399', display: 'inline-block' }} />
-                <span style={{ color: 'rgba(139,92,246,0.9)', fontWeight: 700, fontSize: 11 }}>XO Assistant</span>
-              </div>
-              {aiMessages.length > 0 && (
-                <button data-no-drag onClick={handleInsert}
-                  style={{
-                    fontSize: 10, color: 'rgba(139,92,246,0.75)',
-                    background: 'rgba(139,92,246,0.12)',
-                    border: '1px solid rgba(139,92,246,0.25)',
-                    borderRadius: 6, padding: '3px 9px', cursor: 'pointer', transition: 'all 0.15s',
-                  }}
-                  onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(139,92,246,0.25)' }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(139,92,246,0.12)' }}
-                >
-                  ↑ Insert into note
-                </button>
-              )}
-            </div>
-
-            {/* Messages */}
-            <div className="chat-scroll" style={{
-              flex: 1, overflowY: 'auto', padding: '12px 14px',
-              display: 'flex', flexDirection: 'column', gap: 8,
-              minHeight: 0, maxHeight: 160,
-            }}>
-              {aiMessages.length === 0 && (
-                <p style={{ color: 'rgba(255,255,255,0.18)', fontSize: 11, fontStyle: 'italic', margin: 0 }}>
-                  Ask XO to summarize, expand, or improve this note…
-                </p>
-              )}
-              {aiMessages.map(msg => (
-                <div key={msg.id} className="fade-in" style={{ display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
-                  <div style={{
-                    maxWidth: '86%', padding: '7px 11px', borderRadius: 12, fontSize: 11, lineHeight: 1.65,
-                    ...(msg.role === 'user'
-                      ? { background: 'rgba(255,255,255,0.08)', color: '#fff', border: '1px solid rgba(255,255,255,0.08)' }
-                      : { color: 'rgba(255,255,255,0.7)' }),
-                  }}>
-                    {msg.content}
-                  </div>
-                </div>
-              ))}
-              {aiLoading && (
-                <div className="fade-in" style={{ display: 'flex', gap: 4, alignItems: 'center', padding: '2px 0' }}>
-                  {[0, 150, 300].map(d => (
-                    <span key={d} className="animate-bounce" style={{ width: 4, height: 4, borderRadius: '50%', background: 'rgba(139,92,246,0.5)', display: 'inline-block', animationDelay: `${d}ms` }} />
-                  ))}
-                </div>
-              )}
-              <div ref={aiBottomRef} />
-            </div>
-
-            {/* AI input */}
-            <div style={{ padding: '8px 12px 10px', flexShrink: 0 }}>
-              <div style={{ display: 'flex', gap: 7, alignItems: 'flex-end' }}>
-                <textarea
-                  data-no-drag
-                  value={aiInput}
-                  onChange={e => setAiInput(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleAiSend() } }}
-                  placeholder="Ask XO about this note…"
-                  rows={1}
-                  style={{
-                    flex: 1, background: 'rgba(255,255,255,0.05)',
-                    border: '1px solid rgba(139,92,246,0.2)',
-                    borderRadius: 10, padding: '7px 11px', color: '#fff', fontSize: 11,
-                    outline: 'none', resize: 'none', maxHeight: 72, fontFamily: 'inherit',
-                  }}
-                />
-                <button data-no-drag onClick={handleAiSend} disabled={!aiInput.trim() || aiLoading}
-                  style={{
-                    width: 32, height: 32, borderRadius: 9,
-                    border: '1px solid rgba(139,92,246,0.35)',
-                    background: 'rgba(139,92,246,0.2)', color: 'rgba(139,92,246,1)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    cursor: aiInput.trim() && !aiLoading ? 'pointer' : 'not-allowed',
-                    flexShrink: 0, opacity: !aiInput.trim() || aiLoading ? 0.35 : 1,
-                    transition: 'all 0.15s',
-                  }}
-                >
-                  <svg width="13" height="13" fill="currentColor" viewBox="0 0 24 24" style={{ transform: 'rotate(-45deg)' }}>
-                    <path d="M2 21l21-9L2 3v7l15 2-15 2z" />
-                  </svg>
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   )

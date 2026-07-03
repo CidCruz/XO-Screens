@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
-import type { Message } from '../types'
-import { sendToGemini } from '../gemini'
+import type { Message, Note } from '../types'
+import { sendToGeminiWithSystem } from '../gemini'
 import VoiceCall from './VoiceCall'
 
 const corners = [
@@ -13,9 +13,10 @@ const corners = [
 interface Props {
   onClose: () => void
   onCornerDown: (e: React.MouseEvent, dx: number, dy: number) => void
+  activeNote?: Note | null
 }
 
-export default function ChatBox({ onClose, onCornerDown }: Props) {
+export default function ChatBox({ onClose, onCornerDown, activeNote }: Props) {
   const [messages, setMessages] = useState<Message[]>([
     { id: '0', role: 'assistant', content: "Hey! I'm XO, your AI assistant. How can I help you today?", timestamp: new Date() },
   ])
@@ -38,7 +39,11 @@ export default function ChatBox({ onClose, onCornerDown }: Props) {
     setInput('')
     setLoading(true)
     try {
-      const reply = await sendToGemini(messages, text)
+      const noteCtx = activeNote
+        ? `The user has a note open titled "${activeNote.title || 'Untitled'}" with the following content:\n"""\n${activeNote.content || '(empty)'}\n"""\nYou are aware of this note and can reference or help with it if relevant.`
+        : ''
+      const systemPrompt = `You are XO, an intelligent desktop AI assistant. Be concise, helpful, and friendly.${noteCtx ? '\n\n' + noteCtx : ''}`
+      const reply = await sendToGeminiWithSystem(messages, text, systemPrompt)
       setMessages(prev => [...prev, { id: Date.now().toString(), role: 'assistant', content: reply, timestamp: new Date() }])
     } catch {
       setMessages(prev => [...prev, { id: Date.now().toString(), role: 'assistant', content: '⚠️ Failed to reach Gemini. Check your API key.', timestamp: new Date() }])

@@ -3,7 +3,7 @@ import AppHub from './components/AppHub'
 import ChatBox from './components/ChatBox'
 import NotesApp from './components/NotesApp'
 import DraggableWidget from './components/DraggableWidget'
-import type { AppItem } from './types'
+import type { AppItem, Note } from './types'
 
 const APPS: AppItem[] = [
   { id: 'chat',     label: 'Assistant'      },
@@ -20,6 +20,7 @@ export default function App() {
   const [activeApp, setActiveApp] = useState('chat')
   const [chatOpen, setChatOpen] = useState(true)
   const [notesOpen, setNotesOpen] = useState(false)
+  const [activeNote, setActiveNote] = useState<Note | null>(null)
   // 'visible' | 'entering' | 'exiting'
   const [windowAnim, setWindowAnim] = useState<'visible' | 'entering' | 'exiting'>('visible')
   const exitTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -94,13 +95,13 @@ export default function App() {
 
       {chatOpen && (
         <DraggableWidget initialX={Math.round(window.innerWidth - 320 * 1.2 - 20)} initialY={20} baseWidth={320} baseHeight={480} initialScale={1.2}>
-          {(onCornerDown) => <ChatBox onClose={() => setChatOpen(false)} onCornerDown={onCornerDown} />}
+          {(onCornerDown) => <ChatBox onClose={() => setChatOpen(false)} onCornerDown={onCornerDown} activeNote={activeNote} />}
         </DraggableWidget>
       )}
 
       {notesOpen && (
-        <DraggableWidget initialX={Math.round(window.innerWidth - 320 * 1.2 - 20 - 420)} initialY={20} baseWidth={380} baseHeight={520}>
-          {(onCornerDown) => <NotesApp onClose={() => setNotesOpen(false)} onCornerDown={onCornerDown} />}
+        <DraggableWidget initialX={Math.round(window.innerWidth - 420 - 20)} initialY={Math.round(20 + 480 * 1.2 + 12)} baseWidth={420} baseHeight={520}>
+          {(onCornerDown) => <NotesApp onClose={() => setNotesOpen(false)} onCornerDown={onCornerDown} onNoteChange={setActiveNote} />}
         </DraggableWidget>
       )}
 
