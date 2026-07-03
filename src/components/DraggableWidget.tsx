@@ -18,14 +18,16 @@ export default function DraggableWidget({ children, initialX, initialY, classNam
   const [isDragging, setIsDragging] = useState(false)
   const dragging = useRef(false)
   const offset = useRef({ x: 0, y: 0 })
+  const isHovered = useRef(false)
 
   // Always capture mouse when hovering OR dragging
   function onMouseEnter() {
+    isHovered.current = true
     window.xo?.setIgnoreMouse(false)
   }
 
   function onMouseLeave() {
-    // Don't release mouse capture while dragging — cursor may leave widget bounds
+    isHovered.current = false
     if (!dragging.current) {
       window.xo?.setIgnoreMouse(true)
     }
@@ -54,8 +56,10 @@ export default function DraggableWidget({ children, initialX, initialY, classNam
       if (!dragging.current) return
       dragging.current = false
       setIsDragging(false)
-      // Release mouse capture after drag ends
-      window.xo?.setIgnoreMouse(true)
+      // Only release if mouse already left the widget
+      if (!isHovered.current) {
+        window.xo?.setIgnoreMouse(true)
+      }
     }
 
     window.addEventListener('mousemove', onMove)

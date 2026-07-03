@@ -19,7 +19,7 @@ export default function App() {
 
   function handleSelect(id: string) {
     setActiveApp(id)
-    if (id === 'chat') setChatOpen(true)
+    if (id === 'chat') setChatOpen(prev => !prev)
   }
 
   return (
