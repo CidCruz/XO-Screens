@@ -21,9 +21,9 @@ export default function App() {
 
   useEffect(() => {
     const fadeInTimer = setTimeout(() => setFadeIn(true), 50)
-    const fadeOutTimer = setTimeout(() => setFadeOut(true), 1800)
-    const hide = setTimeout(() => setSplash(false), 2400)
-    const appFadeIn = setTimeout(() => setAppVisible(true), 2450)
+    const fadeOutTimer = setTimeout(() => setFadeOut(true), 3500)
+    const hide = setTimeout(() => setSplash(false), 4200)
+    const appFadeIn = setTimeout(() => setAppVisible(true), 4250)
     return () => { clearTimeout(fadeInTimer); clearTimeout(fadeOutTimer); clearTimeout(hide); clearTimeout(appFadeIn) }
   }, [])
 
@@ -40,7 +40,14 @@ export default function App() {
       opacity: fadeOut ? 0 : fadeIn ? 1 : 0, transition: 'opacity 0.6s ease', zIndex: 9999
     }}>
       <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,900&display=swap" />
-      <h1 style={{ color: '#fff', fontSize: '5rem', fontWeight: 900, fontStyle: 'normal', fontFamily: '"Montserrat", sans-serif', letterSpacing: '0.08em', margin: 0 }}>XO Screens</h1>
+      <div style={{
+        padding: '20px 40px',
+        border: '2px solid rgba(255,255,255,0.8)',
+        borderRadius: '12px',
+        boxShadow: '0 0 12px rgba(255,255,255,0.8), 0 0 30px rgba(255,255,255,0.4), inset 0 0 12px rgba(255,255,255,0.1)',
+      }}>
+        <h1 style={{ color: '#fff', fontSize: '5rem', fontWeight: 900, fontStyle: 'normal', fontFamily: '"Montserrat", sans-serif', letterSpacing: '0.08em', margin: 0, textShadow: '0 0 10px rgba(255,255,255,0.4), 0 0 25px rgba(255,255,255,0.2), 0 0 50px rgba(255,255,255,0.1)' }}>XO Screens.</h1>
+      </div>
     </div>
   )
 
