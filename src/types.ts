@@ -8,6 +8,4 @@ export interface Message {
 export interface AppItem {
   id: string
   label: string
-  icon: string
-  active?: boolean
 }
