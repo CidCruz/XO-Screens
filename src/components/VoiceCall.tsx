@@ -23,6 +23,7 @@ export default function VoiceCall({ onEnd }: Props) {
   const playQueueRef = useRef<ArrayBuffer[]>([])
   const playingRef = useRef(false)
   const closedRef = useRef(false)
+  const muteMicRef = useRef(false)
 
   useEffect(() => {
     // Force mouse capture so overlay is clickable
@@ -48,7 +49,7 @@ export default function VoiceCall({ onEnd }: Props) {
                 playQueueRef.current.push(bytes.buffer)
                 if (!playingRef.current) drainQueue()
               }
-              if (msg.serverContent?.turnComplete) setState('active')
+              // Don't switch state here — drainQueue handles it once all audio is played
             },
             onerror(e) {
               console.error('LIVE onerror:', e)
@@ -73,7 +74,8 @@ export default function VoiceCall({ onEnd }: Props) {
         processorRef.current = processor
 
         processor.onaudioprocess = e => {
-          if (!sessionRef.current) return
+          // Don't send mic audio while XO is speaking — prevents echo / self-interruption
+          if (!sessionRef.current || muteMicRef.current) return
           const float32 = e.inputBuffer.getChannelData(0)
           const int16 = new Int16Array(float32.length)
           for (let i = 0; i < float32.length; i++)
@@ -92,8 +94,14 @@ export default function VoiceCall({ onEnd }: Props) {
     }
 
     function drainQueue() {
-      if (playQueueRef.current.length === 0) { playingRef.current = false; return }
+      if (playQueueRef.current.length === 0) {
+        playingRef.current = false
+        muteMicRef.current = false   // mic back on — XO is done speaking
+        setState('active')
+        return
+      }
       playingRef.current = true
+      muteMicRef.current = true     // mute mic while XO speaks
       setState('speaking')
       const buf = playQueueRef.current.shift()!
       const ctx = audioCtxRef.current!
