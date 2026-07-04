@@ -33,6 +33,7 @@ export default function DraggableWidget({ children, initialX, initialY, classNam
   const [pos, setPos] = useState({ x: initialX, y: initialY })
   const [scale, setScale] = useState(initialScale)
   const [isDragging, setIsDragging] = useState(false)
+  const [isResizing, setIsResizing] = useState(false)
   const dragging = useRef(false)
   const resizing = useRef(false)
   const offset = useRef({ x: 0, y: 0 })
@@ -68,6 +69,7 @@ export default function DraggableWidget({ children, initialX, initialY, classNam
     if (target.closest('button, input, textarea, a, [data-no-drag]')) return
     dragging.current = true
     setIsDragging(true)
+    setIsResizing(false)
     dragStart()
     offset.current = { x: e.clientX - pos.x, y: e.clientY - pos.y }
     e.preventDefault()
@@ -76,6 +78,8 @@ export default function DraggableWidget({ children, initialX, initialY, classNam
   function onCornerDown(e: React.MouseEvent, dx: number, dy: number) {
     e.stopPropagation(); e.preventDefault()
     resizing.current = true
+    setIsResizing(true)
+    setIsDragging(false)
     dragStart()
     resizeData.current = { x: e.clientX, y: e.clientY, scale: scaleRef.current, dx, dy, posX: pos.x, posY: pos.y }
   }
@@ -102,6 +106,7 @@ export default function DraggableWidget({ children, initialX, initialY, classNam
         dragging.current = false
         resizing.current = false
         setIsDragging(false)
+        setIsResizing(false)
         dragEnd()
       }
     }
@@ -117,6 +122,11 @@ export default function DraggableWidget({ children, initialX, initialY, classNam
       }
     }
   }, [baseWidth, baseHeight])
+
+  const isActive = isDragging || isResizing
+  const transition = isActive
+    ? 'none'
+    : 'left 0.35s cubic-bezier(0.34,1.56,0.64,1), top 0.35s cubic-bezier(0.34,1.56,0.64,1), transform 0.35s cubic-bezier(0.34,1.56,0.64,1)'
 
   return (
     <div
@@ -135,6 +145,7 @@ export default function DraggableWidget({ children, initialX, initialY, classNam
         transform: `scale(${scale})`,
         transformOrigin: 'top left',
         overflow: 'visible',
+        transition,
       }}
       className={className}
     >
