@@ -108,7 +108,7 @@ export default function App() {
       )}
 
       {videoOpen && (
-        <DraggableWidget initialX={Math.round((window.innerWidth - 460) / 2)} initialY={Math.round((window.innerHeight - 520) / 2)} baseWidth={460} baseHeight={520}>
+        <DraggableWidget initialX={Math.round((window.innerWidth - 520) / 2)} initialY={Math.round((window.innerHeight - 520) / 2)} baseWidth={520} baseHeight={520}>
           {(onCornerDown) => <VideoCaptionsApp onClose={() => setVideoOpen(false)} onCornerDown={onCornerDown} />}
         </DraggableWidget>
       )}

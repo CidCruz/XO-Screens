@@ -7,11 +7,52 @@ import { processVideoFile, processVideoURL } from '../gemini'
 
 const STORAGE_KEY = 'xo-notes'
 
-const TONES: { id: CaptionTone; label: string; emoji: string; color: string; dotColor: string }[] = [
-  { id: 'formal',          label: 'Formal',           emoji: '🎩', color: 'rgba(59,130,246,0.14)',  dotColor: 'rgba(59,130,246,0.9)'  },
-  { id: 'sarcastic',       label: 'Sarcastic',        emoji: '🙄', color: 'rgba(239,68,68,0.14)',   dotColor: 'rgba(239,68,68,0.9)'   },
-  { id: 'humorous-tech',   label: 'Humorous Tech',    emoji: '🤓', color: 'rgba(139,92,246,0.14)',  dotColor: 'rgba(139,92,246,0.9)'  },
-  { id: 'humorous-nontech',label: 'Humorous Non-Tech',emoji: '😂', color: 'rgba(245,158,11,0.14)',  dotColor: 'rgba(245,158,11,0.9)'  },
+// SVG icons for each tone (replaces emoji)
+const TONE_ICONS: Record<string, React.ReactElement> = {
+  formal: (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      {/* Briefcase / formal document */}
+      <rect x="2" y="7" width="20" height="14" rx="2" />
+      <path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" />
+      <line x1="12" y1="12" x2="12" y2="16" />
+      <line x1="10" y1="14" x2="14" y2="14" />
+    </svg>
+  ),
+  sarcastic: (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      {/* Eye roll / sarcastic face */}
+      <circle cx="12" cy="12" r="10" />
+      <path d="M8 15s1.5 2 4 2 4-2 4-2" />
+      <circle cx="9" cy="10" r="1" fill="currentColor" />
+      <circle cx="15" cy="10" r="1" fill="currentColor" />
+      <path d="M8 8.5c.5-1 1.5-1.5 2.5-1" strokeWidth={1.5} />
+      <path d="M16 8.5c-.5-1-1.5-1.5-2.5-1" strokeWidth={1.5} />
+    </svg>
+  ),
+  'humorous-tech': (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      {/* Code / tech brackets */}
+      <polyline points="16 18 22 12 16 6" />
+      <polyline points="8 6 2 12 8 18" />
+      <line x1="12" y1="4" x2="12" y2="20" opacity={0.4} strokeWidth={1.5} />
+    </svg>
+  ),
+  'humorous-nontech': (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      {/* Laugh / party */}
+      <circle cx="12" cy="12" r="10" />
+      <path d="M8 13s1.5 3 4 3 4-3 4-3" />
+      <line x1="9" y1="9" x2="9.01" y2="9" strokeWidth={3} strokeLinecap="round" />
+      <line x1="15" y1="9" x2="15.01" y2="9" strokeWidth={3} strokeLinecap="round" />
+    </svg>
+  ),
+}
+
+const TONES: { id: CaptionTone; label: string; color: string; dotColor: string }[] = [
+  { id: 'formal',          label: 'Formal',           color: 'rgba(59,130,246,0.14)',  dotColor: 'rgba(59,130,246,0.9)'  },
+  { id: 'sarcastic',       label: 'Sarcastic',        color: 'rgba(239,68,68,0.14)',   dotColor: 'rgba(239,68,68,0.9)'   },
+  { id: 'humorous-tech',   label: 'Humorous Tech',    color: 'rgba(139,92,246,0.14)',  dotColor: 'rgba(139,92,246,0.9)'  },
+  { id: 'humorous-nontech',label: 'Humorous Non-Tech',color: 'rgba(245,158,11,0.14)',  dotColor: 'rgba(245,158,11,0.9)'  },
 ]
 
 const TONE_NOTE_COLORS: Record<CaptionTone, string> = {
@@ -80,7 +121,7 @@ function TonePill({ tone, active, onClick }: { tone: typeof TONES[0]; active: bo
         transition: 'all 0.15s', flexShrink: 0,
       }}
     >
-      <span style={{ fontSize: 12 }}>{tone.emoji}</span>
+      {TONE_ICONS[tone.id]}
       {tone.label}
     </button>
   )
@@ -174,10 +215,10 @@ export default function VideoCaptionsApp({ onClose, onCornerDown }: Props) {
     const newNotes: Note[] = TONES.map(t => {
       const r = results[t.id]
       const content =
-        `📺 Video: ${videoLabel}\n🕐 Generated: ${timestamp}\n\n` +
-        `── Summary ─────────────────────────────\n${r.summary}\n\n` +
-        `── Captions ────────────────────────────\n${r.captions || '(No timestamped captions generated)'}`
-      return makeNote(`${t.emoji} ${t.label} — ${videoLabel}`, content, TONE_NOTE_COLORS[t.id])
+        `[Video] ${videoLabel}\n[Generated] ${timestamp}\n\n` +
+        `-- Summary --\n${r.summary}\n\n` +
+        `-- Captions --\n${r.captions || '(No timestamped captions generated)'}`
+      return makeNote(`[${t.label}] ${videoLabel}`, content, TONE_NOTE_COLORS[t.id])
     })
 
     // Prepend new notes so they appear at the top of the Notes sidebar
@@ -275,11 +316,26 @@ export default function VideoCaptionsApp({ onClose, onCornerDown }: Props) {
                 style={{
                   padding: '3px 10px', borderRadius: 7, border: 'none', cursor: 'pointer',
                   fontSize: 10, fontWeight: 500, fontFamily: 'inherit',
+                  display: 'flex', alignItems: 'center', gap: 4,
                   background: inputMode === mode ? 'rgba(255,255,255,0.1)' : 'transparent',
                   color: inputMode === mode ? '#fff' : 'rgba(255,255,255,0.35)',
                   transition: 'all 0.15s',
                 }}
-              >{mode === 'file' ? '⬆ Upload' : '🔗 URL'}</button>
+              >
+                {mode === 'file' ? (
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                    <polyline points="17 8 12 3 7 8" />
+                    <line x1="12" y1="3" x2="12" y2="15" />
+                  </svg>
+                ) : (
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                    <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+                  </svg>
+                )}
+                {mode === 'file' ? 'Upload' : 'URL'}
+              </button>
             ))}
           </div>
           {/* Close */}
@@ -413,8 +469,14 @@ export default function VideoCaptionsApp({ onClose, onCornerDown }: Props) {
             margin: '10px 16px 0', padding: '10px 14px', borderRadius: 12,
             background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.25)',
             color: 'rgba(239,68,68,0.9)', fontSize: 11, lineHeight: 1.5, flexShrink: 0,
+            display: 'flex', alignItems: 'flex-start', gap: 7,
           }}>
-            ⚠ {errorMsg}
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: 1 }}>
+              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+              <line x1="12" y1="9" x2="12" y2="13" />
+              <line x1="12" y1="17" x2="12.01" y2="17" strokeWidth={2.5} />
+            </svg>
+            {errorMsg}
           </div>
         )}
 
@@ -436,7 +498,15 @@ export default function VideoCaptionsApp({ onClose, onCornerDown }: Props) {
                     border: `1px solid ${isCurrent ? t.dotColor.replace('0.9','0.4') : isDone ? 'rgba(16,185,129,0.25)' : 'rgba(255,255,255,0.07)'}`,
                     transition: 'all 0.2s',
                   }}>
-                    {isDone ? '✓' : isCurrent ? <Spinner /> : <span style={{ opacity: 0.3 }}>○</span>}
+                    {isDone ? (
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                    ) : isCurrent ? <Spinner /> : (
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round">
+                        <circle cx="12" cy="12" r="9" opacity={0.3} />
+                      </svg>
+                    )}
                     {t.label}
                   </div>
                 )
@@ -455,8 +525,8 @@ export default function VideoCaptionsApp({ onClose, onCornerDown }: Props) {
             {/* Tone pill selector */}
             <div style={{
               display: 'flex', gap: 6, padding: '10px 16px',
-              overflowX: 'auto', flexShrink: 0, flexWrap: 'nowrap',
-            }} className="vc-scroll">
+              flexShrink: 0, flexWrap: 'wrap',
+            }}>
               {TONES.map(t => (
                 <TonePill key={t.id} tone={t} active={activeTone === t.id} onClick={() => setActiveTone(t.id)} />
               ))}
@@ -495,7 +565,7 @@ export default function VideoCaptionsApp({ onClose, onCornerDown }: Props) {
                   borderRadius: 14, padding: '14px 16px',
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 10 }}>
-                    <span style={{ fontSize: 16 }}>{activeToneData.emoji}</span>
+                    <span style={{ color: activeToneData.dotColor, display: 'flex', alignItems: 'center' }}>{TONE_ICONS[activeToneData.id]}</span>
                     <span style={{ color: '#fff', fontWeight: 600, fontSize: 12 }}>{activeToneData.label} Summary</span>
                   </div>
                   <p style={{
