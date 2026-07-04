@@ -1,4 +1,5 @@
 import { useRef, useState, useEffect, ReactNode } from 'react'
+import { widgetEnter, widgetLeave, dragStart, dragEnd } from '../hoverGuard'
 
 declare global {
   interface Window {
@@ -35,23 +36,22 @@ export default function DraggableWidget({ children, initialX, initialY, classNam
   const dragging = useRef(false)
   const resizing = useRef(false)
   const offset = useRef({ x: 0, y: 0 })
-  const isHovered = useRef(false)
   const resizeData = useRef({ x: 0, y: 0, scale: 1, dx: 1, dy: 1, posX: 0, posY: 0 })
   const scaleRef = useRef(initialScale)
+  const entered = useRef(false)
 
   function onMouseEnter() {
-    isHovered.current = true
-    window.xo?.setIgnoreMouse(false)
-  }
-
-  function onMouseMove() {
-    if (!isHovered.current) return
-    window.xo?.setIgnoreMouse(false)
+    if (!entered.current) {
+      entered.current = true
+      widgetEnter()
+    }
   }
 
   function onMouseLeave() {
-    isHovered.current = false
-    if (!dragging.current && !resizing.current) window.xo?.setIgnoreMouse(true)
+    if (entered.current) {
+      entered.current = false
+      widgetLeave()
+    }
   }
 
   function onMouseDown(e: React.MouseEvent) {
@@ -59,7 +59,7 @@ export default function DraggableWidget({ children, initialX, initialY, classNam
     if (target.closest('button, input, textarea, a, [data-no-drag]')) return
     dragging.current = true
     setIsDragging(true)
-    window.xo?.setIgnoreMouse(false)
+    dragStart()
     offset.current = { x: e.clientX - pos.x, y: e.clientY - pos.y }
     e.preventDefault()
   }
@@ -67,14 +67,13 @@ export default function DraggableWidget({ children, initialX, initialY, classNam
   function onCornerDown(e: React.MouseEvent, dx: number, dy: number) {
     e.stopPropagation(); e.preventDefault()
     resizing.current = true
+    dragStart()
     resizeData.current = { x: e.clientX, y: e.clientY, scale: scaleRef.current, dx, dy, posX: pos.x, posY: pos.y }
-    window.xo?.setIgnoreMouse(false)
   }
 
   useEffect(() => {
     function onMove(e: MouseEvent) {
       if (dragging.current) {
-        window.xo?.setIgnoreMouse(false)
         setPos({ x: e.clientX - offset.current.x, y: e.clientY - offset.current.y })
       }
       if (resizing.current) {
@@ -90,20 +89,29 @@ export default function DraggableWidget({ children, initialX, initialY, classNam
       }
     }
     function onUp() {
-      dragging.current = false
-      resizing.current = false
-      setIsDragging(false)
-      if (!isHovered.current) window.xo?.setIgnoreMouse(true)
+      if (dragging.current || resizing.current) {
+        dragging.current = false
+        resizing.current = false
+        setIsDragging(false)
+        dragEnd()
+      }
     }
     window.addEventListener('mousemove', onMove)
     window.addEventListener('mouseup', onUp)
-    return () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp) }
+    return () => {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+      // Clean up hover count if widget unmounts while hovered
+      if (entered.current) {
+        entered.current = false
+        widgetLeave()
+      }
+    }
   }, [baseWidth, baseHeight])
 
   return (
     <div
       onMouseEnter={onMouseEnter}
-      onMouseMove={onMouseMove}
       onMouseLeave={onMouseLeave}
       onMouseDown={onMouseDown}
       style={{

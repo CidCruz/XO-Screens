@@ -19,7 +19,7 @@ export default function App() {
   const [appVisible, setAppVisible] = useState(false)
   const [activeApp, setActiveApp] = useState('chat')
   const [chatOpen, setChatOpen] = useState(true)
-  const [notesOpen, setNotesOpen] = useState(false)
+  const [notesOpen, setNotesOpen] = useState(true)
   const [activeNote, setActiveNote] = useState<Note | null>(null)
   // 'visible' | 'entering' | 'exiting'
   const [windowAnim, setWindowAnim] = useState<'visible' | 'entering' | 'exiting'>('visible')
@@ -100,7 +100,7 @@ export default function App() {
       )}
 
       {notesOpen && (
-        <DraggableWidget initialX={Math.round(window.innerWidth - 420 - 20)} initialY={Math.round(20 + 480 * 1.2 + 12)} baseWidth={420} baseHeight={520}>
+        <DraggableWidget initialX={Math.round(window.innerWidth - 420 - 20)} initialY={Math.min(Math.round(20 + 480 * 1.2 + 8), window.innerHeight - 300 - 20)} baseWidth={420} baseHeight={300}>
           {(onCornerDown) => <NotesApp onClose={() => setNotesOpen(false)} onCornerDown={onCornerDown} onNoteChange={setActiveNote} />}
         </DraggableWidget>
       )}

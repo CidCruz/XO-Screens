@@ -69,6 +69,7 @@ export default function NotesApp({ onClose, onCornerDown, onNoteChange }: Props)
     return loaded.length > 0 ? loaded[0].id : ''
   })
   const [closestCorner, setClosestCorner] = useState<number | null>(null)
+  const [sidebarOpen, setSidebarOpen] = useState(true)
   const containerRef = useRef<HTMLDivElement>(null)
   const titleRef = useRef<HTMLInputElement>(null)
 
@@ -143,6 +144,7 @@ export default function NotesApp({ onClose, onCornerDown, onNoteChange }: Props)
 
       <div style={{
         width: 420,
+        height: 300,
         display: 'flex',
         flexDirection: 'column',
         background: 'rgba(10,10,12,0.82)',
@@ -152,7 +154,6 @@ export default function NotesApp({ onClose, onCornerDown, onNoteChange }: Props)
         borderRadius: 22,
         overflow: 'hidden',
         boxShadow: '0 32px 80px rgba(0,0,0,0.6), 0 0 0 0.5px rgba(255,255,255,0.05) inset',
-        maxHeight: '82vh',
       }}>
 
         {/* ── Top bar ── */}
@@ -169,6 +170,17 @@ export default function NotesApp({ onClose, onCornerDown, onNoteChange }: Props)
             flexShrink: 0,
           }}>XO</span>
           <span style={{ color: 'rgba(255,255,255,0.18)', fontSize: 11, flexShrink: 0 }}>Notes</span>
+
+          {/* Sidebar toggle */}
+          <button data-no-drag onClick={() => setSidebarOpen(v => !v)} title="Toggle list"
+            style={{ width: 22, height: 22, borderRadius: 6, border: 'none', background: 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', color: sidebarOpen ? 'rgba(255,255,255,0.4)' : 'rgba(255,255,255,0.2)', cursor: 'pointer', transition: 'all 0.15s', flexShrink: 0 }}
+            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = '#fff'; (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.08)' }}
+            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = sidebarOpen ? 'rgba(255,255,255,0.4)' : 'rgba(255,255,255,0.2)'; (e.currentTarget as HTMLButtonElement).style.background = 'transparent' }}
+          >
+            <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h7" />
+            </svg>
+          </button>
 
           <div style={{ flex: 1 }} />
 
@@ -227,11 +239,15 @@ export default function NotesApp({ onClose, onCornerDown, onNoteChange }: Props)
 
           {/* Sidebar */}
           <div className="chat-scroll" style={{
-            width: 136, flexShrink: 0,
-            borderRight: '1px solid rgba(255,255,255,0.05)',
-            overflowY: 'auto', padding: '10px 8px',
+            width: sidebarOpen ? 136 : 0,
+            flexShrink: 0,
+            borderRight: sidebarOpen ? '1px solid rgba(255,255,255,0.05)' : 'none',
+            overflowY: sidebarOpen ? 'auto' : 'hidden',
+            overflowX: 'hidden',
+            padding: sidebarOpen ? '10px 8px' : '0',
             display: 'flex', flexDirection: 'column', gap: 3,
             background: 'rgba(0,0,0,0.15)',
+            transition: 'width 0.2s ease, padding 0.2s ease',
           }}>
             {notes.map(n => {
               const nc = colorFromBg(n.color)
