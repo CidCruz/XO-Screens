@@ -54,6 +54,15 @@ export default function DraggableWidget({ children, initialX, initialY, classNam
     }
   }
 
+  function onDoubleClick(e: React.MouseEvent) {
+    const target = e.target as HTMLElement
+    if (target.closest('[data-reset-widget]')) {
+      setPos({ x: initialX, y: initialY })
+      setScale(initialScale)
+      scaleRef.current = initialScale
+    }
+  }
+
   function onMouseDown(e: React.MouseEvent) {
     const target = e.target as HTMLElement
     if (target.closest('button, input, textarea, a, [data-no-drag]')) return
@@ -114,6 +123,7 @@ export default function DraggableWidget({ children, initialX, initialY, classNam
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
       onMouseDown={onMouseDown}
+      onDoubleClick={onDoubleClick}
       style={{
         position: 'fixed',
         left: pos.x,

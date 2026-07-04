@@ -109,7 +109,7 @@ export default function ChatBox({ onClose, onCornerDown, activeNote }: Props) {
         overflow: 'hidden', boxShadow: '0 24px 60px rgba(0,0,0,0.5)',
       }}>
         {/* Header */}
-        <div style={{
+        <div data-reset-widget style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           padding: '14px 16px', borderBottom: '1px solid rgba(255,255,255,0.08)', flexShrink: 0,
         }}>

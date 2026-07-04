@@ -181,7 +181,7 @@ export default function NotesApp({ onClose, onCornerDown, onNoteChange }: Props)
       }}>
 
         {/* ── Top bar ── */}
-        <div style={{
+        <div data-reset-widget style={{
           display: 'flex', alignItems: 'center', gap: 8,
           padding: '12px 14px',
           borderBottom: '1px solid rgba(255,255,255,0.06)',

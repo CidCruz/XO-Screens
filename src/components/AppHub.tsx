@@ -124,8 +124,8 @@ export default function AppHub({ apps, openApps, onSelect, onCornerDown }: Props
       ))}
 
 
-      {/* Logo — just a label, not clickable */}
-      <div className="flex items-center justify-center py-5 border-b border-white/10">
+      {/* Logo */}
+      <div data-reset-widget className="flex items-center justify-center py-5 border-b border-white/10">
         <span className="text-white font-black text-sm tracking-tight select-none" style={{ textShadow: '0 0 12px rgba(255,255,255,0.9), 0 0 24px rgba(255,255,255,0.5)' }}>XO</span>
       </div>
 
