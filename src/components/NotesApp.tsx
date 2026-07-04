@@ -68,8 +68,11 @@ export default function NotesApp({ onClose, onCornerDown, onNoteChange }: Props)
     const loaded = loadNotes()
     return loaded.length > 0 ? loaded[0].id : ''
   })
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const [closestCorner, setClosestCorner] = useState<number | null>(null)
   const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [height, setHeight] = useState(300)
+  const bottomDragStart = useRef<{ y: number; h: number } | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const titleRef = useRef<HTMLInputElement>(null)
 
@@ -91,6 +94,7 @@ export default function NotesApp({ onClose, onCornerDown, onNoteChange }: Props)
     const n = newNote()
     setNotes(prev => [n, ...prev])
     setActiveId(n.id)
+    setConfirmDeleteId(null)
     setTimeout(() => titleRef.current?.focus(), 50)
   }
 
@@ -110,6 +114,26 @@ export default function NotesApp({ onClose, onCornerDown, onNoteChange }: Props)
   const wordCount = activeNote
     ? activeNote.content.trim().split(/\s+/).filter(Boolean).length
     : 0
+
+  function onBottomDragDown(e: React.MouseEvent) {
+    e.preventDefault()
+    e.stopPropagation()
+    bottomDragStart.current = { y: e.clientY, h: height }
+    window.xo?.setIgnoreMouse(false)
+
+    function onMove(ev: MouseEvent) {
+      if (!bottomDragStart.current) return
+      const newH = Math.max(200, Math.min(700, bottomDragStart.current.h + ev.clientY - bottomDragStart.current.y))
+      setHeight(newH)
+    }
+    function onUp() {
+      bottomDragStart.current = null
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+    }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+  }
 
   return (
     <div
@@ -144,7 +168,7 @@ export default function NotesApp({ onClose, onCornerDown, onNoteChange }: Props)
 
       <div style={{
         width: 420,
-        height: 300,
+        height: height,
         display: 'flex',
         flexDirection: 'column',
         background: 'rgba(10,10,12,0.82)',
@@ -209,17 +233,33 @@ export default function NotesApp({ onClose, onCornerDown, onNoteChange }: Props)
           {/* Divider */}
           <div style={{ width: 1, height: 16, background: 'rgba(255,255,255,0.08)', flexShrink: 0 }} />
 
-          {/* Delete */}
+          {/* Delete / confirm */}
           {activeNote && (
-            <button data-no-drag onClick={() => deleteNote(activeNote.id)} title="Delete note"
-              style={{ width: 26, height: 26, borderRadius: 8, border: 'none', background: 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,255,255,0.25)', cursor: 'pointer', transition: 'all 0.15s', flexShrink: 0 }}
-              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = '#f87171'; (e.currentTarget as HTMLButtonElement).style.background = 'rgba(239,68,68,0.12)' }}
-              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = 'rgba(255,255,255,0.25)'; (e.currentTarget as HTMLButtonElement).style.background = 'transparent' }}
-            >
-              <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-              </svg>
-            </button>
+            confirmDeleteId === activeNote.id ? (
+              <div data-no-drag style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', whiteSpace: 'nowrap' }}>Delete?</span>
+                <button data-no-drag onClick={() => { deleteNote(activeNote.id); setConfirmDeleteId(null) }}
+                  style={{ fontSize: 10, fontWeight: 600, color: '#f87171', background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 6, padding: '3px 8px', cursor: 'pointer', transition: 'all 0.15s' }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(239,68,68,0.3)' }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(239,68,68,0.15)' }}
+                >Yes</button>
+                <button data-no-drag onClick={() => setConfirmDeleteId(null)}
+                  style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 6, padding: '3px 8px', cursor: 'pointer', transition: 'all 0.15s' }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.12)' }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.06)' }}
+                >No</button>
+              </div>
+            ) : (
+              <button data-no-drag onClick={() => setConfirmDeleteId(activeNote.id)} title="Delete note"
+                style={{ width: 26, height: 26, borderRadius: 8, border: 'none', background: 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,255,255,0.25)', cursor: 'pointer', transition: 'all 0.15s', flexShrink: 0 }}
+                onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = '#f87171'; (e.currentTarget as HTMLButtonElement).style.background = 'rgba(239,68,68,0.12)' }}
+                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = 'rgba(255,255,255,0.25)'; (e.currentTarget as HTMLButtonElement).style.background = 'transparent' }}
+              >
+                <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+              </button>
+            )
           )}
 
           {/* New note */}
@@ -256,7 +296,7 @@ export default function NotesApp({ onClose, onCornerDown, onNoteChange }: Props)
                 <button
                   key={n.id}
                   data-no-drag
-                  onClick={() => setActiveId(n.id)}
+                  onClick={() => { setActiveId(n.id); setConfirmDeleteId(null) }}
                   style={{
                     width: '100%', textAlign: 'left',
                     padding: '9px 10px', borderRadius: 11,
@@ -338,6 +378,27 @@ export default function NotesApp({ onClose, onCornerDown, onNoteChange }: Props)
               </>
             )}
           </div>
+        </div>
+
+        {/* ── Bottom resize handle ── */}
+        <div
+          data-no-drag
+          onMouseDown={onBottomDragDown}
+          onDoubleClick={() => setHeight(300)}
+          onMouseEnter={e => { const pill = e.currentTarget.querySelector('div') as HTMLDivElement; if (pill) pill.style.background = 'rgba(255,255,255,0.28)' }}
+          onMouseLeave={e => { const pill = e.currentTarget.querySelector('div') as HTMLDivElement; if (pill) pill.style.background = 'rgba(255,255,255,0.1)' }}
+          style={{
+            height: 16, flexShrink: 0, cursor: 'ns-resize',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            background: 'transparent',
+          }}
+        >
+          <div style={{
+            width: 32, height: 2, borderRadius: 99,
+            background: 'rgba(255,255,255,0.1)',
+            transition: 'background 0.15s',
+            pointerEvents: 'none',
+          }} />
         </div>
       </div>
     </div>
