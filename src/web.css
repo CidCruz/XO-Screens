@@ -1,0 +1,401 @@
+/* ── Web app global overrides ────────────────────────────────────────────── */
+
+@import "tailwindcss";
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: #0a0a0c;
+  overflow: hidden;
+  font-family: 'Inter', system-ui, sans-serif;
+  color: #fff;
+  height: 100dvh;
+}
+
+#root {
+  width: 100vw;
+  height: 100dvh;
+  background: transparent;
+  overflow: hidden;
+}
+
+/* ── Glass surfaces ──────────────────────────────────────────────────────── */
+
+.glass {
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.glass-dark {
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(24px) saturate(200%);
+  -webkit-backdrop-filter: blur(24px) saturate(200%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* ── Scrollbars ──────────────────────────────────────────────────────────── */
+
+.chat-scroll::-webkit-scrollbar { width: 4px; }
+.chat-scroll::-webkit-scrollbar-track { background: transparent; }
+.chat-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 2px; }
+
+.scrollbar-hide::-webkit-scrollbar { display: none; }
+.scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* ── Animations ──────────────────────────────────────────────────────────── */
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.fade-up { animation: fadeUp 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.fade-in { animation: fadeIn 0.3s ease forwards; }
+
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 8px rgba(139, 92, 246, 0.4); }
+  50%       { box-shadow: 0 0 20px rgba(139, 92, 246, 0.8); }
+}
+.pulse-glow { animation: pulse-glow 2s ease-in-out infinite; }
+
+/* ── Web layout shell ────────────────────────────────────────────────────── */
+
+.web-shell {
+  display: flex;
+  width: 100vw;
+  height: 100dvh;
+  background: #0a0a0c;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Noise texture overlay */
+.web-shell::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+  background-size: 200px 200px;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.35;
+}
+
+/* Ambient glow blobs */
+.web-bg-glow-1 {
+  position: fixed;
+  width: 600px;
+  height: 600px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(99,102,241,0.08) 0%, transparent 70%);
+  top: -200px;
+  right: -100px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.web-bg-glow-2 {
+  position: fixed;
+  width: 500px;
+  height: 500px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(52,211,153,0.05) 0%, transparent 70%);
+  bottom: -150px;
+  left: 200px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ── Sidebar ─────────────────────────────────────────────────────────────── */
+
+.web-sidebar {
+  width: 68px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20px 0;
+  border-right: 1px solid rgba(255,255,255,0.05);
+  background: rgba(0,0,0,0.35);
+  flex-shrink: 0;
+  position: relative;
+  z-index: 10;
+  gap: 0;
+}
+
+/* ── Content area ────────────────────────────────────────────────────────── */
+
+.web-content {
+  flex: 1;
+  display: flex;
+  height: 100%;
+  overflow: hidden;
+  position: relative;
+  z-index: 1;
+}
+
+/* ── Panels ──────────────────────────────────────────────────────────────── */
+
+.web-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  border-right: 1px solid rgba(255,255,255,0.05);
+  background: rgba(255,255,255,0.02);
+  flex-shrink: 0;
+}
+
+.web-panel-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  background: rgba(0,0,0,0.2);
+}
+
+/* ── Panel header ────────────────────────────────────────────────────────── */
+
+.web-panel-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 18px 20px 16px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  flex-shrink: 0;
+}
+
+.web-panel-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.85);
+  letter-spacing: -0.01em;
+}
+
+.web-panel-subtitle {
+  font-size: 11px;
+  color: rgba(255,255,255,0.25);
+  font-weight: 400;
+}
+
+/* ── Sidebar nav item ────────────────────────────────────────────────────── */
+
+.web-nav-item {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, transform 0.15s;
+  color: rgba(255,255,255,0.3);
+  border: none;
+  background: transparent;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.web-nav-item:hover {
+  background: rgba(255,255,255,0.07);
+  color: rgba(255,255,255,0.75);
+  transform: scale(1.05);
+}
+
+.web-nav-item.active {
+  background: rgba(255,255,255,0.1);
+  color: #fff;
+}
+
+.web-nav-item.active::before {
+  content: '';
+  position: absolute;
+  left: -2px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 20px;
+  border-radius: 0 2px 2px 0;
+  background: rgba(255,255,255,0.7);
+}
+
+/* ── Tooltip ─────────────────────────────────────────────────────────────── */
+
+.web-tooltip {
+  position: absolute;
+  left: calc(100% + 14px);
+  top: 50%;
+  transform: translateY(-50%);
+  background: rgba(255,255,255,0.08);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 10px;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #fff;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s;
+  z-index: 9999;
+}
+
+.web-nav-item:hover .web-tooltip {
+  opacity: 1;
+}
+
+/* ── Resize handle ───────────────────────────────────────────────────────── */
+
+.web-resize-handle {
+  width: 4px;
+  height: 100%;
+  cursor: col-resize;
+  background: transparent;
+  flex-shrink: 0;
+  position: relative;
+  transition: background 0.15s;
+  z-index: 20;
+}
+
+.web-resize-handle:hover,
+.web-resize-handle.dragging {
+  background: rgba(255,255,255,0.08);
+}
+
+/* ── Empty / placeholder states ──────────────────────────────────────────── */
+
+.web-empty-state {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: rgba(255,255,255,0.2);
+  font-size: 13px;
+  text-align: center;
+  padding: 40px;
+}
+
+/* ── Status indicator ────────────────────────────────────────────────────── */
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.4; }
+}
+
+.status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #34d399;
+  animation: pulse-dot 2.5s ease-in-out infinite;
+}
+
+/* ── Web chat messages ───────────────────────────────────────────────────── */
+
+.web-msg-user {
+  align-self: flex-end;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.1);
+  color: #fff;
+  border-radius: 16px 16px 4px 16px;
+  padding: 10px 14px;
+  font-size: 13px;
+  line-height: 1.6;
+  max-width: 78%;
+  word-break: break-word;
+}
+
+.web-msg-ai {
+  align-self: flex-start;
+  color: rgba(255,255,255,0.75);
+  font-size: 13px;
+  line-height: 1.7;
+  max-width: 88%;
+  word-break: break-word;
+  padding: 2px 0;
+}
+
+/* ── Web notes ───────────────────────────────────────────────────────────── */
+
+.web-notes-list-item {
+  width: 100%;
+  text-align: left;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background: transparent;
+  cursor: pointer;
+  transition: all 0.15s;
+  color: #fff;
+}
+
+.web-notes-list-item:hover {
+  background: rgba(255,255,255,0.04);
+}
+
+.web-notes-list-item.active {
+  background: rgba(255,255,255,0.06);
+  border-color: rgba(255,255,255,0.1);
+}
+
+/* ── Scrollable areas in web layout ──────────────────────────────────────── */
+
+.web-scroll {
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.12) transparent;
+}
+
+.web-scroll::-webkit-scrollbar { width: 4px; }
+.web-scroll::-webkit-scrollbar-track { background: transparent; }
+.web-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 2px; }
+
+/* ── Welcome / hero panel ────────────────────────────────────────────────── */
+
+.web-hero-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 16px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1);
+  font-size: 11px;
+  font-weight: 500;
+  color: rgba(255,255,255,0.5);
+  letter-spacing: 0.05em;
+}
+
+/* ── Mobile responsiveness ───────────────────────────────────────────────── */
+
+@media (max-width: 768px) {
+  .web-panel {
+    display: none;
+  }
+  .web-panel.mobile-visible {
+    display: flex;
+    flex: 1;
+    border-right: none;
+  }
+  .web-sidebar {
+    width: 56px;
+  }
+  .web-nav-item {
+    width: 38px;
+    height: 38px;
+  }
+}

@@ -1,5 +1,6 @@
 // Global counter tracking how many DraggableWidgets the cursor is currently over.
 // setIgnoreMouse(true) only fires when the count drops to zero AND no drag is active.
+// All window.xo calls are guarded — this file is shared between desktop and web builds.
 
 let hoverCount = 0
 let dragCount = 0

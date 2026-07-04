@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import type { AppItem } from '../types'
+import { xo } from '../env'
 
 function AppIcon({ id }: { id: string }) {
   const cls = 'w-5 h-5'
@@ -166,7 +167,7 @@ export default function AppHub({ apps, openApps, onSelect, onCornerDown }: Props
       <div className="flex items-center justify-center py-3 border-t border-white/10">
         <button
           data-no-drag
-          onClick={() => window.xo?.minimizeToTray()}
+          onClick={() => xo.minimizeToTray()}
           title="Minimize to tray"
           className="w-10 h-10 rounded-xl flex items-center justify-center text-white/25
             hover:text-red-400 transition-all cursor-pointer"

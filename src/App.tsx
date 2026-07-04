@@ -4,6 +4,7 @@ import ChatBox from './components/ChatBox'
 import NotesApp from './components/NotesApp'
 import DraggableWidget from './components/DraggableWidget'
 import type { AppItem, Note } from './types'
+import { xo } from './env'
 
 const APPS: AppItem[] = [
   { id: 'chat',     label: 'Assistant'      },
@@ -21,7 +22,6 @@ export default function App() {
   const [chatOpen, setChatOpen] = useState(true)
   const [notesOpen, setNotesOpen] = useState(true)
   const [activeNote, setActiveNote] = useState<Note | null>(null)
-  // 'visible' | 'entering' | 'exiting'
   const [windowAnim, setWindowAnim] = useState<'visible' | 'entering' | 'exiting'>('visible')
   const exitTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -33,22 +33,20 @@ export default function App() {
     return () => { clearTimeout(fadeInTimer); clearTimeout(fadeOutTimer); clearTimeout(hide); clearTimeout(appFadeIn) }
   }, [])
 
-  // Listen for show/hide signals from main process
+  // Listen for show/hide signals from main process (desktop only — xo.onShow is a no-op on web)
   useEffect(() => {
-    window.xo?.onShow(() => {
+    xo.onShow(() => {
       if (exitTimer.current) clearTimeout(exitTimer.current)
-      // Reset any lingering :active/:focus state from before the window was hidden
       if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
       document.body.focus()
       setWindowAnim('entering')
       setTimeout(() => setWindowAnim('visible'), 260)
     })
-    window.xo?.onHideAnimate(() => {
-      // Blur everything before animating out so state is clean on next show
+    xo.onHideAnimate(() => {
       if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
       setWindowAnim('exiting')
       exitTimer.current = setTimeout(() => {
-        window.xo?.readyToHide()
+        xo.readyToHide()
       }, 210)
     })
   }, [])
@@ -59,7 +57,6 @@ export default function App() {
     if (id === 'notes') setNotesOpen(prev => !prev)
   }
 
-  // Track which apps are currently open so the hub highlights them correctly
   const openApps = new Set([
     ...(chatOpen ? ['chat'] : []),
     ...(notesOpen ? ['notes'] : []),

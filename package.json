@@ -5,9 +5,11 @@
   "type": "module",
   "main": "electron/main.cjs",
   "scripts": {
-    "dev": "concurrently --kill-others \"vite\" \"wait-on http://localhost:5173 && cross-env NODE_ENV=development electron .\"",
-    "build": "tsc -b && vite build",
-    "electron:build": "npm run build && electron-builder",
+    "dev": "vite --mode web",
+    "dev:desktop": "concurrently --kill-others \"vite --mode desktop\" \"wait-on http://localhost:5173 && cross-env NODE_ENV=development electron .\"",
+    "build": "tsc -b && vite build --mode web",
+    "build:desktop": "tsc -b && vite build --mode desktop",
+    "electron:build": "npm run build:desktop && electron-builder",
     "lint": "oxlint",
     "preview": "vite preview"
   },
