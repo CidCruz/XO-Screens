@@ -81,6 +81,20 @@ export default function NotesApp({ onClose, onCornerDown, onNoteChange }: Props)
 
   useEffect(() => { saveNotes(notes) }, [notes])
 
+  // Refresh notes when another widget (e.g. VideoCaptionsApp) saves to localStorage
+  useEffect(() => {
+    function handleNotesUpdated() {
+      const fresh = loadNotes()
+      setNotes(fresh.length > 0 ? fresh : [newNote()])
+      setActiveId(prev => {
+        // Keep the current note selected if it still exists, otherwise jump to the newest
+        return fresh.some(n => n.id === prev) ? prev : (fresh[0]?.id ?? '')
+      })
+    }
+    window.addEventListener('xo-notes-updated', handleNotesUpdated)
+    return () => window.removeEventListener('xo-notes-updated', handleNotesUpdated)
+  }, [])
+
   // Keep parent (ChatBox) informed of the active note
   useEffect(() => {
     onNoteChange?.(activeNote ?? null)

@@ -182,6 +182,8 @@ export default function VideoCaptionsApp({ onClose, onCornerDown }: Props) {
 
     // Prepend new notes so they appear at the top of the Notes sidebar
     saveNotes([...newNotes, ...existing])
+    // Notify NotesApp (and any other listener in the same window) that notes changed
+    window.dispatchEvent(new CustomEvent('xo-notes-updated'))
     setSavedToNotes(true)
   }
 
