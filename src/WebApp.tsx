@@ -4,10 +4,11 @@ import VoiceCall from './components/VoiceCall'
 
 /* ── Nav items ────────────────────────────────────────────────────────────── */
 const APPS: AppItem[] = [
-  { id: 'home',     label: 'Home'      },
-  { id: 'chat',     label: 'Assistant' },
-  { id: 'notes',    label: 'Notes'     },
-  { id: 'settings', label: 'Settings'  },
+  { id: 'home',     label: 'Home'            },
+  { id: 'chat',     label: 'Assistant'       },
+  { id: 'notes',    label: 'Notes'           },
+  { id: 'video',    label: 'Video Captions'  },
+  { id: 'settings', label: 'Settings'        },
 ]
 
 /* ── Icon helper ──────────────────────────────────────────────────────────── */
@@ -41,6 +42,13 @@ function NavIcon({ id }: { id: string }) {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
             d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+        </svg>
+      )
+    case 'video':
+      return (
+        <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
+            d="M15 10l4.553-2.276A1 1 0 0121 8.723v6.554a1 1 0 01-1.447.894L15 14M4 8a2 2 0 012-2h9a2 2 0 012 2v8a2 2 0 01-2 2H6a2 2 0 01-2-2V8z" />
         </svg>
       )
     default: return null
@@ -126,6 +134,20 @@ function HomePanel({ onNavigate }: { onNavigate: (id: string) => void }) {
       accent: 'rgba(52,211,153,0.12)',
       border: 'rgba(52,211,153,0.22)',
       dot: 'rgba(52,211,153,0.9)',
+    },
+    {
+      id: 'video',
+      icon: (
+        <svg width="22" height="22" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
+            d="M15 10l4.553-2.276A1 1 0 0121 8.723v6.554a1 1 0 01-1.447.894L15 14M4 8a2 2 0 012-2h9a2 2 0 012 2v8a2 2 0 01-2 2H6a2 2 0 01-2-2V8z" />
+        </svg>
+      ),
+      title: 'Video Captions',
+      desc: 'Upload a video or paste a URL — get captions & summaries in 4 tones.',
+      accent: 'rgba(139,92,246,0.12)',
+      border: 'rgba(139,92,246,0.22)',
+      dot: 'rgba(139,92,246,0.9)',
     },
   ]
 
@@ -799,6 +821,338 @@ function WebNotesInner() {
   )
 }
 
+/* ── Web Video Captions panel ─────────────────────────────────────────────── */
+import { processVideoFile, processVideoURL } from './gemini'
+import type { CaptionTone, CaptionResults } from './gemini'
+
+const VIDEO_TONES: { id: CaptionTone; label: string; emoji: string; accent: string; border: string; dot: string }[] = [
+  { id: 'formal',           label: 'Formal',           emoji: '🎩', accent: 'rgba(59,130,246,0.12)',  border: 'rgba(59,130,246,0.25)',  dot: 'rgba(59,130,246,0.9)'  },
+  { id: 'sarcastic',        label: 'Sarcastic',        emoji: '🙄', accent: 'rgba(239,68,68,0.12)',   border: 'rgba(239,68,68,0.25)',   dot: 'rgba(239,68,68,0.9)'   },
+  { id: 'humorous-tech',    label: 'Humorous Tech',    emoji: '🤓', accent: 'rgba(139,92,246,0.12)',  border: 'rgba(139,92,246,0.25)',  dot: 'rgba(139,92,246,0.9)'  },
+  { id: 'humorous-nontech', label: 'Humorous Non-Tech',emoji: '😂', accent: 'rgba(245,158,11,0.12)',  border: 'rgba(245,158,11,0.25)',  dot: 'rgba(245,158,11,0.9)'  },
+]
+
+const TONE_COLORS: Record<CaptionTone, string> = {
+  formal:              'rgba(59,130,246,0.14)',
+  sarcastic:           'rgba(239,68,68,0.14)',
+  'humorous-tech':     'rgba(139,92,246,0.14)',
+  'humorous-nontech':  'rgba(245,158,11,0.14)',
+}
+
+function VSpinner() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}
+      style={{ animation: 'vs-spin 0.8s linear infinite', flexShrink: 0, display: 'inline-block' }}>
+      <path strokeLinecap="round" d="M12 2a10 10 0 0 1 10 10" opacity={0.9} />
+      <path strokeLinecap="round" d="M12 2a10 10 0 0 0-10 10" opacity={0.3} />
+    </svg>
+  )
+}
+
+function WebVideoPanel() {
+  const [inputMode, setInputMode] = useState<'file' | 'url'>('file')
+  const [videoFile, setVideoFile] = useState<File | null>(null)
+  const [videoURL, setVideoURL] = useState('')
+  const [dragOver, setDragOver] = useState(false)
+  const [status, setStatus] = useState<'idle' | 'processing' | 'done' | 'error'>('idle')
+  const [processingTone, setProcessingTone] = useState<CaptionTone | null>(null)
+  const [errorMsg, setErrorMsg] = useState('')
+  const [results, setResults] = useState<CaptionResults | null>(null)
+  const [activeTone, setActiveTone] = useState<CaptionTone>('formal')
+  const [activeTab, setActiveTab] = useState<'summary' | 'captions'>('summary')
+  const [savedToNotes, setSavedToNotes] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  function handleFile(file: File) {
+    if (!file.type.startsWith('video/')) { setErrorMsg('Please upload a video file.'); setStatus('error'); return }
+    setVideoFile(file); setStatus('idle'); setErrorMsg(''); setResults(null); setSavedToNotes(false)
+  }
+
+  async function handleProcess() {
+    setStatus('processing'); setResults(null); setErrorMsg(''); setSavedToNotes(false)
+    try {
+      let res: CaptionResults
+      if (inputMode === 'file' && videoFile) {
+        res = await processVideoFile(videoFile, t => setProcessingTone(t))
+      } else if (inputMode === 'url' && videoURL.trim()) {
+        res = await processVideoURL(videoURL.trim(), t => setProcessingTone(t))
+      } else { throw new Error('No video source provided.') }
+      setResults(res); setStatus('done'); setProcessingTone(null)
+    } catch (err) {
+      setErrorMsg(err instanceof Error ? err.message : 'Something went wrong.')
+      setStatus('error'); setProcessingTone(null)
+    }
+  }
+
+  function saveAllToNotes() {
+    if (!results) return
+    const existing: Note[] = (() => { try { return JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '[]') } catch { return [] } })()
+    const label = videoFile ? videoFile.name : videoURL.trim()
+    const ts = new Date().toLocaleString()
+    const newNotes: Note[] = VIDEO_TONES.map(t => {
+      const r = results[t.id]
+      const content =
+        `📺 Video: ${label}\n🕐 Generated: ${ts}\n\n` +
+        `── Summary ─────────────────────────────\n${r.summary}\n\n` +
+        `── Captions ────────────────────────────\n${r.captions || '(No timestamped captions generated)'}`
+      const now = Date.now()
+      return { id: now.toString() + Math.random().toString(36).slice(2), title: `${t.emoji} ${t.label} — ${label}`, content, color: TONE_COLORS[t.id], createdAt: now, updatedAt: now }
+    })
+    localStorage.setItem(STORAGE_KEY, JSON.stringify([...newNotes, ...existing]))
+    setSavedToNotes(true)
+  }
+
+  const canProcess = status !== 'processing' && (inputMode === 'file' ? !!videoFile : videoURL.trim().length > 5)
+  const activeToneData = VIDEO_TONES.find(t => t.id === activeTone)!
+  const activeResult = results?.[activeTone]
+
+  return (
+    <div className="web-panel-main" style={{ flexDirection: 'row', padding: 0 }}>
+      <style>{`@keyframes vs-spin { to { transform: rotate(360deg); } }`}</style>
+
+      {/* ── Left: input + controls ── */}
+      <div style={{
+        width: 320, flexShrink: 0, display: 'flex', flexDirection: 'column',
+        borderRight: '1px solid rgba(255,255,255,0.06)', background: 'rgba(0,0,0,0.2)',
+        overflow: 'hidden',
+      }}>
+        {/* Header */}
+        <div className="web-panel-header" style={{ flexShrink: 0 }}>
+          <span style={{ color: '#fff', fontWeight: 900, fontSize: 15, letterSpacing: '-0.03em', textShadow: '0 0 12px rgba(255,255,255,0.8)' }}>XO</span>
+          <span className="web-panel-subtitle">Video Captions</span>
+          <div style={{ marginLeft: 'auto', display: 'flex', gap: 3, background: 'rgba(255,255,255,0.05)', borderRadius: 10, padding: 3 }}>
+            {(['file', 'url'] as const).map(m => (
+              <button key={m} onClick={() => { setInputMode(m); setResults(null); setStatus('idle'); setSavedToNotes(false) }}
+                style={{
+                  padding: '3px 10px', borderRadius: 7, border: 'none', cursor: 'pointer',
+                  fontSize: 10, fontWeight: 500, fontFamily: 'inherit',
+                  background: inputMode === m ? 'rgba(255,255,255,0.1)' : 'transparent',
+                  color: inputMode === m ? '#fff' : 'rgba(255,255,255,0.35)', transition: 'all 0.15s',
+                }}>{m === 'file' ? '⬆ Upload' : '🔗 URL'}</button>
+            ))}
+          </div>
+        </div>
+
+        {/* Drop zone / URL input */}
+        <div style={{ padding: '16px 18px', flexShrink: 0 }}>
+          {inputMode === 'file' ? (
+            <div
+              onClick={() => fileInputRef.current?.click()}
+              onDragOver={e => { e.preventDefault(); setDragOver(true) }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={e => { e.preventDefault(); setDragOver(false); const f = e.dataTransfer.files?.[0]; if (f) handleFile(f) }}
+              style={{
+                border: `1.5px dashed ${dragOver ? 'rgba(139,92,246,0.7)' : 'rgba(255,255,255,0.1)'}`,
+                borderRadius: 14, padding: '20px 16px',
+                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
+                cursor: 'pointer', transition: 'all 0.15s',
+                background: dragOver ? 'rgba(139,92,246,0.07)' : 'rgba(255,255,255,0.02)',
+              }}
+            >
+              <svg width="28" height="28" fill="none" stroke="rgba(255,255,255,0.25)" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 10l4.553-2.276A1 1 0 0121 8.723v6.554a1 1 0 01-1.447.894L15 14M4 8a2 2 0 012-2h9a2 2 0 012 2v8a2 2 0 01-2 2H6a2 2 0 01-2-2V8z" />
+              </svg>
+              {videoFile ? (
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ color: '#fff', fontSize: 12, fontWeight: 600 }}>{videoFile.name}</div>
+                  <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: 11, marginTop: 3 }}>{(videoFile.size / (1024 * 1024)).toFixed(1)} MB — click to change</div>
+                </div>
+              ) : (
+                <>
+                  <div style={{ color: 'rgba(255,255,255,0.45)', fontSize: 12, fontWeight: 500 }}>Drop a video or click to upload</div>
+                  <div style={{ color: 'rgba(255,255,255,0.2)', fontSize: 11 }}>mp4 · webm · mov · avi · mkv</div>
+                </>
+              )}
+              <input ref={fileInputRef} type="file" accept="video/*" onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f) }} style={{ display: 'none' }} />
+            </div>
+          ) : (
+            <input type="url" value={videoURL}
+              onChange={e => { setVideoURL(e.target.value); setResults(null); setStatus('idle'); setSavedToNotes(false) }}
+              placeholder="https://example.com/video.mp4"
+              style={{
+                width: '100%', boxSizing: 'border-box',
+                background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
+                borderRadius: 12, padding: '11px 14px', color: '#fff', fontSize: 12,
+                fontFamily: 'inherit', outline: 'none',
+              }}
+              onFocus={e => { e.currentTarget.style.borderColor = 'rgba(139,92,246,0.5)' }}
+              onBlur={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)' }}
+            />
+          )}
+        </div>
+
+        {/* Process button */}
+        <div style={{ padding: '0 18px', flexShrink: 0, display: 'flex', gap: 8 }}>
+          <button onClick={handleProcess} disabled={!canProcess} style={{
+            flex: 1, padding: '10px 16px', borderRadius: 12, border: 'none',
+            background: canProcess ? 'rgba(139,92,246,0.75)' : 'rgba(255,255,255,0.07)',
+            color: canProcess ? '#fff' : 'rgba(255,255,255,0.3)',
+            fontSize: 12, fontWeight: 600, fontFamily: 'inherit', cursor: canProcess ? 'pointer' : 'not-allowed',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
+            transition: 'all 0.15s', boxShadow: canProcess ? '0 0 20px rgba(139,92,246,0.2)' : 'none',
+          }}
+            onMouseEnter={e => { if (canProcess) (e.currentTarget as HTMLButtonElement).style.background = 'rgba(139,92,246,0.9)' }}
+            onMouseLeave={e => { if (canProcess) (e.currentTarget as HTMLButtonElement).style.background = 'rgba(139,92,246,0.75)' }}
+          >
+            {status === 'processing'
+              ? <><VSpinner /> {processingTone ? `Processing "${VIDEO_TONES.find(t => t.id === processingTone)?.label}"…` : 'Processing…'}</>
+              : <>{status === 'done' ? 'Re-process' : 'Generate Captions & Summary'}</>
+            }
+          </button>
+        </div>
+
+        {/* Error */}
+        {status === 'error' && (
+          <div style={{ margin: '12px 18px 0', padding: '10px 14px', borderRadius: 12, background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.22)', color: 'rgba(239,68,68,0.85)', fontSize: 12 }}>
+            ⚠ {errorMsg}
+          </div>
+        )}
+
+        {/* Progress tracker */}
+        {status === 'processing' && (
+          <div style={{ margin: '12px 18px 0', display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {VIDEO_TONES.map((t, i) => {
+              const curIdx = VIDEO_TONES.findIndex(x => x.id === processingTone)
+              const isDone = curIdx > i
+              const isCur  = t.id === processingTone
+              return (
+                <div key={t.id} style={{
+                  display: 'flex', alignItems: 'center', gap: 10,
+                  padding: '8px 12px', borderRadius: 10,
+                  background: isCur ? t.accent : isDone ? 'rgba(16,185,129,0.07)' : 'rgba(255,255,255,0.03)',
+                  border: `1px solid ${isCur ? t.border : isDone ? 'rgba(16,185,129,0.2)' : 'rgba(255,255,255,0.06)'}`,
+                  transition: 'all 0.2s',
+                }}>
+                  <span style={{ fontSize: 14 }}>{t.emoji}</span>
+                  <span style={{ fontSize: 12, color: isCur ? '#fff' : isDone ? 'rgba(16,185,129,0.8)' : 'rgba(255,255,255,0.3)', flex: 1 }}>{t.label}</span>
+                  {isCur ? <VSpinner /> : isDone ? <span style={{ color: 'rgba(16,185,129,0.8)', fontSize: 13 }}>✓</span> : <span style={{ color: 'rgba(255,255,255,0.15)', fontSize: 12 }}>○</span>}
+                </div>
+              )
+            })}
+          </div>
+        )}
+
+        {/* Save to notes button */}
+        {status === 'done' && (
+          <div style={{ padding: '12px 18px 0', flexShrink: 0 }}>
+            {!savedToNotes ? (
+              <button onClick={saveAllToNotes} style={{
+                width: '100%', padding: '10px 16px', borderRadius: 12,
+                border: '1px solid rgba(16,185,129,0.3)', background: 'rgba(16,185,129,0.1)',
+                color: 'rgba(16,185,129,0.9)', fontSize: 12, fontWeight: 600, fontFamily: 'inherit',
+                cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
+                transition: 'all 0.15s',
+              }}
+                onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(16,185,129,0.18)' }}
+                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(16,185,129,0.1)' }}
+              >
+                <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+                Save all tones to Notes
+              </button>
+            ) : (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '10px', color: 'rgba(16,185,129,0.8)', fontSize: 12, fontWeight: 500 }}>
+                <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                </svg>
+                Saved to Notes
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ── Right: results viewer ── */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
+        {/* Header / tone tabs */}
+        <div className="web-panel-header" style={{ gap: 6, flexWrap: 'wrap' }}>
+          {status === 'done' && results ? (
+            <>
+              {VIDEO_TONES.map(t => (
+                <button key={t.id} onClick={() => setActiveTone(t.id)} style={{
+                  display: 'flex', alignItems: 'center', gap: 5,
+                  padding: '5px 12px', borderRadius: 99, border: 'none', cursor: 'pointer',
+                  fontSize: 11, fontWeight: activeTone === t.id ? 600 : 400, fontFamily: 'inherit',
+                  background: activeTone === t.id ? t.accent : 'rgba(255,255,255,0.04)',
+                  color: activeTone === t.id ? '#fff' : 'rgba(255,255,255,0.4)',
+                  boxShadow: activeTone === t.id ? `0 0 0 1px ${t.border}` : 'none',
+                  transition: 'all 0.15s',
+                }}>
+                  <span style={{ fontSize: 13 }}>{t.emoji}</span>{t.label}
+                </button>
+              ))}
+              <div style={{ marginLeft: 'auto', display: 'flex', gap: 2 }}>
+                {(['summary', 'captions'] as const).map(tab => (
+                  <button key={tab} onClick={() => setActiveTab(tab)} style={{
+                    padding: '5px 12px', borderRadius: 8, border: 'none', cursor: 'pointer',
+                    fontSize: 11, fontWeight: activeTab === tab ? 600 : 400, fontFamily: 'inherit',
+                    background: activeTab === tab ? 'rgba(255,255,255,0.1)' : 'transparent',
+                    color: activeTab === tab ? '#fff' : 'rgba(255,255,255,0.35)', transition: 'all 0.15s',
+                  }}>{tab.charAt(0).toUpperCase() + tab.slice(1)}</button>
+                ))}
+              </div>
+            </>
+          ) : (
+            <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 12 }}>
+              {status === 'processing' ? 'Generating…' : 'Results will appear here'}
+            </span>
+          )}
+        </div>
+
+        {/* Content */}
+        <div className="web-scroll" style={{ flex: 1, padding: '20px 24px', overflowY: 'auto' }}>
+          {status === 'done' && results && activeResult ? (
+            activeTab === 'summary' ? (
+              <div style={{
+                background: activeToneData.accent, border: `1px solid ${activeToneData.border}`,
+                borderRadius: 16, padding: '20px 22px', maxWidth: 680,
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+                  <span style={{ fontSize: 20 }}>{activeToneData.emoji}</span>
+                  <span style={{ color: '#fff', fontWeight: 600, fontSize: 14 }}>{activeToneData.label} Summary</span>
+                </div>
+                <p style={{ color: 'rgba(255,255,255,0.75)', fontSize: 13, lineHeight: 1.8, margin: 0, whiteSpace: 'pre-wrap' }}>
+                  {activeResult.summary}
+                </p>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', maxWidth: 680 }}>
+                {(activeResult.captions || '').split('\n').filter(Boolean).map((line, i, arr) => {
+                  const match = line.match(/^(\d+:\d+(?:\.\d+)?(?:\s*[–\-]\s*|\s+))(.+)$/)
+                  const timestamp = match ? match[1].trim().replace(/[–\-]/, '').trim() : null
+                  const text = match ? match[2] : line
+                  return (
+                    <div key={i} style={{
+                      display: 'flex', gap: 14, padding: '9px 0',
+                      borderBottom: i < arr.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none',
+                    }}>
+                      {timestamp && (
+                        <span style={{ color: activeToneData.dot, fontSize: 11, fontFamily: 'monospace', fontWeight: 600, flexShrink: 0, paddingTop: 2, minWidth: 40 }}>{timestamp}</span>
+                      )}
+                      <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13, lineHeight: 1.65 }}>{text}</span>
+                    </div>
+                  )
+                })}
+                {!activeResult.captions && (
+                  <div style={{ color: 'rgba(255,255,255,0.25)', fontSize: 13, padding: '16px 0' }}>No timestamped captions were generated.</div>
+                )}
+              </div>
+            )
+          ) : status !== 'processing' ? (
+            <div className="web-empty-state">
+              <svg width="40" height="40" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ opacity: 0.2 }}>
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 10l4.553-2.276A1 1 0 0121 8.723v6.554a1 1 0 01-1.447.894L15 14M4 8a2 2 0 012-2h9a2 2 0 012 2v8a2 2 0 01-2 2H6a2 2 0 01-2-2V8z" />
+              </svg>
+              <div>Upload a video or paste a URL,<br/>then hit Generate.</div>
+            </div>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 /* ── Root WebApp component ────────────────────────────────────────────────── */
 export default function WebApp() {
   const [activeId, setActiveId] = useState('home')
@@ -807,6 +1161,7 @@ export default function WebApp() {
     switch (activeId) {
       case 'chat':     return <WebChatPanel />
       case 'notes':    return <WebNotesPanel />
+      case 'video':    return <WebVideoPanel />
       case 'settings': return <SettingsPanel />
       default:         return <HomePanel onNavigate={setActiveId} />
     }

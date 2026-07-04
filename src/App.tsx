@@ -2,15 +2,17 @@ import { useState, useEffect, useRef } from 'react'
 import AppHub from './components/AppHub'
 import ChatBox from './components/ChatBox'
 import NotesApp from './components/NotesApp'
+import VideoCaptionsApp from './components/VideoCaptionsApp'
 import DraggableWidget from './components/DraggableWidget'
 import type { AppItem, Note } from './types'
 import { xo } from './env'
 
 const APPS: AppItem[] = [
-  { id: 'chat',     label: 'Assistant'      },
-  { id: 'notes',    label: 'Notes'          },
-  { id: 'usage',    label: 'Usage Tracking' },
-  { id: 'settings', label: 'Settings'       },
+  { id: 'chat',     label: 'Assistant'       },
+  { id: 'notes',    label: 'Notes'           },
+  { id: 'video',    label: 'Video Captions'  },
+  { id: 'usage',    label: 'Usage Tracking'  },
+  { id: 'settings', label: 'Settings'        },
 ]
 
 export default function App() {
@@ -21,6 +23,7 @@ export default function App() {
   const [activeApp, setActiveApp] = useState('chat')
   const [chatOpen, setChatOpen] = useState(true)
   const [notesOpen, setNotesOpen] = useState(true)
+  const [videoOpen, setVideoOpen] = useState(false)
   const [activeNote, setActiveNote] = useState<Note | null>(null)
   const [windowAnim, setWindowAnim] = useState<'visible' | 'entering' | 'exiting'>('visible')
   const exitTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -55,11 +58,13 @@ export default function App() {
     setActiveApp(id)
     if (id === 'chat') setChatOpen(prev => !prev)
     if (id === 'notes') setNotesOpen(prev => !prev)
+    if (id === 'video') setVideoOpen(prev => !prev)
   }
 
   const openApps = new Set([
-    ...(chatOpen ? ['chat'] : []),
+    ...(chatOpen  ? ['chat']  : []),
     ...(notesOpen ? ['notes'] : []),
+    ...(videoOpen ? ['video'] : []),
   ])
 
   const animClass = windowAnim === 'entering' ? 'app-enter'
@@ -99,6 +104,12 @@ export default function App() {
       {notesOpen && (
         <DraggableWidget initialX={Math.round(window.innerWidth - 420 - 20)} initialY={Math.min(Math.round(20 + 480 * 1.2 + 8), window.innerHeight - 300 - 20)} baseWidth={420} baseHeight={300}>
           {(onCornerDown) => <NotesApp onClose={() => setNotesOpen(false)} onCornerDown={onCornerDown} onNoteChange={setActiveNote} />}
+        </DraggableWidget>
+      )}
+
+      {videoOpen && (
+        <DraggableWidget initialX={Math.round((window.innerWidth - 460) / 2)} initialY={Math.round((window.innerHeight - 520) / 2)} baseWidth={460} baseHeight={520}>
+          {(onCornerDown) => <VideoCaptionsApp onClose={() => setVideoOpen(false)} onCornerDown={onCornerDown} />}
         </DraggableWidget>
       )}
 
