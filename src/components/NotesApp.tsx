@@ -72,6 +72,7 @@ export default function NotesApp({ onClose, onCornerDown, onNoteChange }: Props)
   const [closestCorner, setClosestCorner] = useState<number | null>(null)
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [height, setHeight] = useState(300)
+  const [heightAnimating, setHeightAnimating] = useState(false)
   const bottomDragStart = useRef<{ y: number; h: number } | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const titleRef = useRef<HTMLInputElement>(null)
@@ -132,6 +133,7 @@ export default function NotesApp({ onClose, onCornerDown, onNoteChange }: Props)
   function onBottomDragDown(e: React.MouseEvent) {
     e.preventDefault()
     e.stopPropagation()
+    setHeightAnimating(false)
     bottomDragStart.current = { y: e.clientY, h: height }
     window.xo?.setIgnoreMouse(false)
 
@@ -192,10 +194,11 @@ export default function NotesApp({ onClose, onCornerDown, onNoteChange }: Props)
         borderRadius: 22,
         overflow: 'hidden',
         boxShadow: '0 32px 80px rgba(0,0,0,0.6), 0 0 0 0.5px rgba(255,255,255,0.05) inset',
+        transition: heightAnimating ? 'height 0.35s cubic-bezier(0.34,1.56,0.64,1)' : 'none',
       }}>
 
         {/* ── Top bar ── */}
-        <div data-reset-widget style={{
+        <div data-reset-widget onDoubleClick={() => { setHeightAnimating(true); setHeight(300) }} style={{
           display: 'flex', alignItems: 'center', gap: 8,
           padding: '12px 14px',
           borderBottom: '1px solid rgba(255,255,255,0.06)',
@@ -398,7 +401,7 @@ export default function NotesApp({ onClose, onCornerDown, onNoteChange }: Props)
         <div
           data-no-drag
           onMouseDown={onBottomDragDown}
-          onDoubleClick={() => setHeight(300)}
+          onDoubleClick={() => { setHeightAnimating(true); setHeight(300) }}
           onMouseEnter={e => { const pill = e.currentTarget.querySelector('div') as HTMLDivElement; if (pill) pill.style.background = 'rgba(255,255,255,0.28)' }}
           onMouseLeave={e => { const pill = e.currentTarget.querySelector('div') as HTMLDivElement; if (pill) pill.style.background = 'rgba(255,255,255,0.1)' }}
           style={{
