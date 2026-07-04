@@ -1,7 +1,5 @@
-import { useState, useRef, useCallback, useEffect } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import type { AppItem, Note } from './types'
-import ChatBox from './components/ChatBox'
-import NotesApp from './components/NotesApp'
 import VoiceCall from './components/VoiceCall'
 
 /* ── Nav items ────────────────────────────────────────────────────────────── */
@@ -256,18 +254,35 @@ function SettingsPanel() {
 
 /* ── Web-native chat panel ────────────────────────────────────────────────── */
 import { sendToGeminiWithSystem } from './gemini'
-import type { Message } from './types'
+import type { Message, ChatSession } from './types'
+import {
+  initSessions, newSession, upsertSession, saveSessions, deriveTitleFromMessage,
+} from './chatHistory'
+
+function timeAgoChat(ts: number) {
+  const d = Date.now() - ts
+  if (d < 60_000) return 'just now'
+  if (d < 3_600_000) return `${Math.floor(d / 60_000)}m ago`
+  if (d < 86_400_000) return `${Math.floor(d / 3_600_000)}h ago`
+  return `${Math.floor(d / 86_400_000)}d ago`
+}
 
 function WebChatPanel() {
-  const [messages, setMessages] = useState<Message[]>([
-    { id: '0', role: 'assistant', content: "Hey! I'm XO, your AI assistant. How can I help you today?", timestamp: new Date() },
-  ])
+  const [sessions, setSessions] = useState<ChatSession[]>(() => initSessions().sessions)
+  const [activeId, setActiveId] = useState<string>(() => initSessions().active.id)
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [voiceCall, setVoiceCall] = useState(false)
-  const [activeNote, setActiveNote] = useState<Note | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  const activeSession = sessions.find(s => s.id === activeId) ?? sessions[0]
+  const messages: Message[] = activeSession?.messages ?? []
+
+  // Persist whenever sessions change
+  useEffect(() => {
+    saveSessions(sessions)
+  }, [sessions])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -281,22 +296,67 @@ function WebChatPanel() {
     ta.style.height = `${Math.min(ta.scrollHeight, 120)}px`
   }, [input])
 
+  function handleNewChat() {
+    const session = newSession()
+    setSessions(prev => [session, ...prev])
+    setActiveId(session.id)
+    setInput('')
+  }
+
   async function handleSend() {
     const text = input.trim()
     if (!text || loading) return
-    const userMsg: Message = { id: Date.now().toString(), role: 'user', content: text, timestamp: new Date() }
-    setMessages(prev => [...prev, userMsg])
+
+    const userMsg: Message = {
+      id: Date.now().toString(),
+      role: 'user',
+      content: text,
+      timestamp: new Date(),
+    }
+
+    // Auto-title on first user message
+    const isFirstUserMsg = messages.filter(m => m.role === 'user').length === 0
+    const newTitle = isFirstUserMsg ? deriveTitleFromMessage(text) : activeSession.title
+
+    const updatedMessages = [...messages, userMsg]
+    setSessions(prev => upsertSession(prev, {
+      ...activeSession,
+      title: newTitle,
+      messages: updatedMessages,
+      updatedAt: Date.now(),
+    }))
+
     setInput('')
     setLoading(true)
+
     try {
-      const noteCtx = activeNote
-        ? `The user has a note open titled "${activeNote.title || 'Untitled'}" with content:\n"""\n${activeNote.content || '(empty)'}\n"""\nYou can reference it if relevant.`
-        : ''
-      const systemPrompt = `You are XO, an intelligent AI assistant running as a web app. Be concise, helpful, and friendly.${noteCtx ? '\n\n' + noteCtx : ''}`
-      const reply = await sendToGeminiWithSystem(messages, text, systemPrompt)
-      setMessages(prev => [...prev, { id: Date.now().toString(), role: 'assistant', content: reply, timestamp: new Date() }])
+      const systemPrompt = 'You are XO, an intelligent AI assistant running as a web app. Be concise, helpful, and friendly.'
+      const reply = await sendToGeminiWithSystem(updatedMessages, text, systemPrompt)
+      const assistantMsg: Message = {
+        id: Date.now().toString(),
+        role: 'assistant',
+        content: reply,
+        timestamp: new Date(),
+      }
+      setSessions(prev => upsertSession(prev, {
+        ...activeSession,
+        title: newTitle,
+        messages: [...updatedMessages, assistantMsg],
+        updatedAt: Date.now(),
+      }))
     } catch {
-      setMessages(prev => [...prev, { id: Date.now().toString(), role: 'assistant', content: '⚠️ Failed to reach Gemini. Check your API key in .env.local.', timestamp: new Date() }])
+      const errMsg: Message = {
+        id: Date.now().toString(),
+        role: 'assistant',
+        content: '⚠️ Failed to reach Gemini. Check your API key in .env.local.',
+        timestamp: new Date(),
+      }
+      setSessions(prev => upsertSession(prev, {
+        ...activeSession,
+        title: newTitle,
+        messages: [...updatedMessages, errMsg],
+        updatedAt: Date.now(),
+      }))
     } finally {
       setLoading(false)
     }
@@ -305,125 +365,206 @@ function WebChatPanel() {
   return (
     <>
       {voiceCall && <VoiceCall onEnd={() => setVoiceCall(false)} />}
-      <div className="web-panel-main">
-        {/* Header */}
-        <div className="web-panel-header">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{
-              color: '#fff', fontWeight: 900, fontSize: 15, letterSpacing: '-0.03em',
-              textShadow: '0 0 12px rgba(255,255,255,0.8), 0 0 24px rgba(255,255,255,0.4)',
-            }}>XO</span>
-            <span className="web-panel-subtitle">Assistant</span>
-          </div>
-          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div className="status-dot" />
-            <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>Gemini 2.5</span>
-          </div>
-        </div>
+      <div className="web-panel-main" style={{ flexDirection: 'row', padding: 0 }}>
 
-        {/* Messages */}
-        <div className="web-scroll" style={{ flex: 1, padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {messages.map(msg => (
-            <div key={msg.id} className="fade-in" style={{ display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
-              {msg.role === 'assistant' && (
-                <div style={{ marginRight: 10, marginTop: 2, flexShrink: 0 }}>
-                  <div style={{
-                    width: 26, height: 26, borderRadius: 8,
-                    background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  }}>
-                    <span style={{ fontSize: 9, fontWeight: 900, color: '#fff', letterSpacing: '-0.02em' }}>XO</span>
-                  </div>
-                </div>
-              )}
-              <div className={msg.role === 'user' ? 'web-msg-user' : 'web-msg-ai'}>
-                {msg.content}
-              </div>
-            </div>
-          ))}
-          {loading && (
-            <div className="fade-in" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <div style={{
-                width: 26, height: 26, borderRadius: 8,
-                background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-              }}>
-                <span style={{ fontSize: 9, fontWeight: 900, color: '#fff' }}>XO</span>
-              </div>
-              <div style={{ display: 'flex', gap: 5, alignItems: 'center', paddingLeft: 2 }}>
-                {[0, 150, 300].map(delay => (
-                  <span key={delay} style={{
-                    width: 5, height: 5, borderRadius: '50%',
-                    background: 'rgba(255,255,255,0.3)', display: 'inline-block',
-                    animation: `fadeIn 0.8s ${delay}ms ease-in-out infinite alternate`,
-                  }} />
-                ))}
-              </div>
-            </div>
-          )}
-          <div ref={bottomRef} />
-        </div>
-
-        {/* Input */}
-        <div style={{ padding: '16px 24px 20px', borderTop: '1px solid rgba(255,255,255,0.06)', flexShrink: 0 }}>
+        {/* ── History sidebar ── */}
+        <div style={{
+          width: 220, flexShrink: 0,
+          borderRight: '1px solid rgba(255,255,255,0.06)',
+          background: 'rgba(0,0,0,0.2)',
+          display: 'flex', flexDirection: 'column',
+          overflow: 'hidden',
+        }}>
+          {/* Sidebar header */}
           <div style={{
-            display: 'flex', gap: 10, alignItems: 'flex-end',
-            background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.09)',
-            borderRadius: 16, padding: '10px 12px',
+            padding: '18px 14px 12px',
+            borderBottom: '1px solid rgba(255,255,255,0.05)',
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0,
           }}>
-            <textarea
-              ref={textareaRef}
-              value={input}
-              onChange={e => setInput(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() } }}
-              placeholder="Ask anything… (Enter to send)"
-              rows={1}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+              <span style={{ fontSize: 13, fontWeight: 600, color: '#fff' }}>Chats</span>
+              <span style={{
+                fontSize: 10, fontWeight: 600, color: 'rgba(255,255,255,0.3)',
+                background: 'rgba(255,255,255,0.07)', borderRadius: 6, padding: '1px 6px',
+              }}>{sessions.length}</span>
+            </div>
+            {/* New chat button */}
+            <button
+              onClick={handleNewChat}
+              title="New chat"
               style={{
-                flex: 1, background: 'transparent', border: 'none', outline: 'none',
-                color: '#fff', fontSize: 13, lineHeight: 1.6,
-                resize: 'none', fontFamily: 'inherit', maxHeight: 120,
+                width: 28, height: 28, borderRadius: 8,
+                border: '1px solid rgba(255,255,255,0.1)',
+                background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.5)',
+                cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                transition: 'all 0.15s',
               }}
-            />
-            <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-              {/* Voice button */}
+              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.12)'; (e.currentTarget as HTMLButtonElement).style.color = '#fff' }}
+              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.05)'; (e.currentTarget as HTMLButtonElement).style.color = 'rgba(255,255,255,0.5)' }}
+            >
+              <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
+              </svg>
+            </button>
+          </div>
+
+          {/* Session list */}
+          <div className="web-scroll" style={{ flex: 1, overflowY: 'auto', padding: '8px', display: 'flex', flexDirection: 'column', gap: 2 }}>
+            {sessions.map(s => (
               <button
-                onClick={() => setVoiceCall(true)}
-                title="Voice call"
+                key={s.id}
+                onClick={() => { setActiveId(s.id); setInput('') }}
                 style={{
-                  width: 34, height: 34, borderRadius: 10, border: '1px solid rgba(255,255,255,0.1)',
-                  background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.4)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
-                  transition: 'all 0.15s', flexShrink: 0,
+                  width: '100%', textAlign: 'left', padding: '9px 11px', borderRadius: 10,
+                  background: s.id === activeId ? 'rgba(255,255,255,0.08)' : 'transparent',
+                  border: s.id === activeId ? '1px solid rgba(255,255,255,0.12)' : '1px solid transparent',
+                  cursor: 'pointer', transition: 'all 0.15s',
                 }}
-                onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(52,211,153,0.12)'; (e.currentTarget as HTMLButtonElement).style.color = '#34d399' }}
-                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.05)'; (e.currentTarget as HTMLButtonElement).style.color = 'rgba(255,255,255,0.4)' }}
-              >
-                <svg width="15" height="15" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
-                  <path d="M19 10v2a7 7 0 0 1-14 0v-2H3v2a9 9 0 0 0 8 8.94V23h2v-2.06A9 9 0 0 0 21 12v-2h-2z"/>
-                </svg>
-              </button>
-              {/* Send button */}
-              <button
-                onClick={handleSend}
-                disabled={!input.trim() || loading}
-                style={{
-                  width: 34, height: 34, borderRadius: 10,
-                  background: input.trim() && !loading ? '#fff' : 'rgba(255,255,255,0.07)',
-                  border: 'none', cursor: input.trim() && !loading ? 'pointer' : 'default',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  color: input.trim() && !loading ? 'rgba(0,0,0,0.7)' : 'rgba(255,255,255,0.25)',
-                  transition: 'all 0.15s', flexShrink: 0,
+                onMouseEnter={e => {
+                  if (s.id !== activeId) (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.04)'
+                }}
+                onMouseLeave={e => {
+                  if (s.id !== activeId) (e.currentTarget as HTMLButtonElement).style.background = 'transparent'
                 }}
               >
-                <svg width="15" height="15" fill="currentColor" viewBox="0 0 24 24" style={{ transform: 'rotate(-45deg)' }}>
-                  <path d="M2 21l21-9L2 3v7l15 2-15 2z"/>
-                </svg>
+                <div style={{
+                  fontSize: 12, fontWeight: s.id === activeId ? 600 : 400,
+                  color: s.id === activeId ? '#fff' : 'rgba(255,255,255,0.55)',
+                  marginBottom: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                }}>
+                  {s.title}
+                </div>
+                <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.25)' }}>
+                  {s.messages.filter(m => m.role === 'user').length} msg · {timeAgoChat(s.updatedAt)}
+                </div>
               </button>
+            ))}
+          </div>
+        </div>
+
+        {/* ── Chat area ── */}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+          {/* Header */}
+          <div className="web-panel-header">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{
+                color: '#fff', fontWeight: 900, fontSize: 15, letterSpacing: '-0.03em',
+                textShadow: '0 0 12px rgba(255,255,255,0.8), 0 0 24px rgba(255,255,255,0.4)',
+              }}>XO</span>
+              <span className="web-panel-subtitle" style={{ maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {activeSession?.title ?? 'Assistant'}
+              </span>
+            </div>
+            <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div className="status-dot" />
+              <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>Gemini 2.5</span>
             </div>
           </div>
-          <div style={{ marginTop: 8, fontSize: 10, color: 'rgba(255,255,255,0.2)', paddingLeft: 2 }}>
-            Shift+Enter for newline
+
+          {/* Messages */}
+          <div className="web-scroll" style={{ flex: 1, padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {messages.map(msg => (
+              <div key={msg.id} className="fade-in" style={{ display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
+                {msg.role === 'assistant' && (
+                  <div style={{ marginRight: 10, marginTop: 2, flexShrink: 0 }}>
+                    <div style={{
+                      width: 26, height: 26, borderRadius: 8,
+                      background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}>
+                      <span style={{ fontSize: 9, fontWeight: 900, color: '#fff', letterSpacing: '-0.02em' }}>XO</span>
+                    </div>
+                  </div>
+                )}
+                <div className={msg.role === 'user' ? 'web-msg-user' : 'web-msg-ai'}>
+                  {msg.content}
+                </div>
+              </div>
+            ))}
+            {loading && (
+              <div className="fade-in" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{
+                  width: 26, height: 26, borderRadius: 8,
+                  background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                }}>
+                  <span style={{ fontSize: 9, fontWeight: 900, color: '#fff' }}>XO</span>
+                </div>
+                <div style={{ display: 'flex', gap: 5, alignItems: 'center', paddingLeft: 2 }}>
+                  {[0, 150, 300].map(delay => (
+                    <span key={delay} style={{
+                      width: 5, height: 5, borderRadius: '50%',
+                      background: 'rgba(255,255,255,0.3)', display: 'inline-block',
+                      animation: `fadeIn 0.8s ${delay}ms ease-in-out infinite alternate`,
+                    }} />
+                  ))}
+                </div>
+              </div>
+            )}
+            <div ref={bottomRef} />
+          </div>
+
+          {/* Input */}
+          <div style={{ padding: '16px 24px 20px', borderTop: '1px solid rgba(255,255,255,0.06)', flexShrink: 0 }}>
+            <div style={{
+              display: 'flex', gap: 10, alignItems: 'flex-end',
+              background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.09)',
+              borderRadius: 16, padding: '10px 12px',
+            }}>
+              <textarea
+                ref={textareaRef}
+                value={input}
+                onChange={e => setInput(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() } }}
+                placeholder="Ask anything… (Enter to send)"
+                rows={1}
+                style={{
+                  flex: 1, background: 'transparent', border: 'none', outline: 'none',
+                  color: '#fff', fontSize: 13, lineHeight: 1.6,
+                  resize: 'none', fontFamily: 'inherit', maxHeight: 120,
+                }}
+              />
+              <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                {/* Voice button */}
+                <button
+                  onClick={() => setVoiceCall(true)}
+                  title="Voice call"
+                  style={{
+                    width: 34, height: 34, borderRadius: 10, border: '1px solid rgba(255,255,255,0.1)',
+                    background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.4)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
+                    transition: 'all 0.15s', flexShrink: 0,
+                  }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(52,211,153,0.12)'; (e.currentTarget as HTMLButtonElement).style.color = '#34d399' }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.05)'; (e.currentTarget as HTMLButtonElement).style.color = 'rgba(255,255,255,0.4)' }}
+                >
+                  <svg width="15" height="15" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                    <path d="M19 10v2a7 7 0 0 1-14 0v-2H3v2a9 9 0 0 0 8 8.94V23h2v-2.06A9 9 0 0 0 21 12v-2h-2z"/>
+                  </svg>
+                </button>
+                {/* Send button */}
+                <button
+                  onClick={handleSend}
+                  disabled={!input.trim() || loading}
+                  style={{
+                    width: 34, height: 34, borderRadius: 10,
+                    background: input.trim() && !loading ? '#fff' : 'rgba(255,255,255,0.07)',
+                    border: 'none', cursor: input.trim() && !loading ? 'pointer' : 'default',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    color: input.trim() && !loading ? 'rgba(0,0,0,0.7)' : 'rgba(255,255,255,0.25)',
+                    transition: 'all 0.15s', flexShrink: 0,
+                  }}
+                >
+                  <svg width="15" height="15" fill="currentColor" viewBox="0 0 24 24" style={{ transform: 'rotate(-45deg)' }}>
+                    <path d="M2 21l21-9L2 3v7l15 2-15 2z"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
+            <div style={{ marginTop: 8, fontSize: 10, color: 'rgba(255,255,255,0.2)', paddingLeft: 2 }}>
+              Shift+Enter for newline
+            </div>
           </div>
         </div>
       </div>
@@ -433,16 +574,12 @@ function WebChatPanel() {
 
 /* ── Web-native notes wrapper ─────────────────────────────────────────────── */
 function WebNotesPanel() {
-  // NotesApp expects onCornerDown (desktop drag) — pass a no-op for web
-  const noOp = useCallback(() => {}, [])
-
   return (
     <div className="web-panel-main" style={{ position: 'relative' }}>
       <div style={{
         position: 'absolute', inset: 0,
         display: 'flex', flexDirection: 'column', overflow: 'hidden',
       }}>
-        {/* Reuse the existing NotesApp, adapted for full panel height */}
         <WebNotesInner />
       </div>
     </div>

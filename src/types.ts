@@ -18,3 +18,11 @@ export interface Note {
   createdAt: number
   updatedAt: number
 }
+
+export interface ChatSession {
+  id: string
+  title: string          // auto-generated from first user message
+  messages: Message[]
+  createdAt: number
+  updatedAt: number
+}
