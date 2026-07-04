@@ -23,7 +23,7 @@ export default function App() {
   const [activeApp, setActiveApp] = useState('chat')
   const [chatOpen, setChatOpen] = useState(true)
   const [notesOpen, setNotesOpen] = useState(true)
-  const [videoOpen, setVideoOpen] = useState(false)
+  const [videoOpen, setVideoOpen] = useState(true)
   const [activeNote, setActiveNote] = useState<Note | null>(null)
   const [windowAnim, setWindowAnim] = useState<'visible' | 'entering' | 'exiting'>('visible')
   const exitTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -108,7 +108,7 @@ export default function App() {
       )}
 
       {videoOpen && (
-        <DraggableWidget initialX={Math.round((window.innerWidth - 520) / 2)} initialY={Math.round((window.innerHeight - 520) / 2)} baseWidth={520} baseHeight={520}>
+        <DraggableWidget initialX={Math.round(window.innerWidth - 320 * 1.2 - 20 - 12 - 520)} initialY={20} baseWidth={520} baseHeight={520}>
           {(onCornerDown) => <VideoCaptionsApp onClose={() => setVideoOpen(false)} onCornerDown={onCornerDown} />}
         </DraggableWidget>
       )}

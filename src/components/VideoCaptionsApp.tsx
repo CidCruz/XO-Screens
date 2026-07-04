@@ -288,7 +288,7 @@ export default function VideoCaptionsApp({ onClose, onCornerDown }: Props) {
 
       {/* Main panel */}
       <div style={{
-        width: 460, display: 'flex', flexDirection: 'column',
+        width: 520, display: 'flex', flexDirection: 'column',
         background: 'rgba(10,10,12,0.82)',
         backdropFilter: 'blur(32px) saturate(180%)',
         WebkitBackdropFilter: 'blur(32px) saturate(180%)',
