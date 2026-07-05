@@ -1,20 +1,5 @@
-import { useRef, useState, useEffect, ReactNode } from 'react'
+import { useRef, useState, useEffect, type ReactNode } from 'react'
 import { widgetEnter, widgetLeave, dragStart, dragEnd } from '../hoverGuard'
-
-declare global {
-  interface Window {
-    xo?: {
-      hide: () => void
-      platform: string
-      setIgnoreMouse: (v: boolean) => void
-      quit: () => void
-      minimizeToTray: () => void
-      readyToHide: () => void
-      onShow: (cb: () => void) => void
-      onHideAnimate: (cb: () => void) => void
-    }
-  }
-}
 
 interface Props {
   children: ReactNode | ((onCornerDown: (e: React.MouseEvent, dx: number, dy: number) => void) => ReactNode)

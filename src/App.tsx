@@ -15,15 +15,190 @@ const APPS: AppItem[] = [
   { id: 'settings', label: 'Settings'        },
 ]
 
+// ── Settings widget (overlay-native, glass style) ──────────────────────────
+
+const settingsCorners = [
+  { top: -6,    left: -6,   dx: -1, dy: -1, rotate: 'rotate(180deg)', cursor: 'nwse-resize' },
+  { top: -6,    right: -6,  dx:  1, dy: -1, rotate: 'rotate(270deg)', cursor: 'nesw-resize' },
+  { bottom: -6, left: -6,   dx: -1, dy:  1, rotate: 'rotate(90deg)',  cursor: 'nesw-resize' },
+  { bottom: -6, right: -6,  dx:  1, dy:  1, rotate: 'rotate(0deg)',   cursor: 'nwse-resize' },
+]
+
+interface SettingsWidgetProps {
+  onClose: () => void
+  onCornerDown: (e: React.MouseEvent, dx: number, dy: number) => void
+}
+
+function SettingsWidget({ onClose, onCornerDown }: SettingsWidgetProps) {
+  const [closestCorner, setClosestCorner] = useState<number | null>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const apiKey = import.meta.env.VITE_GEMINI_API_KEY
+  const masked = apiKey ? `${apiKey.slice(0, 6)}${'•'.repeat(20)}` : 'Not set'
+
+  return (
+    <div
+      ref={containerRef}
+      style={{ position: 'relative', overflow: 'visible' }}
+      onMouseMove={e => {
+        if (!containerRef.current) return
+        const r = containerRef.current.getBoundingClientRect()
+        const x = e.clientX - r.left, y = e.clientY - r.top
+        const pts = [{ cx: 0, cy: 0 }, { cx: r.width, cy: 0 }, { cx: 0, cy: r.height }, { cx: r.width, cy: r.height }]
+        let closest = -1, minDist = 14
+        pts.forEach((p, i) => { const d = Math.hypot(x - p.cx, y - p.cy); if (d < minDist) { minDist = d; closest = i } })
+        setClosestCorner(closest)
+      }}
+      onMouseLeave={() => setClosestCorner(null)}
+    >
+      {/* Corner handles */}
+      {settingsCorners.map((c, i) => (
+        <div key={i} onMouseDown={e => onCornerDown(e, c.dx, c.dy)} style={{
+          position: 'absolute', width: 16, height: 16, zIndex: 10,
+          top: (c as { top?: number }).top, left: (c as { left?: number }).left,
+          right: (c as { right?: number }).right, bottom: (c as { bottom?: number }).bottom,
+          cursor: c.cursor, display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <svg width="10" height="10" viewBox="0 0 10 10"
+            style={{ opacity: closestCorner === i ? 0.35 : 0, transition: 'opacity 0.15s', pointerEvents: 'none', transform: c.rotate }}>
+            <line x1="9" y1="3" x2="3" y2="9" stroke="white" strokeWidth="1.5" strokeLinecap="round" />
+            <line x1="9" y1="6" x2="6" y2="9" stroke="white" strokeWidth="1.5" strokeLinecap="round" />
+          </svg>
+        </div>
+      ))}
+
+      {/* Panel */}
+      <div style={{
+        width: 340, display: 'flex', flexDirection: 'column',
+        background: 'rgba(10,10,12,0.85)', backdropFilter: 'blur(32px) saturate(180%)',
+        WebkitBackdropFilter: 'blur(32px) saturate(180%)',
+        border: '1px solid rgba(255,255,255,0.08)', borderRadius: 20,
+        overflow: 'hidden', boxShadow: '0 24px 60px rgba(0,0,0,0.55)',
+      }}>
+        {/* Header */}
+        <div data-reset-widget style={{
+          display: 'flex', alignItems: 'center', gap: 8,
+          padding: '14px 16px', borderBottom: '1px solid rgba(255,255,255,0.07)', flexShrink: 0,
+        }}>
+          <span style={{ color: '#fff', fontWeight: 900, fontSize: 13, letterSpacing: '-0.03em', textShadow: '0 0 10px rgba(255,255,255,0.8)' }}>XO</span>
+          <span style={{ color: 'rgba(255,255,255,0.18)', fontSize: 11 }}>Settings</span>
+          <div style={{ flex: 1 }} />
+          <button data-no-drag onClick={onClose} title="Close"
+            style={{ width: 26, height: 26, borderRadius: 8, border: 'none', background: 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,255,255,0.25)', cursor: 'pointer', transition: 'all 0.15s', flexShrink: 0 }}
+            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = '#f87171'; (e.currentTarget as HTMLButtonElement).style.background = 'rgba(239,68,68,0.12)' }}
+            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = 'rgba(255,255,255,0.25)'; (e.currentTarget as HTMLButtonElement).style.background = 'transparent' }}
+          >
+            <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Body */}
+        <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+
+          {/* Gemini API section */}
+          <div>
+            <div style={{ fontSize: 9, fontWeight: 700, color: 'rgba(255,255,255,0.3)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 8 }}>
+              Gemini API
+            </div>
+            <div style={{ padding: '12px 14px', borderRadius: 12, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
+              <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', marginBottom: 5 }}>API Key</div>
+              <div style={{ fontFamily: 'monospace', fontSize: 11, color: apiKey ? 'rgba(52,211,153,0.85)' : 'rgba(239,68,68,0.8)', wordBreak: 'break-all' }}>
+                {masked}
+              </div>
+              {!apiKey && (
+                <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.25)', marginTop: 8, lineHeight: 1.6 }}>
+                  Set <code style={{ background: 'rgba(255,255,255,0.07)', padding: '1px 4px', borderRadius: 3 }}>VITE_GEMINI_API_KEY</code> in <code style={{ background: 'rgba(255,255,255,0.07)', padding: '1px 4px', borderRadius: 3 }}>.env.local</code>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* About section */}
+          <div>
+            <div style={{ fontSize: 9, fontWeight: 700, color: 'rgba(255,255,255,0.3)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 8 }}>
+              About
+            </div>
+            <div style={{ padding: '12px 14px', borderRadius: 12, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', display: 'flex', flexDirection: 'column', gap: 9 }}>
+              {[
+                { label: 'Version',   value: '0.0.0' },
+                { label: 'Mode',      value: 'Desktop Overlay' },
+                { label: 'Model',     value: 'gemini-2.5-flash' },
+                { label: 'Voice',     value: 'gemini-2.5-flash-native-audio' },
+                { label: 'Platform',  value: xo.platform ?? 'electron' },
+              ].map(row => (
+                <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)' }}>{row.label}</span>
+                  <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.65)', fontFamily: 'monospace' }}>{row.value}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Shortcuts section */}
+          <div>
+            <div style={{ fontSize: 9, fontWeight: 700, color: 'rgba(255,255,255,0.3)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 8 }}>
+              Shortcuts
+            </div>
+            <div style={{ padding: '12px 14px', borderRadius: 12, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', display: 'flex', flexDirection: 'column', gap: 9 }}>
+              {[
+                { label: 'Toggle overlay',  value: '⌘⇧Space' },
+                { label: 'Drag widget',     value: 'Header drag' },
+                { label: 'Resize widget',   value: 'Corner drag' },
+                { label: 'Reset size',      value: 'Corner dbl-click' },
+              ].map(row => (
+                <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)' }}>{row.label}</span>
+                  <kbd style={{ fontSize: 10, color: 'rgba(255,255,255,0.55)', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 5, padding: '2px 7px', fontFamily: 'inherit' }}>{row.value}</kbd>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* App actions */}
+          <div>
+            <div style={{ fontSize: 9, fontWeight: 700, color: 'rgba(255,255,255,0.3)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 8 }}>
+              App
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button data-no-drag onClick={() => xo.minimizeToTray()} style={{
+                flex: 1, padding: '9px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.1)',
+                background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.55)',
+                fontSize: 11, fontWeight: 500, fontFamily: 'inherit', cursor: 'pointer', transition: 'all 0.15s',
+              }}
+                onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.1)'; (e.currentTarget as HTMLButtonElement).style.color = '#fff' }}
+                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.05)'; (e.currentTarget as HTMLButtonElement).style.color = 'rgba(255,255,255,0.55)' }}
+              >
+                Minimize to Tray
+              </button>
+              <button data-no-drag onClick={() => xo.quit()} style={{
+                flex: 1, padding: '9px', borderRadius: 10, border: '1px solid rgba(239,68,68,0.25)',
+                background: 'rgba(239,68,68,0.08)', color: 'rgba(239,68,68,0.7)',
+                fontSize: 11, fontWeight: 500, fontFamily: 'inherit', cursor: 'pointer', transition: 'all 0.15s',
+              }}
+                onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(239,68,68,0.18)'; (e.currentTarget as HTMLButtonElement).style.color = '#f87171' }}
+                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(239,68,68,0.08)'; (e.currentTarget as HTMLButtonElement).style.color = 'rgba(239,68,68,0.7)' }}
+              >
+                Quit XO Screens
+              </button>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function App() {
   const [splash, setSplash] = useState(true)
   const [fadeIn, setFadeIn] = useState(false)
   const [fadeOut, setFadeOut] = useState(false)
   const [appVisible, setAppVisible] = useState(false)
-  const [activeApp, setActiveApp] = useState('chat')
   const [chatOpen, setChatOpen] = useState(true)
   const [notesOpen, setNotesOpen] = useState(true)
   const [videoOpen, setVideoOpen] = useState(true)
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const [activeNote, setActiveNote] = useState<Note | null>(null)
   const [windowAnim, setWindowAnim] = useState<'visible' | 'entering' | 'exiting'>('visible')
   const exitTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -55,16 +230,17 @@ export default function App() {
   }, [])
 
   function handleSelect(id: string) {
-    setActiveApp(id)
-    if (id === 'chat') setChatOpen(prev => !prev)
-    if (id === 'notes') setNotesOpen(prev => !prev)
-    if (id === 'video') setVideoOpen(prev => !prev)
+    if (id === 'chat')     setChatOpen(prev => !prev)
+    if (id === 'notes')    setNotesOpen(prev => !prev)
+    if (id === 'video')    setVideoOpen(prev => !prev)
+    if (id === 'settings') setSettingsOpen(prev => !prev)
   }
 
   const openApps = new Set([
-    ...(chatOpen  ? ['chat']  : []),
-    ...(notesOpen ? ['notes'] : []),
-    ...(videoOpen ? ['video'] : []),
+    ...(chatOpen     ? ['chat']     : []),
+    ...(notesOpen    ? ['notes']    : []),
+    ...(videoOpen    ? ['video']    : []),
+    ...(settingsOpen ? ['settings'] : []),
   ])
 
   const animClass = windowAnim === 'entering' ? 'app-enter'
@@ -110,6 +286,12 @@ export default function App() {
       {videoOpen && (
         <DraggableWidget initialX={Math.round(window.innerWidth - 320 * 1.2 - 20 - 12 - 520)} initialY={20} baseWidth={520} baseHeight={520}>
           {(onCornerDown) => <VideoCaptionsApp onClose={() => setVideoOpen(false)} onCornerDown={onCornerDown} />}
+        </DraggableWidget>
+      )}
+
+      {settingsOpen && (
+        <DraggableWidget initialX={Math.round((window.innerWidth - 340) / 2)} initialY={Math.round((window.innerHeight - 440) / 2)} baseWidth={340} baseHeight={440}>
+          {(onCornerDown) => <SettingsWidget onClose={() => setSettingsOpen(false)} onCornerDown={onCornerDown} />}
         </DraggableWidget>
       )}
 

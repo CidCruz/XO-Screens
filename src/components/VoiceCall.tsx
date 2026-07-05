@@ -9,10 +9,6 @@ interface Props {
   onEnd: () => void
 }
 
-declare global {
-  interface Window { xo: { setIgnoreMouse: (v: boolean) => void } }
-}
-
 // ---------- Animated waveform bars (used when XO speaks) ----------
 function WaveformBars() {
   return (

@@ -289,7 +289,11 @@ function timeAgoChat(ts: number) {
   return `${Math.floor(d / 86_400_000)}d ago`
 }
 
-function WebChatPanel() {
+interface WebChatPanelProps {
+  activeNote?: Note | null
+}
+
+function WebChatPanel({ activeNote }: WebChatPanelProps) {
   const [sessions, setSessions] = useState<ChatSession[]>(() => initSessions().sessions)
   const [activeId, setActiveId] = useState<string>(() => initSessions().active.id)
   const [input, setInput] = useState('')
@@ -352,7 +356,10 @@ function WebChatPanel() {
     setLoading(true)
 
     try {
-      const systemPrompt = 'You are XO, an intelligent AI assistant running as a web app. Be concise, helpful, and friendly.'
+      const noteCtx = activeNote
+        ? `The user has a note open titled "${activeNote.title || 'Untitled'}" with the following content:\n"""\n${activeNote.content || '(empty)'}\n"""\nYou are aware of this note and can reference or help with it if relevant.`
+        : ''
+      const systemPrompt = `You are XO, an intelligent AI assistant running as a web app. Be concise, helpful, and friendly.${noteCtx ? '\n\n' + noteCtx : ''}`
       const reply = await sendToGeminiWithSystem(updatedMessages, text, systemPrompt)
       const assistantMsg: Message = {
         id: Date.now().toString(),
@@ -478,6 +485,21 @@ function WebChatPanel() {
               </span>
             </div>
             <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+              {activeNote && (
+                <div title={`Note context: "${activeNote.title || 'Untitled'}"`} style={{
+                  display: 'flex', alignItems: 'center', gap: 5,
+                  padding: '3px 9px', borderRadius: 8,
+                  background: 'rgba(139,92,246,0.12)', border: '1px solid rgba(139,92,246,0.25)',
+                  maxWidth: 160, overflow: 'hidden',
+                }}>
+                  <svg width="9" height="9" fill="none" stroke="rgba(139,92,246,0.9)" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                  </svg>
+                  <span style={{ fontSize: 10, color: 'rgba(139,92,246,0.9)', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {activeNote.title || 'Untitled'}
+                  </span>
+                </div>
+              )}
               <div className="status-dot" />
               <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>Gemini 2.5</span>
             </div>
@@ -595,14 +617,14 @@ function WebChatPanel() {
 }
 
 /* ── Web-native notes wrapper ─────────────────────────────────────────────── */
-function WebNotesPanel() {
+function WebNotesPanel({ onNoteChange }: { onNoteChange?: (note: Note | null) => void }) {
   return (
     <div className="web-panel-main" style={{ position: 'relative' }}>
       <div style={{
         position: 'absolute', inset: 0,
         display: 'flex', flexDirection: 'column', overflow: 'hidden',
       }}>
-        <WebNotesInner />
+        <WebNotesInner onNoteChange={onNoteChange} />
       </div>
     </div>
   )
@@ -641,7 +663,7 @@ function timeAgo(ts: number) {
   return `${Math.floor(d / 86_400_000)}d ago`
 }
 
-function WebNotesInner() {
+function WebNotesInner({ onNoteChange }: { onNoteChange?: (note: Note | null) => void }) {
   const [notes, setNotes] = useStateN<Note[]>(() => { const l = loadNotes(); return l.length ? l : [newNoteObj()] })
   const [activeId, setActiveId] = useStateN<string>(() => { const l = loadNotes(); return l.length ? l[0].id : '' })
   const [confirmDeleteId, setConfirmDeleteId] = useStateN<string | null>(null)
@@ -649,9 +671,25 @@ function WebNotesInner() {
 
   useEffectN(() => { saveNotesLocal(notes) }, [notes])
 
+  // Refresh when another panel (e.g. Video Captions) writes new notes to localStorage
+  useEffectN(() => {
+    function handleNotesUpdated() {
+      const fresh = loadNotes()
+      setNotes(fresh.length ? fresh : [newNoteObj()])
+      setActiveId(prev => fresh.some(n => n.id === prev) ? prev : (fresh[0]?.id ?? ''))
+    }
+    window.addEventListener('xo-notes-updated', handleNotesUpdated)
+    return () => window.removeEventListener('xo-notes-updated', handleNotesUpdated)
+  }, [])
+
   const activeNote = notes.find(n => n.id === activeId) ?? notes[0]
   const activeColor = activeNote ? colorFromBg(activeNote.color) : NOTE_COLORS[0]
   const wordCount = activeNote ? activeNote.content.trim().split(/\s+/).filter(Boolean).length : 0
+
+  // Keep parent informed of the active note (for chat context)
+  useEffectN(() => {
+    onNoteChange?.(activeNote ?? null)
+  }, [activeNote, onNoteChange])
 
   const updateNote = useCallbackN((id: string, patch: Partial<Note>) => {
     setNotes(prev => prev.map(n => n.id === id ? { ...n, ...patch, updatedAt: Date.now() } : n))
@@ -899,6 +937,7 @@ function WebVideoPanel() {
       return { id: now.toString() + Math.random().toString(36).slice(2), title: `${t.emoji} ${t.label} — ${label}`, content, color: TONE_COLORS[t.id], createdAt: now, updatedAt: now }
     })
     localStorage.setItem(STORAGE_KEY, JSON.stringify([...newNotes, ...existing]))
+    window.dispatchEvent(new CustomEvent('xo-notes-updated'))
     setSavedToNotes(true)
   }
 
@@ -1156,11 +1195,12 @@ function WebVideoPanel() {
 /* ── Root WebApp component ────────────────────────────────────────────────── */
 export default function WebApp() {
   const [activeId, setActiveId] = useState('home')
+  const [activeNote, setActiveNote] = useState<Note | null>(null)
 
   function renderContent() {
     switch (activeId) {
-      case 'chat':     return <WebChatPanel />
-      case 'notes':    return <WebNotesPanel />
+      case 'chat':     return <WebChatPanel activeNote={activeNote} />
+      case 'notes':    return <WebNotesPanel onNoteChange={setActiveNote} />
       case 'video':    return <WebVideoPanel />
       case 'settings': return <SettingsPanel />
       default:         return <HomePanel onNavigate={setActiveId} />

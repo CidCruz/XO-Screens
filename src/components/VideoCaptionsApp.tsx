@@ -314,7 +314,7 @@ function HistoryPanel({
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export default function VideoCaptionsApp({ onClose, onCornerDown }: Props) {
+export default function VideoCaptionsApp({ onClose: _onClose, onCornerDown }: Props) {
   // Input state
   const [inputMode, setInputMode] = useState<'file' | 'url'>('file')
   const [videoFile, setVideoFile] = useState<File | null>(null)
@@ -581,16 +581,6 @@ export default function VideoCaptionsApp({ onClose, onCornerDown }: Props) {
               </button>
             ))}
           </div>
-          {/* Close */}
-          <button data-no-drag onClick={onClose} title="Close"
-            style={{ width: 26, height: 26, borderRadius: 8, border: 'none', background: 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,255,255,0.25)', cursor: 'pointer', transition: 'all 0.15s', flexShrink: 0 }}
-            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = '#f87171'; (e.currentTarget as HTMLButtonElement).style.background = 'rgba(239,68,68,0.12)' }}
-            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = 'rgba(255,255,255,0.25)'; (e.currentTarget as HTMLButtonElement).style.background = 'transparent' }}
-          >
-            <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
         </div>
 
         {/* ── Input area ── */}

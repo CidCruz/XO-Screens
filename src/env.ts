@@ -5,15 +5,29 @@
  * overlay (window.xo is injected by the preload script).  It is false when
  * the app is opened in a normal browser tab.
  */
+
+export interface XoBridge {
+  platform: string
+  hide: () => void
+  quit: () => void
+  minimizeToTray: () => void
+  readyToHide: () => void
+  setIgnoreMouse: (v: boolean) => void
+  onShow: (cb: () => void) => void
+  onHideAnimate: (cb: () => void) => void
+}
+
+declare global {
+  interface Window {
+    xo?: XoBridge
+  }
+}
+
 export const isElectron = typeof window !== 'undefined' && !!window.xo
 
-/**
- * A safe, no-op stub that mirrors the real window.xo API so every call-site
- * can just use `xo.*` without checking isElectron first.
- */
 const noOp = () => {}
 
-export const xo = isElectron
+export const xo: XoBridge = isElectron
   ? window.xo!
   : {
       platform: 'web',

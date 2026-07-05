@@ -59,7 +59,7 @@ interface Props {
   onNoteChange?: (note: Note | null) => void
 }
 
-export default function NotesApp({ onClose, onCornerDown, onNoteChange }: Props) {
+export default function NotesApp({ onClose: _onClose, onCornerDown, onNoteChange }: Props) {
   const [notes, setNotes] = useState<Note[]>(() => {
     const loaded = loadNotes()
     return loaded.length > 0 ? loaded : [newNote()]
