@@ -329,8 +329,8 @@ function WebChatPanel({ activeNote }: WebChatPanelProps) {
     setInput('')
   }
 
-  async function handleSend() {
-    const text = input.trim()
+  async function handleSend(overrideText?: string) {
+    const text = (overrideText ?? input).trim()
     if (!text || loading) return
 
     const userMsg: Message = {
@@ -551,30 +551,44 @@ function WebChatPanel({ activeNote }: WebChatPanelProps) {
           {/* Input */}
           <div style={{ padding: '16px 24px 20px', borderTop: '1px solid rgba(255,255,255,0.06)', flexShrink: 0 }}>
             <div style={{
-              display: 'flex', gap: 10, alignItems: 'flex-end',
+              display: 'flex', alignItems: 'center', gap: 8,
               background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.09)',
-              borderRadius: 16, padding: '10px 12px',
+              borderRadius: 16, padding: '0 10px 0 16px', minHeight: 48,
             }}>
-              <textarea
-                ref={textareaRef}
-                value={input}
-                onChange={e => setInput(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() } }}
-                placeholder="Ask anything… (Enter to send)"
-                rows={1}
+              <div
+                ref={textareaRef as unknown as React.RefObject<HTMLDivElement>}
+                contentEditable
+                suppressContentEditableWarning
+                className="web-chat-input"
+                data-placeholder="Ask anything… (Enter to send)"
+                onInput={e => setInput((e.currentTarget as HTMLDivElement).innerText)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault()
+                    const el = e.currentTarget as HTMLDivElement
+                    const text = el.innerText.trim()
+                    if (!text || loading) return
+                    el.innerText = ''
+                    setInput('')
+                    handleSend(text)
+                  }
+                }}
                 style={{
-                  flex: 1, background: 'transparent', border: 'none', outline: 'none',
-                  color: '#fff', fontSize: 13, lineHeight: 1.6,
-                  resize: 'none', fontFamily: 'inherit', maxHeight: 120,
+                  flex: 1, outline: 'none', color: '#fff',
+                  fontSize: 13, lineHeight: '22px',
+                  overflowY: 'auto', wordBreak: 'break-word',
+                  maxHeight: 120, padding: '13px 0',
+                  fontFamily: 'inherit', cursor: 'text',
+                  whiteSpace: 'pre-wrap',
                 }}
               />
-              <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+              <div style={{ display: 'flex', gap: 6, flexShrink: 0, alignSelf: 'flex-end', paddingBottom: 7 }}>
                 {/* Voice button */}
                 <button
                   onClick={() => setVoiceCall(true)}
                   title="Voice call"
                   style={{
-                    width: 34, height: 34, borderRadius: 10, border: '1px solid rgba(255,255,255,0.1)',
+                    width: 32, height: 32, borderRadius: 10, border: '1px solid rgba(255,255,255,0.1)',
                     background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.4)',
                     display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
                     transition: 'all 0.15s', flexShrink: 0,
@@ -582,17 +596,24 @@ function WebChatPanel({ activeNote }: WebChatPanelProps) {
                   onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(52,211,153,0.12)'; (e.currentTarget as HTMLButtonElement).style.color = '#34d399' }}
                   onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.05)'; (e.currentTarget as HTMLButtonElement).style.color = 'rgba(255,255,255,0.4)' }}
                 >
-                  <svg width="15" height="15" fill="currentColor" viewBox="0 0 24 24">
+                  <svg width="14" height="14" fill="currentColor" viewBox="0 0 24 24">
                     <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
                     <path d="M19 10v2a7 7 0 0 1-14 0v-2H3v2a9 9 0 0 0 8 8.94V23h2v-2.06A9 9 0 0 0 21 12v-2h-2z"/>
                   </svg>
                 </button>
                 {/* Send button */}
                 <button
-                  onClick={handleSend}
+                  onClick={() => {
+                    const el = (textareaRef.current as unknown as HTMLDivElement)
+                    const text = el?.innerText?.trim() ?? input.trim()
+                    if (!text || loading) return
+                    if (el) el.innerText = ''
+                    setInput('')
+                    handleSend(text)
+                  }}
                   disabled={!input.trim() || loading}
                   style={{
-                    width: 34, height: 34, borderRadius: 10,
+                    width: 32, height: 32, borderRadius: 10,
                     background: input.trim() && !loading ? '#fff' : 'rgba(255,255,255,0.07)',
                     border: 'none', cursor: input.trim() && !loading ? 'pointer' : 'default',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -600,13 +621,13 @@ function WebChatPanel({ activeNote }: WebChatPanelProps) {
                     transition: 'all 0.15s', flexShrink: 0,
                   }}
                 >
-                  <svg width="15" height="15" fill="currentColor" viewBox="0 0 24 24" style={{ transform: 'rotate(-45deg)' }}>
+                  <svg width="14" height="14" fill="currentColor" viewBox="0 0 24 24" style={{ transform: 'rotate(-45deg)' }}>
                     <path d="M2 21l21-9L2 3v7l15 2-15 2z"/>
                   </svg>
                 </button>
               </div>
             </div>
-            <div style={{ marginTop: 8, fontSize: 10, color: 'rgba(255,255,255,0.2)', paddingLeft: 2 }}>
+            <div style={{ marginTop: 6, fontSize: 10, color: 'rgba(255,255,255,0.2)', paddingLeft: 4 }}>
               Shift+Enter for newline
             </div>
           </div>

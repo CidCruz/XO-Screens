@@ -399,3 +399,24 @@ body {
     height: 38px;
   }
 }
+
+/* ── Chat contenteditable input ─────────────────────────────────────────── */
+
+.web-chat-input:empty::before {
+  content: attr(data-placeholder);
+  color: rgba(255,255,255,0.25);
+  pointer-events: none;
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  left: 0;
+  right: 0;
+}
+
+.web-chat-input:not(:empty)::before {
+  display: none;
+}
+
+.web-chat-input {
+  position: relative;
+}
