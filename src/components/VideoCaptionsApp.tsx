@@ -324,6 +324,8 @@ export default function VideoCaptionsApp({ onClose: _onClose, onCornerDown }: Pr
   // Processing state
   const [status, setStatus] = useState<'idle' | 'processing' | 'done' | 'error'>('idle')
   const [processingTone, setProcessingTone] = useState<CaptionTone | null>(null)
+  const [uploadPhase, setUploadPhase] = useState<'uploading' | 'processing' | null>(null)
+  const [uploadPct, setUploadPct] = useState<number>(0)
   const [errorMsg, setErrorMsg] = useState('')
   const [results, setResults] = useState<CaptionResults | null>(null)
 
@@ -336,7 +338,6 @@ export default function VideoCaptionsApp({ onClose: _onClose, onCornerDown }: Pr
   // History state
   const [history, setHistory] = useState<CaptionHistoryEntry[]>(() => loadCaptionHistory())
   const [showHistory, setShowHistory] = useState(false)
-  // Label of the video source currently shown in results (for history display)
   const [currentLabel, setCurrentLabel] = useState('')
 
   const containerRef = useRef<HTMLDivElement>(null)
@@ -376,11 +377,17 @@ export default function VideoCaptionsApp({ onClose: _onClose, onCornerDown }: Pr
     setResults(null)
     setErrorMsg('')
     setSavedToNotes(false)
+    setUploadPhase(null)
+    setUploadPct(0)
     try {
       let res: CaptionResults
       let label: string
       if (inputMode === 'file' && videoFile) {
-        res = await processVideoFile(videoFile, t => setProcessingTone(t))
+        res = await processVideoFile(
+          videoFile,
+          t => setProcessingTone(t),
+          (phase, pct) => { setUploadPhase(phase); if (pct !== undefined) setUploadPct(pct) },
+        )
         label = videoFile.name
       } else if (inputMode === 'url' && videoURL.trim()) {
         res = await processVideoURL(videoURL.trim(), t => setProcessingTone(t))
@@ -391,14 +398,15 @@ export default function VideoCaptionsApp({ onClose: _onClose, onCornerDown }: Pr
       setResults(res)
       setStatus('done')
       setProcessingTone(null)
+      setUploadPhase(null)
       setCurrentLabel(label)
-      // Persist to history
       const updated = addCaptionHistoryEntry({ label, results: res })
       setHistory(updated)
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : 'Something went wrong.')
       setStatus('error')
       setProcessingTone(null)
+      setUploadPhase(null)
     }
   }
 
@@ -607,13 +615,19 @@ export default function VideoCaptionsApp({ onClose: _onClose, onCornerDown }: Pr
                 <div style={{ textAlign: 'center' }}>
                   <div style={{ color: '#fff', fontSize: 12, fontWeight: 600 }}>{videoFile.name}</div>
                   <div style={{ color: 'rgba(255,255,255,0.35)', fontSize: 10, marginTop: 2 }}>
-                    {(videoFile.size / (1024 * 1024)).toFixed(1)} MB — click to change
+                    {(videoFile.size / (1024 * 1024)).toFixed(1)} MB
+                    {' · '}
+                    <span style={{ color: videoFile.size > 75 * 1024 * 1024 ? 'rgba(245,158,11,0.8)' : 'rgba(52,211,153,0.7)' }}>
+                      {videoFile.size > 75 * 1024 * 1024 ? 'Files API upload' : 'Inline (fast)'}
+                    </span>
+                    {' · click to change'}
                   </div>
                 </div>
               ) : (
                 <>
                   <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: 12, fontWeight: 500 }}>Drop a video or click to upload</div>
                   <div style={{ color: 'rgba(255,255,255,0.25)', fontSize: 10 }}>mp4 · webm · mov · avi · mkv</div>
+                  <div style={{ color: 'rgba(255,255,255,0.18)', fontSize: 10 }}>Up to 2 GB · Files API auto-used for large videos</div>
                 </>
               )}
               <input ref={fileInputRef} type="file" accept="video/*" onChange={onFileInputChange} style={{ display: 'none' }} />
@@ -716,6 +730,35 @@ export default function VideoCaptionsApp({ onClose: _onClose, onCornerDown }: Pr
         {/* ── Processing progress indicator ── */}
         {status === 'processing' && (
           <div style={{ margin: '10px 16px 0', flexShrink: 0 }}>
+
+            {/* Upload progress — shown only when using Files API for large videos */}
+            {uploadPhase && (
+              <div style={{
+                marginBottom: 8, padding: '8px 12px', borderRadius: 10,
+                background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)',
+                display: 'flex', flexDirection: 'column', gap: 5,
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                  <Spinner />
+                  <span style={{ fontSize: 11, color: 'rgba(245,158,11,0.9)', fontWeight: 500 }}>
+                    {uploadPhase === 'uploading'
+                      ? `Uploading to Files API… ${uploadPct}%`
+                      : 'Gemini is processing your video…'}
+                  </span>
+                </div>
+                {uploadPhase === 'uploading' && (
+                  <div style={{ height: 3, borderRadius: 99, background: 'rgba(255,255,255,0.07)', overflow: 'hidden' }}>
+                    <div style={{
+                      height: '100%', borderRadius: 99,
+                      background: 'rgba(245,158,11,0.7)',
+                      width: `${uploadPct}%`,
+                      transition: 'width 0.3s ease',
+                    }} />
+                  </div>
+                )}
+              </div>
+            )}
+
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
               {TONES.map(t => {
                 const toneIndex = TONES.findIndex(x => x.id === processingTone)

@@ -909,6 +909,8 @@ function WebVideoPanel() {
   const [dragOver, setDragOver] = useState(false)
   const [status, setStatus] = useState<'idle' | 'processing' | 'done' | 'error'>('idle')
   const [processingTone, setProcessingTone] = useState<CaptionTone | null>(null)
+  const [uploadPhase, setUploadPhase] = useState<'uploading' | 'processing' | null>(null)
+  const [uploadPct, setUploadPct] = useState<number>(0)
   const [errorMsg, setErrorMsg] = useState('')
   const [results, setResults] = useState<CaptionResults | null>(null)
   const [activeTone, setActiveTone] = useState<CaptionTone>('formal')
@@ -926,22 +928,28 @@ function WebVideoPanel() {
 
   async function handleProcess() {
     setStatus('processing'); setResults(null); setErrorMsg(''); setSavedToNotes(false)
+    setUploadPhase(null); setUploadPct(0)
     try {
       let res: CaptionResults
       let label: string
       if (inputMode === 'file' && videoFile) {
-        res = await processVideoFile(videoFile, t => setProcessingTone(t))
+        res = await processVideoFile(
+          videoFile,
+          t => setProcessingTone(t),
+          (phase, pct) => { setUploadPhase(phase); if (pct !== undefined) setUploadPct(pct) },
+        )
         label = videoFile.name
       } else if (inputMode === 'url' && videoURL.trim()) {
         res = await processVideoURL(videoURL.trim(), t => setProcessingTone(t))
         label = videoURL.trim()
       } else { throw new Error('No video source provided.') }
-      setResults(res); setStatus('done'); setProcessingTone(null); setCurrentLabel(label)
+      setResults(res); setStatus('done'); setProcessingTone(null)
+      setUploadPhase(null); setCurrentLabel(label)
       const updated = addCaptionHistoryEntry({ label, results: res })
       setHistory(updated)
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : 'Something went wrong.')
-      setStatus('error'); setProcessingTone(null)
+      setStatus('error'); setProcessingTone(null); setUploadPhase(null)
     }
   }
 
@@ -1041,12 +1049,20 @@ function WebVideoPanel() {
               {videoFile ? (
                 <div style={{ textAlign: 'center' }}>
                   <div style={{ color: '#fff', fontSize: 12, fontWeight: 600 }}>{videoFile.name}</div>
-                  <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: 11, marginTop: 3 }}>{(videoFile.size / (1024 * 1024)).toFixed(1)} MB — click to change</div>
+                  <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: 11, marginTop: 3 }}>
+                    {(videoFile.size / (1024 * 1024)).toFixed(1)} MB
+                    {' · '}
+                    <span style={{ color: videoFile.size > 75 * 1024 * 1024 ? 'rgba(245,158,11,0.8)' : 'rgba(52,211,153,0.7)' }}>
+                      {videoFile.size > 75 * 1024 * 1024 ? 'Files API upload' : 'Inline (fast)'}
+                    </span>
+                    {' · click to change'}
+                  </div>
                 </div>
               ) : (
                 <>
                   <div style={{ color: 'rgba(255,255,255,0.45)', fontSize: 12, fontWeight: 500 }}>Drop a video or click to upload</div>
                   <div style={{ color: 'rgba(255,255,255,0.2)', fontSize: 11 }}>mp4 · webm · mov · avi · mkv</div>
+                  <div style={{ color: 'rgba(255,255,255,0.13)', fontSize: 11 }}>Up to 2 GB · Files API auto-used for large videos</div>
                 </>
               )}
               <input ref={fileInputRef} type="file" accept="video/*" onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f) }} style={{ display: 'none' }} />
@@ -1097,6 +1113,35 @@ function WebVideoPanel() {
         {/* Progress tracker */}
         {status === 'processing' && (
           <div style={{ margin: '12px 18px 0', display: 'flex', flexDirection: 'column', gap: 6 }}>
+
+            {/* Upload progress bar — only shown for large files using Files API */}
+            {uploadPhase && (
+              <div style={{
+                padding: '8px 12px', borderRadius: 10,
+                background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)',
+                display: 'flex', flexDirection: 'column', gap: 6,
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                  <VSpinner />
+                  <span style={{ fontSize: 11, color: 'rgba(245,158,11,0.9)', fontWeight: 500 }}>
+                    {uploadPhase === 'uploading'
+                      ? `Uploading to Files API… ${uploadPct}%`
+                      : 'Gemini is processing your video…'}
+                  </span>
+                </div>
+                {uploadPhase === 'uploading' && (
+                  <div style={{ height: 3, borderRadius: 99, background: 'rgba(255,255,255,0.07)', overflow: 'hidden' }}>
+                    <div style={{
+                      height: '100%', borderRadius: 99,
+                      background: 'rgba(245,158,11,0.7)',
+                      width: `${uploadPct}%`,
+                      transition: 'width 0.3s ease',
+                    }} />
+                  </div>
+                )}
+              </div>
+            )}
+
             {VIDEO_TONES.map((t, i) => {
               const curIdx = VIDEO_TONES.findIndex(x => x.id === processingTone)
               const isDone = curIdx > i
