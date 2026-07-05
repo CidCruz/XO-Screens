@@ -82,7 +82,7 @@ export default function NotesApp({ onClose: _onClose, onCornerDown, onNoteChange
 
   useEffect(() => { saveNotes(notes) }, [notes])
 
-  // Refresh notes when another widget (e.g. VideoCaptionsApp) saves to localStorage
+  // Refresh notes when another widget (e.g. VideoCaptionsApp or AppControl) saves to localStorage
   useEffect(() => {
     function handleNotesUpdated() {
       const fresh = loadNotes()
@@ -94,6 +94,23 @@ export default function NotesApp({ onClose: _onClose, onCornerDown, onNoteChange
     }
     window.addEventListener('xo-notes-updated', handleNotesUpdated)
     return () => window.removeEventListener('xo-notes-updated', handleNotesUpdated)
+  }, [])
+
+  // Focus a specific note when the chat tool calls focusNote()
+  useEffect(() => {
+    function handleFocusNote(e: Event) {
+      const id = (e as CustomEvent<{ id: string }>).detail?.id
+      if (!id) return
+      // Reload notes first in case the note was just created
+      const fresh = loadNotes()
+      if (fresh.some(n => n.id === id)) {
+        setNotes(fresh)
+        setActiveId(id)
+        setConfirmDeleteId(null)
+      }
+    }
+    window.addEventListener('xo-focus-note', handleFocusNote)
+    return () => window.removeEventListener('xo-focus-note', handleFocusNote)
   }, [])
 
   // Keep parent (ChatBox) informed of the active note

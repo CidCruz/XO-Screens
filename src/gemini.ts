@@ -398,3 +398,139 @@ export async function sendToGemini(messages: Message[], userMessage: string): Pr
   const data = await res.json()
   return data.candidates?.[0]?.content?.parts?.[0]?.text ?? 'No response.'
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Tool / function-calling support
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * A single tool declaration in the Gemini format.
+ * We keep this generic so appBridge can define the schemas.
+ */
+export interface GeminiToolDeclaration {
+  name: string
+  description: string
+  parameters: {
+    type: 'OBJECT'
+    properties: Record<string, {
+      type: string
+      description?: string
+      enum?: string[]
+      items?: { type: string }
+    }>
+    required?: string[]
+  }
+}
+
+export interface ToolCallRequest {
+  name: string
+  args: Record<string, unknown>
+}
+
+export interface ToolCallResult {
+  name: string
+  result: unknown   // any JSON-serialisable value
+}
+
+/**
+ * sendToGeminiWithTools
+ *
+ * Full agentic loop:
+ *   1. Send history + user message + tool declarations to Gemini.
+ *   2. If Gemini responds with functionCall parts, invoke the executor for each.
+ *   3. Feed the tool results back as a `function` role turn and call again.
+ *   4. Repeat until Gemini sends a plain-text response (or we hit the loop cap).
+ *
+ * @param messages   Prior conversation messages (for multi-turn context)
+ * @param userMessage The latest user message text
+ * @param systemPrompt System instruction injected on every turn
+ * @param tools      Array of Gemini tool declarations
+ * @param executor   Async function that runs a tool call and returns its result
+ * @param onToolCall Optional callback so the UI can show which tool is running
+ */
+export async function sendToGeminiWithTools(
+  messages: Message[],
+  userMessage: string,
+  systemPrompt: string,
+  tools: GeminiToolDeclaration[],
+  executor: (call: ToolCallRequest) => Promise<unknown>,
+  onToolCall?: (call: ToolCallRequest) => void,
+): Promise<string> {
+  // Build initial conversation history in Gemini format
+  const contents: object[] = messages.map(m => ({
+    role: m.role === 'assistant' ? 'model' : 'user',
+    parts: [{ text: m.content }],
+  }))
+  contents.push({ role: 'user', parts: [{ text: userMessage }] })
+
+  const MAX_ROUNDS = 10  // safety cap — prevents infinite tool loops
+
+  for (let round = 0; round < MAX_ROUNDS; round++) {
+    const body = {
+      contents,
+      systemInstruction: { parts: [{ text: systemPrompt }] },
+      tools: tools.length > 0 ? [{ functionDeclarations: tools }] : undefined,
+      generationConfig: { temperature: 0.7, maxOutputTokens: 2048 },
+    }
+
+    const res = await fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+
+    if (!res.ok) {
+      const errText = await res.text().catch(() => '')
+      throw new Error(`Gemini API error ${res.status}: ${errText}`)
+    }
+
+    const data = await res.json()
+    const candidate = data.candidates?.[0]
+    const parts: Array<{ text?: string; functionCall?: { name: string; args: Record<string, unknown> } }> =
+      candidate?.content?.parts ?? []
+
+    // Separate text parts from function-call parts
+    const textParts  = parts.filter(p => typeof p.text === 'string' && p.text.trim() !== '')
+    const callParts  = parts.filter(p => !!p.functionCall)
+
+    if (callParts.length === 0) {
+      // No tool calls — return the final text answer
+      return textParts.map(p => p.text).join('\n').trim() || 'Done.'
+    }
+
+    // Gemini issued one or more tool calls — execute them all in parallel
+    const toolResults: ToolCallResult[] = await Promise.all(
+      callParts.map(async p => {
+        const call: ToolCallRequest = {
+          name: p.functionCall!.name,
+          args: p.functionCall!.args ?? {},
+        }
+        onToolCall?.(call)
+        let result: unknown
+        try {
+          result = await executor(call)
+        } catch (err) {
+          result = { error: err instanceof Error ? err.message : String(err) }
+        }
+        return { name: call.name, result }
+      })
+    )
+
+    // Append the model's function-call turn to the conversation
+    contents.push({ role: 'model', parts: callParts.map(p => ({ functionCall: p.functionCall })) })
+
+    // Append the tool-result turn (Gemini expects role: "function")
+    contents.push({
+      role: 'function',
+      parts: toolResults.map(tr => ({
+        functionResponse: {
+          name: tr.name,
+          response: { content: tr.result },
+        },
+      })),
+    })
+    // Continue the loop so Gemini can read the results and reply
+  }
+
+  return 'I ran out of tool-call rounds. Please try again.'
+}

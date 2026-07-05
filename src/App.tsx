@@ -1,11 +1,12 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import AppHub from './components/AppHub'
 import ChatBox from './components/ChatBox'
 import NotesApp from './components/NotesApp'
 import VideoCaptionsApp from './components/VideoCaptionsApp'
 import DraggableWidget from './components/DraggableWidget'
-import type { AppItem, Note } from './types'
+import type { AppItem, Note, AppControl, WidgetId } from './types'
 import { xo } from './env'
+import { loadCaptionHistory } from './captionHistory'
 
 const APPS: AppItem[] = [
   { id: 'chat',     label: 'Assistant'       },
@@ -190,6 +191,36 @@ function SettingsWidget({ onClose, onCornerDown }: SettingsWidgetProps) {
   )
 }
 
+// ── Notes helpers (mirrors what NotesApp uses internally) ─────────────────────
+
+const NOTES_STORAGE_KEY = 'xo-notes'
+
+function loadNotes(): Note[] {
+  try {
+    const raw = localStorage.getItem(NOTES_STORAGE_KEY)
+    return raw ? JSON.parse(raw) : []
+  } catch { return [] }
+}
+
+function saveNotes(notes: Note[]) {
+  localStorage.setItem(NOTES_STORAGE_KEY, JSON.stringify(notes))
+  window.dispatchEvent(new CustomEvent('xo-notes-updated'))
+}
+
+function makeNewNote(title: string, content: string): Note {
+  const now = Date.now()
+  return {
+    id: now.toString() + Math.random().toString(36).slice(2),
+    title,
+    content,
+    color: 'rgba(255,255,255,0.0)',
+    createdAt: now,
+    updatedAt: now,
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 export default function App() {
   const [splash, setSplash] = useState(true)
   const [fadeIn, setFadeIn] = useState(false)
@@ -203,6 +234,16 @@ export default function App() {
   const [windowAnim, setWindowAnim] = useState<'visible' | 'entering' | 'exiting'>('visible')
   const exitTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  // Refs so AppControl callbacks always see the latest state without stale closures
+  const chatOpenRef     = useRef(chatOpen)
+  const notesOpenRef    = useRef(notesOpen)
+  const videoOpenRef    = useRef(videoOpen)
+  const settingsOpenRef = useRef(settingsOpen)
+  useEffect(() => { chatOpenRef.current     = chatOpen     }, [chatOpen])
+  useEffect(() => { notesOpenRef.current    = notesOpen    }, [notesOpen])
+  useEffect(() => { videoOpenRef.current    = videoOpen    }, [videoOpen])
+  useEffect(() => { settingsOpenRef.current = settingsOpen }, [settingsOpen])
+
   useEffect(() => {
     const fadeInTimer = setTimeout(() => setFadeIn(true), 50)
     const fadeOutTimer = setTimeout(() => setFadeOut(true), 3500)
@@ -211,7 +252,7 @@ export default function App() {
     return () => { clearTimeout(fadeInTimer); clearTimeout(fadeOutTimer); clearTimeout(hide); clearTimeout(appFadeIn) }
   }, [])
 
-  // Listen for show/hide signals from main process (desktop only — xo.onShow is a no-op on web)
+  // Listen for show/hide signals from main process
   useEffect(() => {
     xo.onShow(() => {
       if (exitTimer.current) clearTimeout(exitTimer.current)
@@ -223,9 +264,7 @@ export default function App() {
     xo.onHideAnimate(() => {
       if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
       setWindowAnim('exiting')
-      exitTimer.current = setTimeout(() => {
-        xo.readyToHide()
-      }, 210)
+      exitTimer.current = setTimeout(() => { xo.readyToHide() }, 210)
     })
   }, [])
 
@@ -236,6 +275,69 @@ export default function App() {
     if (id === 'settings') setSettingsOpen(prev => !prev)
   }
 
+  // ── AppControl — the API the ChatBox tools call into ─────────────────────
+  const appControl = useMemo<AppControl>(() => ({
+    openWidget(id: WidgetId) {
+      if (id === 'chat')     setChatOpen(true)
+      if (id === 'notes')    setNotesOpen(true)
+      if (id === 'video')    setVideoOpen(true)
+      if (id === 'settings') setSettingsOpen(true)
+    },
+    closeWidget(id: WidgetId) {
+      if (id === 'chat')     setChatOpen(false)
+      if (id === 'notes')    setNotesOpen(false)
+      if (id === 'video')    setVideoOpen(false)
+      if (id === 'settings') setSettingsOpen(false)
+    },
+    getOpenWidgets(): WidgetId[] {
+      const open: WidgetId[] = []
+      if (chatOpenRef.current)     open.push('chat')
+      if (notesOpenRef.current)    open.push('notes')
+      if (videoOpenRef.current)    open.push('video')
+      if (settingsOpenRef.current) open.push('settings')
+      return open
+    },
+
+    // Notes CRUD — operates directly on localStorage and fires the same
+    // 'xo-notes-updated' event that NotesApp already listens to.
+    listNotes(): Note[] {
+      return loadNotes()
+    },
+    getNote(id: string): Note | undefined {
+      return loadNotes().find(n => n.id === id)
+    },
+    createNote(title: string, content: string): Note {
+      const note = makeNewNote(title, content)
+      saveNotes([note, ...loadNotes()])
+      return note
+    },
+    updateNote(id: string, patch: Partial<Pick<Note, 'title' | 'content' | 'color'>>): Note | null {
+      const notes = loadNotes()
+      const idx = notes.findIndex(n => n.id === id)
+      if (idx === -1) return null
+      const updated: Note = { ...notes[idx], ...patch, updatedAt: Date.now() }
+      notes[idx] = updated
+      saveNotes(notes)
+      return updated
+    },
+    deleteNote(id: string): boolean {
+      const notes = loadNotes()
+      const next = notes.filter(n => n.id !== id)
+      if (next.length === notes.length) return false
+      saveNotes(next)
+      return true
+    },
+    focusNote(id: string): void {
+      // Dispatch a custom event that NotesApp listens for to set its active note
+      window.dispatchEvent(new CustomEvent('xo-focus-note', { detail: { id } }))
+    },
+
+    getCaptionHistory() {
+      return loadCaptionHistory()
+    },
+  }), []) // stable — setters from useState never change identity
+
+  // ── Derived ───────────────────────────────────────────────────────────────
   const openApps = new Set([
     ...(chatOpen     ? ['chat']     : []),
     ...(notesOpen    ? ['notes']    : []),
@@ -273,7 +375,7 @@ export default function App() {
 
       {chatOpen && (
         <DraggableWidget initialX={Math.round(window.innerWidth - 320 * 1.2 - 20)} initialY={20} baseWidth={320} baseHeight={480} initialScale={1.2}>
-          {(onCornerDown) => <ChatBox onClose={() => setChatOpen(false)} onCornerDown={onCornerDown} activeNote={activeNote} />}
+          {(onCornerDown) => <ChatBox onClose={() => setChatOpen(false)} onCornerDown={onCornerDown} activeNote={activeNote} appControl={appControl} />}
         </DraggableWidget>
       )}
 

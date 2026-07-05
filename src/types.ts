@@ -38,3 +38,25 @@ export interface CaptionHistoryEntry {
   createdAt: number
   results: Record<string, CaptionToneResult>
 }
+
+// ── App Control (tool-calling) ───────────────────────────────────────────────
+
+export type WidgetId = 'chat' | 'notes' | 'video' | 'settings'
+
+export interface AppControl {
+  // Widget visibility
+  openWidget:  (id: WidgetId) => void
+  closeWidget: (id: WidgetId) => void
+  getOpenWidgets: () => WidgetId[]
+
+  // Notes CRUD
+  listNotes:   () => Note[]
+  getNote:     (id: string) => Note | undefined
+  createNote:  (title: string, content: string) => Note
+  updateNote:  (id: string, patch: Partial<Pick<Note, 'title' | 'content' | 'color'>>) => Note | null
+  deleteNote:  (id: string) => boolean
+  focusNote:   (id: string) => void  // makes a note the active one in the Notes widget
+
+  // Video captions
+  getCaptionHistory: () => CaptionHistoryEntry[]
+}
