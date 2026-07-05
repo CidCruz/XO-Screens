@@ -1,7 +1,8 @@
 import { useState, useRef, useCallback } from 'react'
-import type { Note } from '../types'
+import type { Note, CaptionHistoryEntry } from '../types'
 import type { CaptionTone, CaptionResults } from '../gemini'
 import { processVideoFile, processVideoURL } from '../gemini'
+import { loadCaptionHistory, addCaptionHistoryEntry, deleteCaptionHistoryEntry, clearCaptionHistory } from '../captionHistory'
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -127,6 +128,190 @@ function TonePill({ tone, active, onClick }: { tone: typeof TONES[0]; active: bo
   )
 }
 
+// ─── History panel sub-component ──────────────────────────────────────────────
+
+function HistoryPanel({
+  entries,
+  onLoad,
+  onDelete,
+  onClear,
+  onClose,
+}: {
+  entries: CaptionHistoryEntry[]
+  onLoad: (entry: CaptionHistoryEntry) => void
+  onDelete: (id: string) => void
+  onClear: () => void
+  onClose: () => void
+}) {
+  return (
+    <div style={{
+      position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+      background: 'rgba(10,10,12,0.97)',
+      borderRadius: 22,
+      display: 'flex', flexDirection: 'column',
+      zIndex: 20,
+      overflow: 'hidden',
+    }}>
+      {/* Header */}
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 8,
+        padding: '12px 14px',
+        borderBottom: '1px solid rgba(255,255,255,0.06)',
+        flexShrink: 0,
+      }}>
+        <svg width="13" height="13" fill="none" stroke="rgba(255,255,255,0.5)" viewBox="0 0 24 24">
+          <circle cx="12" cy="12" r="10" strokeWidth={1.8} />
+          <polyline points="12 6 12 12 16 14" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+        <span style={{ color: '#fff', fontWeight: 700, fontSize: 12, letterSpacing: '-0.02em' }}>Caption History</span>
+        <span style={{ color: 'rgba(255,255,255,0.3)', fontSize: 11 }}>({entries.length})</span>
+        <div style={{ flex: 1 }} />
+        {entries.length > 0 && (
+          <button data-no-drag onClick={onClear}
+            style={{
+              padding: '3px 10px', borderRadius: 7, border: '1px solid rgba(239,68,68,0.25)',
+              background: 'rgba(239,68,68,0.08)', color: 'rgba(239,68,68,0.7)',
+              fontSize: 10, fontWeight: 500, fontFamily: 'inherit', cursor: 'pointer',
+              transition: 'all 0.15s',
+            }}
+            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(239,68,68,0.18)' }}
+            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(239,68,68,0.08)' }}
+          >
+            Clear all
+          </button>
+        )}
+        <button data-no-drag onClick={onClose}
+          style={{
+            width: 26, height: 26, borderRadius: 8, border: 'none', background: 'transparent',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            color: 'rgba(255,255,255,0.25)', cursor: 'pointer', transition: 'all 0.15s', flexShrink: 0,
+          }}
+          onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = '#fff'; (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.08)' }}
+          onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = 'rgba(255,255,255,0.25)'; (e.currentTarget as HTMLButtonElement).style.background = 'transparent' }}
+        >
+          <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+
+      {/* List */}
+      <div className="vc-scroll" style={{ flex: 1, overflowY: 'auto', padding: '10px 12px 12px' }}>
+        {entries.length === 0 ? (
+          <div style={{
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+            height: '100%', gap: 10, color: 'rgba(255,255,255,0.2)', paddingTop: 40,
+          }}>
+            <svg width="32" height="32" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.2}>
+              <circle cx="12" cy="12" r="10" />
+              <polyline points="12 6 12 12 16 14" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            <span style={{ fontSize: 12 }}>No history yet</span>
+            <span style={{ fontSize: 11, textAlign: 'center', maxWidth: 200, lineHeight: 1.5 }}>
+              Generated captions will appear here for quick access
+            </span>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {entries.map(entry => {
+              const date = new Date(entry.createdAt)
+              const dateStr = date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+              const timeStr = date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+              const toneCount = Object.keys(entry.results).length
+              return (
+                <div key={entry.id} style={{
+                  background: 'rgba(255,255,255,0.04)',
+                  border: '1px solid rgba(255,255,255,0.07)',
+                  borderRadius: 12, padding: '10px 12px',
+                  display: 'flex', alignItems: 'flex-start', gap: 10,
+                  transition: 'background 0.15s',
+                }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.background = 'rgba(255,255,255,0.07)' }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.background = 'rgba(255,255,255,0.04)' }}
+                >
+                  {/* Video icon */}
+                  <div style={{
+                    width: 32, height: 32, borderRadius: 8, flexShrink: 0,
+                    background: 'rgba(139,92,246,0.15)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    border: '1px solid rgba(139,92,246,0.2)',
+                  }}>
+                    <svg width="14" height="14" fill="none" stroke="rgba(139,92,246,0.9)" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
+                        d="M15 10l4.553-2.276A1 1 0 0121 8.723v6.554a1 1 0 01-1.447.894L15 14M4 8a2 2 0 012-2h9a2 2 0 012 2v8a2 2 0 01-2 2H6a2 2 0 01-2-2V8z" />
+                    </svg>
+                  </div>
+
+                  {/* Label + meta */}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{
+                      color: '#fff', fontSize: 11, fontWeight: 600,
+                      whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                    }} title={entry.label}>
+                      {entry.label}
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, marginTop: 4, alignItems: 'center', flexWrap: 'wrap' }}>
+                      <span style={{ color: 'rgba(255,255,255,0.3)', fontSize: 10 }}>{dateStr} · {timeStr}</span>
+                      <span style={{
+                        color: 'rgba(139,92,246,0.8)', fontSize: 10, fontWeight: 500,
+                        background: 'rgba(139,92,246,0.1)', borderRadius: 4, padding: '1px 5px',
+                      }}>
+                        {toneCount} tone{toneCount !== 1 ? 's' : ''}
+                      </span>
+                    </div>
+                    {/* Tone dots */}
+                    <div style={{ display: 'flex', gap: 4, marginTop: 6 }}>
+                      {TONES.filter(t => entry.results[t.id]).map(t => (
+                        <div key={t.id} title={t.label} style={{
+                          width: 6, height: 6, borderRadius: 99,
+                          background: t.dotColor,
+                          opacity: 0.8,
+                        }} />
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Actions */}
+                  <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+                    <button data-no-drag onClick={() => onLoad(entry)}
+                      title="Load this result"
+                      style={{
+                        padding: '5px 10px', borderRadius: 7, border: 'none',
+                        background: 'rgba(139,92,246,0.2)', color: 'rgba(139,92,246,0.9)',
+                        fontSize: 10, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer',
+                        transition: 'all 0.15s',
+                      }}
+                      onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(139,92,246,0.35)' }}
+                      onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(139,92,246,0.2)' }}
+                    >
+                      Load
+                    </button>
+                    <button data-no-drag onClick={() => onDelete(entry.id)}
+                      title="Delete"
+                      style={{
+                        width: 26, height: 26, borderRadius: 7, border: 'none',
+                        background: 'transparent', color: 'rgba(255,255,255,0.2)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        cursor: 'pointer', transition: 'all 0.15s',
+                      }}
+                      onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = '#f87171'; (e.currentTarget as HTMLButtonElement).style.background = 'rgba(239,68,68,0.12)' }}
+                      onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = 'rgba(255,255,255,0.2)'; (e.currentTarget as HTMLButtonElement).style.background = 'transparent' }}
+                    >
+                      <svg width="11" height="11" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function VideoCaptionsApp({ onClose, onCornerDown }: Props) {
@@ -147,6 +332,12 @@ export default function VideoCaptionsApp({ onClose, onCornerDown }: Props) {
   const [activeTab, setActiveTab] = useState<'captions' | 'summary'>('summary')
   const [savedToNotes, setSavedToNotes] = useState(false)
   const [closestCorner, setClosestCorner] = useState<number | null>(null)
+
+  // History state
+  const [history, setHistory] = useState<CaptionHistoryEntry[]>(() => loadCaptionHistory())
+  const [showHistory, setShowHistory] = useState(false)
+  // Label of the video source currently shown in results (for history display)
+  const [currentLabel, setCurrentLabel] = useState('')
 
   const containerRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -187,16 +378,23 @@ export default function VideoCaptionsApp({ onClose, onCornerDown }: Props) {
     setSavedToNotes(false)
     try {
       let res: CaptionResults
+      let label: string
       if (inputMode === 'file' && videoFile) {
         res = await processVideoFile(videoFile, t => setProcessingTone(t))
+        label = videoFile.name
       } else if (inputMode === 'url' && videoURL.trim()) {
         res = await processVideoURL(videoURL.trim(), t => setProcessingTone(t))
+        label = videoURL.trim()
       } else {
         throw new Error('No video source provided.')
       }
       setResults(res)
       setStatus('done')
       setProcessingTone(null)
+      setCurrentLabel(label)
+      // Persist to history
+      const updated = addCaptionHistoryEntry({ label, results: res })
+      setHistory(updated)
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : 'Something went wrong.')
       setStatus('error')
@@ -204,12 +402,37 @@ export default function VideoCaptionsApp({ onClose, onCornerDown }: Props) {
     }
   }
 
+  // ── Load from history ────────────────────────────────────────────────────
+
+  function handleLoadFromHistory(entry: CaptionHistoryEntry) {
+    setResults(entry.results as CaptionResults)
+    setCurrentLabel(entry.label)
+    setStatus('done')
+    setActiveTone('formal')
+    setActiveTab('summary')
+    setSavedToNotes(false)
+    setShowHistory(false)
+  }
+
+  // ── Delete history entry ─────────────────────────────────────────────────
+
+  function handleDeleteHistory(id: string) {
+    setHistory(deleteCaptionHistoryEntry(id))
+  }
+
+  // ── Clear all history ────────────────────────────────────────────────────
+
+  function handleClearHistory() {
+    clearCaptionHistory()
+    setHistory([])
+  }
+
   // ── Save to Notes ────────────────────────────────────────────────────────
 
   function saveAllToNotes() {
     if (!results) return
     const existing = loadNotes()
-    const videoLabel = videoFile ? videoFile.name : videoURL.trim()
+    const videoLabel = currentLabel || (videoFile ? videoFile.name : videoURL.trim())
     const timestamp = new Date().toLocaleString()
 
     const newNotes: Note[] = TONES.map(t => {
@@ -309,6 +532,26 @@ export default function VideoCaptionsApp({ onClose, onCornerDown }: Props) {
           <span style={{ color: '#fff', fontWeight: 900, fontSize: 13, letterSpacing: '-0.03em', textShadow: '0 0 10px rgba(255,255,255,0.8)', flexShrink: 0 }}>XO</span>
           <span style={{ color: 'rgba(255,255,255,0.18)', fontSize: 11, flexShrink: 0 }}>Video Captions</span>
           <div style={{ flex: 1 }} />
+          {/* History button */}
+          <button data-no-drag onClick={() => setShowHistory(true)}
+            title={`History (${history.length})`}
+            style={{
+              padding: '3px 10px', borderRadius: 7, border: 'none', cursor: 'pointer',
+              fontSize: 10, fontWeight: 500, fontFamily: 'inherit',
+              display: 'flex', alignItems: 'center', gap: 4,
+              background: 'rgba(255,255,255,0.05)',
+              color: history.length > 0 ? 'rgba(255,255,255,0.5)' : 'rgba(255,255,255,0.2)',
+              transition: 'all 0.15s',
+            }}
+            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.1)'; (e.currentTarget as HTMLButtonElement).style.color = '#fff' }}
+            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.05)'; (e.currentTarget as HTMLButtonElement).style.color = history.length > 0 ? 'rgba(255,255,255,0.5)' : 'rgba(255,255,255,0.2)' }}
+          >
+            <svg width="10" height="10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="10" strokeWidth={2} />
+              <polyline points="12 6 12 12 16 14" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            History{history.length > 0 ? ` (${history.length})` : ''}
+          </button>
           {/* Input mode toggle */}
           <div style={{ display: 'flex', gap: 3, background: 'rgba(255,255,255,0.05)', borderRadius: 10, padding: 3 }}>
             {(['file', 'url'] as const).map(mode => (
@@ -613,6 +856,17 @@ export default function VideoCaptionsApp({ onClose, onCornerDown }: Props) {
 
         {/* Bottom padding when idle */}
         {status !== 'done' && <div style={{ height: 14, flexShrink: 0 }} />}
+
+        {/* ── History overlay ── */}
+        {showHistory && (
+          <HistoryPanel
+            entries={history}
+            onLoad={handleLoadFromHistory}
+            onDelete={handleDeleteHistory}
+            onClear={handleClearHistory}
+            onClose={() => setShowHistory(false)}
+          />
+        )}
 
       </div>{/* end main panel */}
     </div>

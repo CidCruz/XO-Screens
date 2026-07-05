@@ -26,3 +26,15 @@ export interface ChatSession {
   createdAt: number
   updatedAt: number
 }
+
+export interface CaptionToneResult {
+  summary: string
+  captions: string
+}
+
+export interface CaptionHistoryEntry {
+  id: string
+  label: string          // filename or URL
+  createdAt: number
+  results: Record<string, CaptionToneResult>
+}
