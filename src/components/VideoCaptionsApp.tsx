@@ -626,8 +626,38 @@ export default function VideoCaptionsApp({ onClose: _onClose, onCornerDown }: Pr
               ) : (
                 <>
                   <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: 12, fontWeight: 500 }}>Drop a video or click to upload</div>
-                  <div style={{ color: 'rgba(255,255,255,0.25)', fontSize: 10 }}>mp4 · webm · mov · avi · mkv</div>
-                  <div style={{ color: 'rgba(255,255,255,0.18)', fontSize: 10 }}>Up to 2 GB · Files API auto-used for large videos</div>
+                  {/* File type badges */}
+                  <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', justifyContent: 'center', marginTop: 2 }}>
+                    {['MP4', 'WEBM', 'MOV', 'AVI', 'MKV'].map(ext => (
+                      <span key={ext} style={{
+                        fontSize: 9, fontWeight: 700, letterSpacing: '0.06em',
+                        padding: '2px 6px', borderRadius: 5,
+                        background: 'rgba(255,255,255,0.07)',
+                        border: '1px solid rgba(255,255,255,0.1)',
+                        color: 'rgba(255,255,255,0.4)',
+                      }}>{ext}</span>
+                    ))}
+                  </div>
+                  {/* Max size indicator */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 2 }}>
+                    <span style={{
+                      fontSize: 9, fontWeight: 700, letterSpacing: '0.05em',
+                      padding: '2px 7px', borderRadius: 5,
+                      background: 'rgba(52,211,153,0.1)',
+                      border: '1px solid rgba(52,211,153,0.2)',
+                      color: 'rgba(52,211,153,0.75)',
+                    }}>≤ 75 MB</span>
+                    <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.2)' }}>Inline</span>
+                    <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.15)' }}>·</span>
+                    <span style={{
+                      fontSize: 9, fontWeight: 700, letterSpacing: '0.05em',
+                      padding: '2px 7px', borderRadius: 5,
+                      background: 'rgba(245,158,11,0.1)',
+                      border: '1px solid rgba(245,158,11,0.2)',
+                      color: 'rgba(245,158,11,0.75)',
+                    }}>Up to 2 GB</span>
+                    <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.2)' }}>Files API</span>
+                  </div>
                 </>
               )}
               <input ref={fileInputRef} type="file" accept="video/*" onChange={onFileInputChange} style={{ display: 'none' }} />
