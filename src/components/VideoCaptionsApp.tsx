@@ -647,7 +647,7 @@ export default function VideoCaptionsApp({ onClose: _onClose, onCornerDown }: Pr
                       border: '1px solid rgba(52,211,153,0.2)',
                       color: 'rgba(52,211,153,0.75)',
                     }}>≤ 75 MB</span>
-                    <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.2)' }}>Inline</span>
+                    <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.2)' }}>Inline · Fast</span>
                     <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.15)' }}>·</span>
                     <span style={{
                       fontSize: 9, fontWeight: 700, letterSpacing: '0.05em',
@@ -656,7 +656,7 @@ export default function VideoCaptionsApp({ onClose: _onClose, onCornerDown }: Pr
                       border: '1px solid rgba(245,158,11,0.2)',
                       color: 'rgba(245,158,11,0.75)',
                     }}>Up to 2 GB</span>
-                    <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.2)' }}>Files API</span>
+                    <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.2)' }}>Files API · Moderate</span>
                   </div>
                 </>
               )}

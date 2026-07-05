@@ -1001,7 +1001,7 @@ function WebVideoPanel() {
 
       {/* ── Left: input + controls ── */}
       <div style={{
-        width: 300, flexShrink: 0, display: 'flex', flexDirection: 'column',
+        width: 380, flexShrink: 0, display: 'flex', flexDirection: 'column',
         borderRight: '1px solid rgba(255,255,255,0.06)', background: 'rgba(0,0,0,0.2)',
         overflow: 'hidden',
       }}>
@@ -1082,7 +1082,7 @@ function WebVideoPanel() {
                       border: '1px solid rgba(52,211,153,0.2)',
                       color: 'rgba(52,211,153,0.75)',
                     }}>≤ 75 MB</span>
-                    <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.2)' }}>Inline</span>
+                    <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.2)' }}>Inline · Fast</span>
                     <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.15)' }}>·</span>
                     <span style={{
                       fontSize: 9, fontWeight: 700, letterSpacing: '0.05em',
@@ -1091,7 +1091,7 @@ function WebVideoPanel() {
                       border: '1px solid rgba(245,158,11,0.2)',
                       color: 'rgba(245,158,11,0.75)',
                     }}>Up to 2 GB</span>
-                    <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.2)' }}>Files API</span>
+                    <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.2)' }}>Files API · Moderate</span>
                   </div>
                 </>
               )}
