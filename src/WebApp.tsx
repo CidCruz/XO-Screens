@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
 import type { AppItem, Note } from './types'
-import VoiceCall from './components/VoiceCall'
 
 /* ── Nav items ────────────────────────────────────────────────────────────── */
 const APPS: AppItem[] = [
@@ -116,7 +115,7 @@ function HomePanel({ onNavigate }: { onNavigate: (id: string) => void }) {
         </svg>
       ),
       title: 'AI Assistant',
-      desc: 'Chat with XO — text or live voice, powered by Gemini.',
+      desc: 'Chat with XO — powered by Gemini.',
       accent: 'rgba(99,102,241,0.15)',
       border: 'rgba(99,102,241,0.25)',
       dot: 'rgba(99,102,241,0.9)',
@@ -298,7 +297,6 @@ function WebChatPanel({ activeNote }: WebChatPanelProps) {
   const [activeId, setActiveId] = useState<string>(() => initSessions().active.id)
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
-  const [voiceCall, setVoiceCall] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
@@ -393,7 +391,6 @@ function WebChatPanel({ activeNote }: WebChatPanelProps) {
 
   return (
     <>
-      {voiceCall && <VoiceCall onEnd={() => setVoiceCall(false)} />}
       <div className="web-panel-main" style={{ flexDirection: 'row', padding: 0 }}>
 
         {/* ── History sidebar ── */}
@@ -583,24 +580,6 @@ function WebChatPanel({ activeNote }: WebChatPanelProps) {
                 }}
               />
               <div style={{ display: 'flex', gap: 6, flexShrink: 0, alignSelf: 'flex-end', paddingBottom: 7 }}>
-                {/* Voice button */}
-                <button
-                  onClick={() => setVoiceCall(true)}
-                  title="Voice call"
-                  style={{
-                    width: 32, height: 32, borderRadius: 10, border: '1px solid rgba(255,255,255,0.1)',
-                    background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.4)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
-                    transition: 'all 0.15s', flexShrink: 0,
-                  }}
-                  onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(52,211,153,0.12)'; (e.currentTarget as HTMLButtonElement).style.color = '#34d399' }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.05)'; (e.currentTarget as HTMLButtonElement).style.color = 'rgba(255,255,255,0.4)' }}
-                >
-                  <svg width="14" height="14" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
-                    <path d="M19 10v2a7 7 0 0 1-14 0v-2H3v2a9 9 0 0 0 8 8.94V23h2v-2.06A9 9 0 0 0 21 12v-2h-2z"/>
-                  </svg>
-                </button>
                 {/* Send button */}
                 <button
                   onClick={() => {

@@ -4,7 +4,6 @@ import { sendToGeminiWithSystem } from '../gemini'
 import {
   initSessions, newSession, upsertSession, saveSessions, deriveTitleFromMessage,
 } from '../chatHistory'
-import VoiceCall from './VoiceCall'
 
 const corners = [
   { top: -6, left: -6,   dx: -1, dy: -1, rotate: 'rotate(180deg)', cursor: 'nwse-resize' },
@@ -33,7 +32,6 @@ export default function ChatBox({ onCornerDown, activeNote }: Props) {
   const [historyOpen, setHistoryOpen] = useState(false)
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
-  const [voiceCall, setVoiceCall] = useState(false)
   const [closestCorner, setClosestCorner] = useState<number | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -140,7 +138,6 @@ export default function ChatBox({ onCornerDown, activeNote }: Props) {
 
   return (
     <>
-      {voiceCall && <VoiceCall onEnd={() => setVoiceCall(false)} />}
       <div
         ref={containerRef}
         style={{ position: 'relative', overflow: 'visible' }}
@@ -388,27 +385,20 @@ export default function ChatBox({ onCornerDown, activeNote }: Props) {
               />
               <button
                 data-no-drag
-                onClick={input.trim() ? handleSend : () => { window.xo?.setIgnoreMouse(false); setVoiceCall(true) }}
-                disabled={loading}
+                onClick={handleSend}
+                disabled={loading || !input.trim()}
                 style={{
                   minHeight: 36, width: 42, borderRadius: 10, border: '1px solid rgba(255,255,255,0.1)',
                   background: '#fff', color: 'rgba(0,0,0,0.7)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   cursor: 'pointer', flexShrink: 0, transition: 'all 0.15s',
-                  alignSelf: 'flex-end', opacity: loading ? 0.3 : 1,
+                  alignSelf: 'flex-end', opacity: (loading || !input.trim()) ? 0.3 : 1,
                   pointerEvents: 'auto',
                 }}
               >
-                {input.trim() ? (
-                  <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24" style={{ transform: 'rotate(-45deg)' }}>
-                    <path d="M2 21l21-9L2 3v7l15 2-15 2z" />
-                  </svg>
-                ) : (
-                  <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
-                    <path d="M19 10v2a7 7 0 0 1-14 0v-2H3v2a9 9 0 0 0 8 8.94V23h2v-2.06A9 9 0 0 0 21 12v-2h-2z" />
-                  </svg>
-                )}
+                <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24" style={{ transform: 'rotate(-45deg)' }}>
+                  <path d="M2 21l21-9L2 3v7l15 2-15 2z" />
+                </svg>
               </button>
             </div>
           </div>
