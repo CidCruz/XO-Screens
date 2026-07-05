@@ -37,6 +37,7 @@ export default function ChatBox({ onCornerDown, activeNote }: Props) {
   const [closestCorner, setClosestCorner] = useState<number | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   const activeSession = sessions.find(s => s.id === activeId) ?? sessions[0]
   const messages: Message[] = activeSession?.messages ?? []
@@ -49,6 +50,14 @@ export default function ChatBox({ onCornerDown, activeNote }: Props) {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, loading])
+
+  // Auto-resize textarea as content grows
+  useEffect(() => {
+    const el = textareaRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${Math.min(el.scrollHeight, 120)}px`
+  }, [input])
 
 
   function handleNewChat() {
@@ -90,6 +99,8 @@ export default function ChatBox({ onCornerDown, activeNote }: Props) {
 
     setInput('')
     setLoading(true)
+    // Reset textarea height after send
+    if (textareaRef.current) textareaRef.current.style.height = 'auto'
 
     try {
       const noteCtx = activeNote
@@ -362,6 +373,7 @@ export default function ChatBox({ onCornerDown, activeNote }: Props) {
           <div style={{ padding: '12px 16px', borderTop: '1px solid rgba(255,255,255,0.08)', flexShrink: 0 }}>
             <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end' }}>
               <textarea
+                ref={textareaRef}
                 value={input}
                 onChange={e => setInput(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() } }}
@@ -370,7 +382,8 @@ export default function ChatBox({ onCornerDown, activeNote }: Props) {
                 style={{
                   flex: 1, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)',
                   borderRadius: 12, padding: '9px 13px', color: '#fff', fontSize: 12,
-                  outline: 'none', resize: 'none', maxHeight: 100, fontFamily: 'inherit',
+                  outline: 'none', resize: 'none', maxHeight: 120, fontFamily: 'inherit',
+                  overflowY: 'auto', lineHeight: 1.5, boxSizing: 'border-box',
                 }}
               />
               <button
@@ -382,7 +395,7 @@ export default function ChatBox({ onCornerDown, activeNote }: Props) {
                   background: '#fff', color: 'rgba(0,0,0,0.7)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   cursor: 'pointer', flexShrink: 0, transition: 'all 0.15s',
-                  alignSelf: 'stretch', opacity: loading ? 0.3 : 1,
+                  alignSelf: 'flex-end', opacity: loading ? 0.3 : 1,
                   pointerEvents: 'auto',
                 }}
               >
