@@ -902,159 +902,6 @@ function VSpinner() {
   )
 }
 
-// ── Web caption history panel (full-screen overlay within the video panel) ──
-
-function WebCaptionHistoryPanel({
-  entries,
-  tones,
-  onLoad,
-  onDelete,
-  onClear,
-  onClose,
-}: {
-  entries: CaptionHistoryEntry[]
-  tones: typeof VIDEO_TONES
-  onLoad: (entry: CaptionHistoryEntry) => void
-  onDelete: (id: string) => void
-  onClear: () => void
-  onClose: () => void
-}) {
-  return (
-    <div style={{
-      position: 'absolute', inset: 0, zIndex: 30,
-      background: 'rgba(10,10,12,0.97)',
-      display: 'flex', flexDirection: 'column', overflow: 'hidden',
-    }}>
-      {/* Header */}
-      <div style={{
-        display: 'flex', alignItems: 'center', gap: 8,
-        padding: '18px 20px 14px',
-        borderBottom: '1px solid rgba(255,255,255,0.06)', flexShrink: 0,
-      }}>
-        <svg width="13" height="13" fill="none" stroke="rgba(255,255,255,0.5)" viewBox="0 0 24 24">
-          <circle cx="12" cy="12" r="10" strokeWidth={1.8} />
-          <polyline points="12 6 12 12 16 14" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-        <span style={{ color: '#fff', fontWeight: 700, fontSize: 14, letterSpacing: '-0.02em' }}>Caption History</span>
-        <span style={{ color: 'rgba(255,255,255,0.3)', fontSize: 12 }}>({entries.length})</span>
-        <div style={{ flex: 1 }} />
-        {entries.length > 0 && (
-          <button onClick={onClear} style={{
-            padding: '4px 12px', borderRadius: 8, border: '1px solid rgba(239,68,68,0.25)',
-            background: 'rgba(239,68,68,0.08)', color: 'rgba(239,68,68,0.7)',
-            fontSize: 11, fontWeight: 500, fontFamily: 'inherit', cursor: 'pointer', transition: 'all 0.15s',
-          }}
-            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(239,68,68,0.18)' }}
-            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(239,68,68,0.08)' }}
-          >Clear all</button>
-        )}
-        <button onClick={onClose} style={{
-          width: 28, height: 28, borderRadius: 8, border: 'none', background: 'transparent',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          color: 'rgba(255,255,255,0.25)', cursor: 'pointer', transition: 'all 0.15s', flexShrink: 0,
-        }}
-          onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = '#fff'; (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.08)' }}
-          onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = 'rgba(255,255,255,0.25)'; (e.currentTarget as HTMLButtonElement).style.background = 'transparent' }}
-        >
-          <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
-      </div>
-
-      {/* List */}
-      <div className="web-scroll" style={{ flex: 1, overflowY: 'auto', padding: '12px 20px 20px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {entries.length === 0 ? (
-          <div style={{
-            flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center',
-            justifyContent: 'center', gap: 12, color: 'rgba(255,255,255,0.2)', paddingTop: 60,
-          }}>
-            <svg width="36" height="36" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.2}>
-              <circle cx="12" cy="12" r="10" />
-              <polyline points="12 6 12 12 16 14" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-            <span style={{ fontSize: 13 }}>No history yet</span>
-            <span style={{ fontSize: 12, textAlign: 'center', maxWidth: 260, lineHeight: 1.6 }}>
-              Generated captions will appear here for quick access
-            </span>
-          </div>
-        ) : entries.map(entry => {
-          const date = new Date(entry.createdAt)
-          const dateStr = date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
-          const timeStr = date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
-          const toneCount = Object.keys(entry.results).length
-          return (
-            <div key={entry.id} style={{
-              background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)',
-              borderRadius: 14, padding: '12px 14px',
-              display: 'flex', alignItems: 'flex-start', gap: 12, transition: 'background 0.15s',
-            }}
-              onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.background = 'rgba(255,255,255,0.07)' }}
-              onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.background = 'rgba(255,255,255,0.04)' }}
-            >
-              {/* Video icon */}
-              <div style={{
-                width: 36, height: 36, borderRadius: 10, flexShrink: 0,
-                background: 'rgba(139,92,246,0.15)', border: '1px solid rgba(139,92,246,0.2)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-              }}>
-                <svg width="16" height="16" fill="none" stroke="rgba(139,92,246,0.9)" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
-                    d="M15 10l4.553-2.276A1 1 0 0121 8.723v6.554a1 1 0 01-1.447.894L15 14M4 8a2 2 0 012-2h9a2 2 0 012 2v8a2 2 0 01-2 2H6a2 2 0 01-2-2V8z" />
-                </svg>
-              </div>
-
-              {/* Label + meta */}
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ color: '#fff', fontSize: 12, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={entry.label}>
-                  {entry.label}
-                </div>
-                <div style={{ display: 'flex', gap: 8, marginTop: 5, alignItems: 'center', flexWrap: 'wrap' }}>
-                  <span style={{ color: 'rgba(255,255,255,0.3)', fontSize: 11 }}>{dateStr} · {timeStr}</span>
-                  <span style={{ color: 'rgba(139,92,246,0.8)', fontSize: 10, fontWeight: 500, background: 'rgba(139,92,246,0.1)', borderRadius: 4, padding: '1px 6px' }}>
-                    {toneCount} tone{toneCount !== 1 ? 's' : ''}
-                  </span>
-                </div>
-                {/* Tone dots */}
-                <div style={{ display: 'flex', gap: 4, marginTop: 7 }}>
-                  {tones.filter(t => entry.results[t.id]).map(t => (
-                    <div key={t.id} title={t.label} style={{ width: 6, height: 6, borderRadius: 99, background: t.dot, opacity: 0.8 }} />
-                  ))}
-                </div>
-              </div>
-
-              {/* Actions */}
-              <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
-                <button onClick={() => onLoad(entry)} title="Load this result" style={{
-                  padding: '5px 12px', borderRadius: 8, border: 'none',
-                  background: 'rgba(139,92,246,0.2)', color: 'rgba(139,92,246,0.9)',
-                  fontSize: 11, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer', transition: 'all 0.15s',
-                }}
-                  onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(139,92,246,0.35)' }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(139,92,246,0.2)' }}
-                >Load</button>
-                <button onClick={() => onDelete(entry.id)} title="Delete" style={{
-                  width: 28, height: 28, borderRadius: 8, border: 'none',
-                  background: 'transparent', color: 'rgba(255,255,255,0.2)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  cursor: 'pointer', transition: 'all 0.15s',
-                }}
-                  onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = '#f87171'; (e.currentTarget as HTMLButtonElement).style.background = 'rgba(239,68,68,0.12)' }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = 'rgba(255,255,255,0.2)'; (e.currentTarget as HTMLButtonElement).style.background = 'transparent' }}
-                >
-                  <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                  </svg>
-                </button>
-              </div>
-            </div>
-          )
-        })}
-      </div>
-    </div>
-  )
-}
-
 function WebVideoPanel() {
   const [inputMode, setInputMode] = useState<'file' | 'url'>('file')
   const [videoFile, setVideoFile] = useState<File | null>(null)
@@ -1144,21 +991,9 @@ function WebVideoPanel() {
     <div className="web-panel-main" style={{ flexDirection: 'row', padding: 0, position: 'relative' }}>
       <style>{`@keyframes vs-spin { to { transform: rotate(360deg); } }`}</style>
 
-      {/* ── History panel overlay (covers entire panel when open) ── */}
-      {showHistory && (
-        <WebCaptionHistoryPanel
-          entries={history}
-          tones={VIDEO_TONES}
-          onLoad={handleLoadFromHistory}
-          onDelete={handleDeleteHistory}
-          onClear={handleClearHistory}
-          onClose={() => setShowHistory(false)}
-        />
-      )}
-
       {/* ── Left: input + controls ── */}
       <div style={{
-        width: 320, flexShrink: 0, display: 'flex', flexDirection: 'column',
+        width: 300, flexShrink: 0, display: 'flex', flexDirection: 'column',
         borderRight: '1px solid rgba(255,255,255,0.06)', background: 'rgba(0,0,0,0.2)',
         overflow: 'hidden',
       }}>
@@ -1167,24 +1002,6 @@ function WebVideoPanel() {
           <span style={{ color: '#fff', fontWeight: 900, fontSize: 15, letterSpacing: '-0.03em', textShadow: '0 0 12px rgba(255,255,255,0.8)' }}>XO</span>
           <span className="web-panel-subtitle">Video Captions</span>
           <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6 }}>
-            {/* History button */}
-            <button onClick={() => setShowHistory(true)} title={`History (${history.length})`} style={{
-              padding: '4px 10px', borderRadius: 8, border: 'none', cursor: 'pointer',
-              fontSize: 11, fontWeight: 500, fontFamily: 'inherit',
-              display: 'flex', alignItems: 'center', gap: 5,
-              background: 'rgba(255,255,255,0.05)',
-              color: history.length > 0 ? 'rgba(255,255,255,0.55)' : 'rgba(255,255,255,0.2)',
-              transition: 'all 0.15s',
-            }}
-              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.1)'; (e.currentTarget as HTMLButtonElement).style.color = '#fff' }}
-              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.05)'; (e.currentTarget as HTMLButtonElement).style.color = history.length > 0 ? 'rgba(255,255,255,0.55)' : 'rgba(255,255,255,0.2)' }}
-            >
-              <svg width="11" height="11" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <circle cx="12" cy="12" r="10" strokeWidth={2} />
-                <polyline points="12 6 12 12 16 14" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-              History{history.length > 0 ? ` (${history.length})` : ''}
-            </button>
             {/* Input mode toggle */}
             <div style={{ display: 'flex', gap: 3, background: 'rgba(255,255,255,0.05)', borderRadius: 10, padding: 3 }}>
               {(['file', 'url'] as const).map(m => (
@@ -1330,6 +1147,137 @@ function WebVideoPanel() {
             )}
           </div>
         )}
+
+        {/* ── History section (second row, VS Code-style) ── */}
+        {/* Divider / section header — always visible, click to toggle */}
+        <button onClick={() => setShowHistory(v => !v)} style={{
+          marginTop: 'auto', flexShrink: 0,
+          display: 'flex', alignItems: 'center', gap: 6,
+          width: '100%', padding: '8px 14px',
+          borderTop: '1px solid rgba(255,255,255,0.07)',
+          background: 'rgba(255,255,255,0.02)',
+          border: 'none', borderTopColor: 'rgba(255,255,255,0.07)',
+          borderTopStyle: 'solid', borderTopWidth: 1,
+          cursor: 'pointer', transition: 'background 0.15s',
+          textAlign: 'left',
+        }}
+          onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.05)' }}
+          onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.02)' }}
+        >
+          {/* Chevron — rotates when open */}
+          <svg width="10" height="10" fill="none" stroke="rgba(255,255,255,0.4)" viewBox="0 0 24 24"
+            style={{ transition: 'transform 0.2s', transform: showHistory ? 'rotate(90deg)' : 'rotate(0deg)', flexShrink: 0 }}>
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
+          </svg>
+          <span style={{ fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.45)', letterSpacing: '0.07em', textTransform: 'uppercase', flex: 1 }}>
+            History
+          </span>
+          {history.length > 0 && (
+            <span style={{
+              fontSize: 10, fontWeight: 600, color: 'rgba(255,255,255,0.3)',
+              background: 'rgba(255,255,255,0.07)', borderRadius: 5, padding: '1px 6px',
+            }}>{history.length}</span>
+          )}
+        </button>
+
+        {/* Collapsible history list */}
+        <div style={{
+          height: showHistory ? 260 : 0,
+          flexShrink: 0,
+          overflow: 'hidden',
+          transition: 'height 0.25s cubic-bezier(0.4,0,0.2,1)',
+          borderTop: showHistory ? '1px solid rgba(255,255,255,0.05)' : 'none',
+        }}>
+          <div style={{ height: 260, display: 'flex', flexDirection: 'column' }}>
+            {/* Clear all row */}
+            {history.length > 0 && (
+              <div style={{ padding: '7px 14px 4px', flexShrink: 0, display: 'flex', justifyContent: 'flex-end' }}>
+                <button onClick={handleClearHistory} style={{
+                  padding: '2px 9px', borderRadius: 6, border: '1px solid rgba(239,68,68,0.22)',
+                  background: 'rgba(239,68,68,0.07)', color: 'rgba(239,68,68,0.65)',
+                  fontSize: 10, fontWeight: 500, fontFamily: 'inherit', cursor: 'pointer', transition: 'all 0.15s',
+                }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(239,68,68,0.16)' }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(239,68,68,0.07)' }}
+                >Clear all</button>
+              </div>
+            )}
+
+            {/* Entry list */}
+            <div className="web-scroll" style={{ flex: 1, overflowY: 'auto', padding: '4px 10px 10px', display: 'flex', flexDirection: 'column', gap: 5 }}>
+              {history.length === 0 ? (
+                <div style={{
+                  flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center',
+                  justifyContent: 'center', gap: 8, color: 'rgba(255,255,255,0.18)', paddingTop: 24,
+                }}>
+                  <svg width="22" height="22" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.3}>
+                    <circle cx="12" cy="12" r="10" />
+                    <polyline points="12 6 12 12 16 14" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                  <span style={{ fontSize: 11 }}>No history yet</span>
+                </div>
+              ) : history.map(entry => {
+                const date = new Date(entry.createdAt)
+                const dateStr = date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+                const timeStr = date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+                const toneCount = Object.keys(entry.results).length
+                return (
+                  <div key={entry.id} style={{
+                    background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)',
+                    borderRadius: 10, padding: '8px 10px',
+                    display: 'flex', alignItems: 'center', gap: 8,
+                    transition: 'background 0.15s',
+                  }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.background = 'rgba(255,255,255,0.07)' }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.background = 'rgba(255,255,255,0.04)' }}
+                  >
+                    {/* Info */}
+                    <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3 }}>
+                      <div style={{ color: '#fff', fontSize: 11, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={entry.label}>
+                        {entry.label}
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                        <span style={{ color: 'rgba(255,255,255,0.25)', fontSize: 10 }}>{dateStr} · {timeStr}</span>
+                        <span style={{ color: 'rgba(139,92,246,0.7)', fontSize: 10, fontWeight: 500, background: 'rgba(139,92,246,0.1)', borderRadius: 4, padding: '0px 4px' }}>
+                          {toneCount}t
+                        </span>
+                        {/* Tone dots */}
+                        <div style={{ display: 'flex', gap: 3 }}>
+                          {VIDEO_TONES.filter(t => entry.results[t.id]).map(t => (
+                            <div key={t.id} title={t.label} style={{ width: 5, height: 5, borderRadius: 99, background: t.dot, opacity: 0.75 }} />
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Actions */}
+                    <button onClick={() => handleLoadFromHistory(entry)} title="Load" style={{
+                      padding: '4px 9px', borderRadius: 7, border: 'none', flexShrink: 0,
+                      background: 'rgba(139,92,246,0.2)', color: 'rgba(139,92,246,0.9)',
+                      fontSize: 10, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer', transition: 'all 0.15s',
+                    }}
+                      onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(139,92,246,0.35)' }}
+                      onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(139,92,246,0.2)' }}
+                    >Load</button>
+                    <button onClick={() => handleDeleteHistory(entry.id)} title="Delete" style={{
+                      width: 24, height: 24, borderRadius: 7, border: 'none', flexShrink: 0,
+                      background: 'transparent', color: 'rgba(255,255,255,0.2)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      cursor: 'pointer', transition: 'all 0.15s',
+                    }}
+                      onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = '#f87171'; (e.currentTarget as HTMLButtonElement).style.background = 'rgba(239,68,68,0.12)' }}
+                      onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = 'rgba(255,255,255,0.2)'; (e.currentTarget as HTMLButtonElement).style.background = 'transparent' }}
+                    >
+                      <svg width="11" height="11" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* ── Right: results viewer ── */}
