@@ -43,13 +43,46 @@ body {
 .scrollbar-hide::-webkit-scrollbar { display: none; }
 .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
 
+/* ── Unified custom scrollbar ── */
+.chat-scroll,
+.chat-textarea,
+.vc-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.12) transparent;
+}
+
 .chat-scroll::-webkit-scrollbar,
-.chat-textarea::-webkit-scrollbar { width: 4px; }
+.chat-textarea::-webkit-scrollbar,
+.vc-scroll::-webkit-scrollbar {
+  width: 3px;
+}
+
 .chat-scroll::-webkit-scrollbar-track,
-.chat-textarea::-webkit-scrollbar-track { background: transparent; }
+.chat-textarea::-webkit-scrollbar-track,
+.vc-scroll::-webkit-scrollbar-track {
+  background: transparent;
+  margin: 6px 0;
+}
+
 .chat-scroll::-webkit-scrollbar-thumb,
-.chat-textarea::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 2px; }
-.chat-textarea::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.28); }
+.chat-textarea::-webkit-scrollbar-thumb,
+.vc-scroll::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.1);
+  border-radius: 99px;
+  transition: background 0.2s;
+}
+
+.chat-scroll::-webkit-scrollbar-thumb:hover,
+.chat-textarea::-webkit-scrollbar-thumb:hover,
+.vc-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(255,255,255,0.22);
+}
+
+.chat-scroll::-webkit-scrollbar-thumb:active,
+.chat-textarea::-webkit-scrollbar-thumb:active,
+.vc-scroll::-webkit-scrollbar-thumb:active {
+  background: rgba(255,255,255,0.32);
+}
 
 @keyframes appEnter {
   from { opacity: 0; transform: scale(0.96); }

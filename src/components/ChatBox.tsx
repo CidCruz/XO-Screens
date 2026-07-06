@@ -398,7 +398,7 @@ export default function ChatBox({ onCornerDown, activeNote, appControl }: Props)
                 </button>
               </div>
             </div>
-            <div style={{ flex: 1, overflowY: 'auto', padding: '8px' }}>
+            <div className="chat-scroll" style={{ flex: 1, overflowY: 'auto', padding: '8px' }}>
               {sessions.length === 0 && <div style={{ padding: '20px 12px', textAlign: 'center', fontSize: 12, color: 'rgba(255,255,255,0.3)' }}>No chats yet.</div>}
               {sessions.map(s => (
                 <button key={s.id} onClick={() => handleSelectSession(s.id)}
@@ -446,7 +446,7 @@ export default function ChatBox({ onCornerDown, activeNote, appControl }: Props)
             </div>
 
             {/* Capability rows */}
-            <div style={{ flex: 1, overflowY: 'auto', padding: '8px 12px 12px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <div className="chat-scroll" style={{ flex: 1, overflowY: 'auto', padding: '8px 12px 12px', display: 'flex', flexDirection: 'column', gap: 6 }}>
               {CAPABILITY_GROUPS.map(group => {
                 const isOn = !!enabledCaps[group.id]
                 return (

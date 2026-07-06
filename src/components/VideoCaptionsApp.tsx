@@ -496,9 +496,6 @@ export default function VideoCaptionsApp({ onClose: _onClose, onCornerDown }: Pr
       {/* CSS for spinner animation — injected once */}
       <style>{`
         @keyframes vc-spin { to { transform: rotate(360deg); } }
-        .vc-scroll::-webkit-scrollbar { width: 4px; }
-        .vc-scroll::-webkit-scrollbar-track { background: transparent; }
-        .vc-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 99px; }
       `}</style>
 
       {/* Resize corners */}
