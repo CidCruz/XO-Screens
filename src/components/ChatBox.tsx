@@ -456,7 +456,6 @@ export default function ChatBox({ onCornerDown, activeNote, appControl }: Props)
                     border: `1px solid ${isOn ? group.color.replace('0.9', '0.18') : 'rgba(255,255,255,0.06)'}`,
                     transition: 'all 0.2s',
                   }}>
-                    {/* Icon */}
                     <div style={{
                       width: 30, height: 30, borderRadius: 8, flexShrink: 0,
                       background: isOn ? group.color.replace('0.9', '0.12') : 'rgba(255,255,255,0.05)',
@@ -467,7 +466,6 @@ export default function ChatBox({ onCornerDown, activeNote, appControl }: Props)
                     }}>
                       {group.icon}
                     </div>
-                    {/* Text */}
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 12, fontWeight: 600, color: isOn ? '#fff' : 'rgba(255,255,255,0.4)', marginBottom: 2, transition: 'color 0.2s' }}>
                         {group.label}
@@ -476,11 +474,37 @@ export default function ChatBox({ onCornerDown, activeNote, appControl }: Props)
                         {group.description}
                       </div>
                     </div>
-                    {/* Toggle */}
                     <Toggle on={isOn} onChange={v => toggleCap(group.id, v)} color={group.color} />
                   </div>
                 )
               })}
+
+              {/* Coming soon items */}
+              {([
+                { label: 'Real-Time Screen Reading', icon: <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2" strokeWidth={2}/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 21h8M12 17v4"/></svg> },
+                { label: 'Auto-Translate Overlay', icon: <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129"/></svg> },
+                { label: 'Voice Mode', icon: <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4M12 3a4 4 0 014 4v4a4 4 0 01-8 0V7a4 4 0 014-4z"/></svg> },
+              ] as { label: string; icon: React.ReactElement }[]).map(item => (
+                <div key={item.label} style={{
+                  display: 'flex', alignItems: 'center', gap: 12, padding: '11px 13px', borderRadius: 12,
+                  background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)',
+                  opacity: 0.55,
+                }}>
+                  <div style={{
+                    width: 30, height: 30, borderRadius: 8, flexShrink: 0,
+                    background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    color: 'rgba(255,255,255,0.25)',
+                  }}>
+                    {item.icon}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: 'rgba(255,255,255,0.4)', marginBottom: 2 }}>{item.label}</div>
+                    <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.2)' }}>Coming soon</div>
+                  </div>
+                  <span style={{ fontSize: 9, fontWeight: 600, color: 'rgba(255,255,255,0.25)', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 6, padding: '2px 7px', letterSpacing: '0.04em', textTransform: 'uppercase', flexShrink: 0 }}>Soon</span>
+                </div>
+              ))}
             </div>
 
             {/* Footer — enable all / disable all */}
