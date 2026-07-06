@@ -33,7 +33,7 @@ interface SettingsWidgetProps {
 function SettingsWidget({ onClose, onCornerDown }: SettingsWidgetProps) {
   const [closestCorner, setClosestCorner] = useState<number | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
-  const apiKey = import.meta.env.VITE_GEMINI_API_KEY
+  const apiKey = import.meta.env.VITE_FIREWORKS_API_KEY
   const masked = apiKey ? `${apiKey.slice(0, 6)}${'•'.repeat(20)}` : 'Not set'
 
   return (
@@ -97,10 +97,10 @@ function SettingsWidget({ onClose, onCornerDown }: SettingsWidgetProps) {
         {/* Body */}
         <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 14 }}>
 
-          {/* Gemini API section */}
+          {/* Fireworks AI section */}
           <div>
             <div style={{ fontSize: 9, fontWeight: 700, color: 'rgba(255,255,255,0.3)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 8 }}>
-              Gemini API
+              Fireworks AI
             </div>
             <div style={{ padding: '12px 14px', borderRadius: 12, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
               <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', marginBottom: 5 }}>API Key</div>
@@ -109,7 +109,7 @@ function SettingsWidget({ onClose, onCornerDown }: SettingsWidgetProps) {
               </div>
               {!apiKey && (
                 <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.25)', marginTop: 8, lineHeight: 1.6 }}>
-                  Set <code style={{ background: 'rgba(255,255,255,0.07)', padding: '1px 4px', borderRadius: 3 }}>VITE_GEMINI_API_KEY</code> in <code style={{ background: 'rgba(255,255,255,0.07)', padding: '1px 4px', borderRadius: 3 }}>.env.local</code>
+                  Set <code style={{ background: 'rgba(255,255,255,0.07)', padding: '1px 4px', borderRadius: 3 }}>VITE_FIREWORKS_API_KEY</code> in <code style={{ background: 'rgba(255,255,255,0.07)', padding: '1px 4px', borderRadius: 3 }}>.env.local</code>
                 </div>
               )}
             </div>
@@ -124,8 +124,9 @@ function SettingsWidget({ onClose, onCornerDown }: SettingsWidgetProps) {
               {[
                 { label: 'Version',   value: '0.0.0' },
                 { label: 'Mode',      value: 'Desktop Overlay' },
-                { label: 'Model',     value: 'gemini-2.5-flash' },
-                { label: 'Voice',     value: 'gemini-2.5-flash-native-audio' },
+                { label: 'Provider',  value: 'Fireworks AI' },
+                { label: 'Chat',      value: 'Gemma 4 E4B / 26B' },
+                { label: 'Captions',  value: 'Gemma 4 31B IT' },
                 { label: 'Platform',  value: xo.platform ?? 'electron' },
               ].map(row => (
                 <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

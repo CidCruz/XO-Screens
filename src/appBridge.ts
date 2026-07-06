@@ -1,20 +1,17 @@
 /**
  * appBridge.ts
  *
- * Defines all XO app-control tools exposed to Gemini via function-calling.
+ * Defines all XO app-control tools exposed to Fireworks AI via function-calling.
  * Two exports are consumed by ChatBox:
  *
- *   APP_TOOLS   — array of GeminiToolDeclaration passed in every chat request
+ *   APP_TOOLS    — array of FWToolDeclaration passed in every chat request
  *   makeExecutor — factory that binds an AppControl instance to an executor
- *                  function that Gemini's tool-call responses are routed through
  */
 
 import type { AppControl, WidgetId, Note } from './types'
-import type { GeminiToolDeclaration, ToolCallRequest } from './gemini'
+import type { FWToolDeclaration as GeminiToolDeclaration, ToolCallRequest } from './fireworks'
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Tool declarations (sent to Gemini so it knows what it can call)
-// ─────────────────────────────────────────────────────────────────────────────
+export type { GeminiToolDeclaration }
 
 export const APP_TOOLS: GeminiToolDeclaration[] = [
   // ── Widget visibility ──────────────────────────────────────────────────────
@@ -22,7 +19,7 @@ export const APP_TOOLS: GeminiToolDeclaration[] = [
     name: 'open_widget',
     description: 'Opens (makes visible) one of the XO overlay widgets: chat, notes, video captions, or settings.',
     parameters: {
-      type: 'OBJECT',
+      type: 'object',
       properties: {
         widget: {
           type: 'string',
@@ -37,7 +34,7 @@ export const APP_TOOLS: GeminiToolDeclaration[] = [
     name: 'close_widget',
     description: 'Closes (hides) one of the XO overlay widgets.',
     parameters: {
-      type: 'OBJECT',
+      type: 'object',
       properties: {
         widget: {
           type: 'string',
@@ -52,7 +49,7 @@ export const APP_TOOLS: GeminiToolDeclaration[] = [
     name: 'get_open_widgets',
     description: 'Returns a list of widget IDs that are currently visible on screen.',
     parameters: {
-      type: 'OBJECT',
+      type: 'object',
       properties: {},
     },
   },
@@ -60,9 +57,9 @@ export const APP_TOOLS: GeminiToolDeclaration[] = [
   // ── Notes — read ───────────────────────────────────────────────────────────
   {
     name: 'list_notes',
-    description: 'Returns a summary list of all notes (id, title, first 80 chars of content, color, timestamps). Use this to find a note before reading or editing it.',
+    description: 'Returns a summary list of all notes (id, title, first 80 chars of content, color, timestamps).',
     parameters: {
-      type: 'OBJECT',
+      type: 'object',
       properties: {},
     },
   },
@@ -70,7 +67,7 @@ export const APP_TOOLS: GeminiToolDeclaration[] = [
     name: 'get_note',
     description: 'Returns the full content of a single note by its id.',
     parameters: {
-      type: 'OBJECT',
+      type: 'object',
       properties: {
         id: { type: 'string', description: 'The note id returned by list_notes.' },
       },
@@ -81,16 +78,16 @@ export const APP_TOOLS: GeminiToolDeclaration[] = [
   // ── Notes — write ──────────────────────────────────────────────────────────
   {
     name: 'create_note',
-    description: 'Creates a new note and opens the Notes widget so it is visible. Returns the new note object.',
+    description: 'Creates a new note and opens the Notes widget. Returns the new note object.',
     parameters: {
-      type: 'OBJECT',
+      type: 'object',
       properties: {
         title:   { type: 'string', description: 'Title of the note.' },
         content: { type: 'string', description: 'Body text of the note.' },
         color: {
           type: 'string',
           enum: ['default', 'purple', 'blue', 'green', 'yellow', 'red'],
-          description: 'Optional highlight color. Defaults to "default" (no color).',
+          description: 'Optional highlight color.',
         },
       },
       required: ['title', 'content'],
@@ -98,9 +95,9 @@ export const APP_TOOLS: GeminiToolDeclaration[] = [
   },
   {
     name: 'update_note',
-    description: 'Updates the title, content, and/or color of an existing note. Only the provided fields are changed.',
+    description: 'Updates the title, content, and/or color of an existing note.',
     parameters: {
-      type: 'OBJECT',
+      type: 'object',
       properties: {
         id:      { type: 'string', description: 'The note id to update.' },
         title:   { type: 'string', description: 'New title (optional).' },
@@ -118,7 +115,7 @@ export const APP_TOOLS: GeminiToolDeclaration[] = [
     name: 'delete_note',
     description: 'Permanently deletes a note by its id.',
     parameters: {
-      type: 'OBJECT',
+      type: 'object',
       properties: {
         id: { type: 'string', description: 'The note id to delete.' },
       },
@@ -127,9 +124,9 @@ export const APP_TOOLS: GeminiToolDeclaration[] = [
   },
   {
     name: 'focus_note',
-    description: 'Makes a note the active/selected note in the Notes widget and opens the widget if it is closed. Use this to draw the user\'s attention to a specific note.',
+    description: 'Makes a note the active/selected note in the Notes widget and opens the widget.',
     parameters: {
-      type: 'OBJECT',
+      type: 'object',
       properties: {
         id: { type: 'string', description: 'The note id to focus.' },
       },
@@ -140,17 +137,15 @@ export const APP_TOOLS: GeminiToolDeclaration[] = [
   // ── Video captions history ─────────────────────────────────────────────────
   {
     name: 'get_caption_history',
-    description: 'Returns the list of previously generated video caption results (label, tones, timestamps). Does not process new videos.',
+    description: 'Returns the list of previously generated video caption results.',
     parameters: {
-      type: 'OBJECT',
+      type: 'object',
       properties: {},
     },
   },
 ]
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Color name → CSS value mapping (matches NotesApp palette)
-// ─────────────────────────────────────────────────────────────────────────────
+// ─── Color map ────────────────────────────────────────────────────────────────
 
 const COLOR_MAP: Record<string, string> = {
   default: 'rgba(255,255,255,0.0)',
@@ -165,36 +160,25 @@ function toCssColor(name: string | undefined): string {
   return COLOR_MAP[name ?? 'default'] ?? COLOR_MAP['default']
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Executor factory
-// ─────────────────────────────────────────────────────────────────────────────
+// ─── Executor factory ─────────────────────────────────────────────────────────
 
-/**
- * Returns an async executor function bound to the given AppControl instance.
- * Pass the returned function as the `executor` argument of sendToGeminiWithTools.
- */
 export function makeExecutor(ctrl: AppControl) {
   return async function execute(call: ToolCallRequest): Promise<unknown> {
     const a = call.args
 
     switch (call.name) {
 
-      // ── Widget visibility ────────────────────────────────────────────────
-      case 'open_widget': {
+      case 'open_widget':
         ctrl.openWidget(a.widget as WidgetId)
         return { ok: true, widget: a.widget, state: 'open' }
-      }
 
-      case 'close_widget': {
+      case 'close_widget':
         ctrl.closeWidget(a.widget as WidgetId)
         return { ok: true, widget: a.widget, state: 'closed' }
-      }
 
-      case 'get_open_widgets': {
+      case 'get_open_widgets':
         return { openWidgets: ctrl.getOpenWidgets() }
-      }
 
-      // ── Notes — read ─────────────────────────────────────────────────────
       case 'list_notes': {
         const notes = ctrl.listNotes()
         return {
@@ -215,17 +199,9 @@ export function makeExecutor(ctrl: AppControl) {
         return note
       }
 
-      // ── Notes — write ────────────────────────────────────────────────────
       case 'create_note': {
-        const note = ctrl.createNote(
-          (a.title as string) ?? '',
-          (a.content as string) ?? '',
-        )
-        // Apply color if provided
-        if (a.color) {
-          ctrl.updateNote(note.id, { color: toCssColor(a.color as string) })
-        }
-        // Open and focus the Notes widget so the user sees the result
+        const note = ctrl.createNote((a.title as string) ?? '', (a.content as string) ?? '')
+        if (a.color) ctrl.updateNote(note.id, { color: toCssColor(a.color as string) })
         ctrl.openWidget('notes')
         ctrl.focusNote(note.id)
         return { ok: true, note: { id: note.id, title: note.title } }
@@ -236,7 +212,6 @@ export function makeExecutor(ctrl: AppControl) {
         if (typeof a.title   === 'string') patch.title   = a.title
         if (typeof a.content === 'string') patch.content = a.content
         if (typeof a.color   === 'string') patch.color   = toCssColor(a.color)
-
         const updated = ctrl.updateNote(a.id as string, patch)
         if (!updated) return { error: `No note found with id "${a.id}".` }
         return { ok: true, note: { id: updated.id, title: updated.title } }
@@ -256,7 +231,6 @@ export function makeExecutor(ctrl: AppControl) {
         return { ok: true, focused: a.id }
       }
 
-      // ── Video captions ───────────────────────────────────────────────────
       case 'get_caption_history': {
         const history = ctrl.getCaptionHistory()
         return {

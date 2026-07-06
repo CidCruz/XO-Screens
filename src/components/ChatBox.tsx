@@ -315,7 +315,7 @@ export default function ChatBox({ onCornerDown, activeNote, appControl }: Props)
         title: newTitle ?? activeSession.title,
         messages: [...updatedMessages, {
           id: Date.now().toString(), role: 'assistant',
-          content: `⚠️ ${err instanceof Error ? err.message : 'Failed to reach Gemini. Check your API key.'}`,
+          content: `⚠️ ${err instanceof Error ? err.message : 'Failed to reach Fireworks AI. Check your API key.'}`,
           timestamp: new Date(),
         }],
         updatedAt: Date.now(),

@@ -772,8 +772,8 @@ export default function VideoCaptionsApp({ onClose: _onClose, onCornerDown }: Pr
                   <Spinner />
                   <span style={{ fontSize: 11, color: 'rgba(245,158,11,0.9)', fontWeight: 500 }}>
                     {uploadPhase === 'uploading'
-                      ? `Uploading to Files API… ${uploadPct}%`
-                      : 'Gemini is processing your video…'}
+                      ? `Uploading… ${uploadPct}%`
+                      : 'Fireworks AI is processing your video…'}
                   </span>
                 </div>
                 {uploadPhase === 'uploading' && (
