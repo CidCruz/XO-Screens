@@ -214,6 +214,7 @@ export default function ChatBox({ onCornerDown, activeNote, appControl }: Props)
     if (!el) return
     el.style.height = 'auto'
     el.style.height = `${Math.min(el.scrollHeight, 120)}px`
+    el.style.overflowY = el.scrollHeight > 120 ? 'auto' : 'hidden'
   }, [input])
 
   function toggleCap(id: string, val: boolean) {
@@ -545,6 +546,7 @@ export default function ChatBox({ onCornerDown, activeNote, appControl }: Props)
             <div key={msg.id} className="fade-in" style={{ display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
               <div style={{
                 maxWidth: '78%', padding: '9px 13px', borderRadius: 14, fontSize: 12, lineHeight: 1.6,
+                wordBreak: 'break-word', whiteSpace: 'pre-wrap',
                 ...(msg.role === 'user'
                   ? { background: 'rgba(255,255,255,0.1)', color: '#fff', border: '1px solid rgba(255,255,255,0.1)' }
                   : { color: 'rgba(255,255,255,0.7)' }),
@@ -594,7 +596,8 @@ export default function ChatBox({ onCornerDown, activeNote, appControl }: Props)
                 : 'Ask me to control the app…'
               }
               rows={1}
-              style={{ flex: 1, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, padding: '9px 13px', color: '#fff', fontSize: 12, outline: 'none', resize: 'none', maxHeight: 120, fontFamily: 'inherit', overflowY: 'auto', lineHeight: 1.5, boxSizing: 'border-box' }}
+              className="chat-textarea"
+              style={{ flex: 1, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, padding: '9px 13px', color: '#fff', fontSize: 12, outline: 'none', resize: 'none', maxHeight: 120, fontFamily: 'inherit', overflowY: 'hidden', lineHeight: 1.5, boxSizing: 'border-box' }}
             />
             <button data-no-drag onClick={handleSend} disabled={loading || !input.trim()}
               style={{ minHeight: 36, width: 42, borderRadius: 10, border: '1px solid rgba(255,255,255,0.1)', background: '#fff', color: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0, transition: 'all 0.15s', alignSelf: 'flex-end', opacity: (loading || !input.trim()) ? 0.3 : 1, pointerEvents: 'auto' }}
