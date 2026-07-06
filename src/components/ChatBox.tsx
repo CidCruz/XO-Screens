@@ -3,7 +3,7 @@ import type { Message, Note, ChatSession, AppControl } from '../types'
 import { sendToGeminiWithTools } from '../gemini'
 import { APP_TOOLS, makeExecutor } from '../appBridge'
 import {
-  initSessions, newSession, upsertSession, saveSessions, deriveTitleFromMessage,
+  initSessions, newSession, upsertSession, saveSessions, deriveTitleFromMessage, deleteSession,
 } from '../chatHistory'
 
 // ── Capability groups ─────────────────────────────────────────────────────────
@@ -172,6 +172,7 @@ export default function ChatBox({ onCornerDown, activeNote, appControl }: Props)
   const [sessions, setSessions]           = useState<ChatSession[]>(() => initSessions().sessions)
   const [activeId, setActiveId]           = useState<string>(() => initSessions().active.id)
   const [historyOpen, setHistoryOpen]     = useState(false)
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const [settingsOpen, setSettingsOpen]   = useState(false)
   const [input, setInput]                 = useState('')
   const [loading, setLoading]             = useState(false)
@@ -221,12 +222,21 @@ export default function ChatBox({ onCornerDown, activeNote, appControl }: Props)
     setEnabledCaps(prev => ({ ...prev, [id]: val }))
   }
 
+  function handleDeleteSession(id: string) {
+    const next = deleteSession(sessions, id)
+    const fallback = next.length > 0 ? next : [newSession()]
+    setSessions(fallback)
+    if (activeId === id) setActiveId(fallback[0].id)
+    setConfirmDeleteId(null)
+  }
+
   function handleNewChat() {
     const session = newSession()
     setSessions(prev => [session, ...prev])
     setActiveId(session.id)
     setHistoryOpen(false)
     setSettingsOpen(false)
+    setConfirmDeleteId(null)
     setInput('')
   }
 
@@ -234,6 +244,7 @@ export default function ChatBox({ onCornerDown, activeNote, appControl }: Props)
     setActiveId(id)
     setHistoryOpen(false)
     setSettingsOpen(false)
+    setConfirmDeleteId(null)
     setInput('')
   }
 
@@ -401,14 +412,49 @@ export default function ChatBox({ onCornerDown, activeNote, appControl }: Props)
             <div className="chat-scroll" style={{ flex: 1, overflowY: 'auto', padding: '8px' }}>
               {sessions.length === 0 && <div style={{ padding: '20px 12px', textAlign: 'center', fontSize: 12, color: 'rgba(255,255,255,0.3)' }}>No chats yet.</div>}
               {sessions.map(s => (
-                <button key={s.id} onClick={() => handleSelectSession(s.id)}
-                  style={{ width: '100%', textAlign: 'left', padding: '10px 12px', borderRadius: 10, background: s.id === activeId ? 'rgba(255,255,255,0.08)' : 'transparent', border: s.id === activeId ? '1px solid rgba(255,255,255,0.12)' : '1px solid transparent', cursor: 'pointer', transition: 'all 0.15s', marginBottom: 2 }}
-                  onMouseEnter={e => { if (s.id !== activeId) (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.05)' }}
-                  onMouseLeave={e => { if (s.id !== activeId) (e.currentTarget as HTMLButtonElement).style.background = 'transparent' }}
-                >
-                  <div style={{ fontSize: 12, fontWeight: s.id === activeId ? 600 : 400, color: s.id === activeId ? '#fff' : 'rgba(255,255,255,0.6)', marginBottom: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.title}</div>
-                  <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.25)' }}>{s.messages.filter(m => m.role === 'user').length} message{s.messages.filter(m => m.role === 'user').length !== 1 ? 's' : ''} · {timeAgo(s.updatedAt)}</div>
-                </button>
+                <div key={s.id} style={{ position: 'relative', marginBottom: 2 }}>
+                  {confirmDeleteId === s.id ? (
+                    <div style={{
+                      padding: '10px 12px', borderRadius: 10, display: 'flex', alignItems: 'center',
+                      gap: 8, background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)',
+                    }}>
+                      <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>Delete "{s.title}"?</span>
+                      <button onClick={() => handleDeleteSession(s.id)}
+                        style={{ fontSize: 10, fontWeight: 600, color: '#f87171', background: 'rgba(239,68,68,0.18)', border: '1px solid rgba(239,68,68,0.35)', borderRadius: 6, padding: '3px 9px', cursor: 'pointer', flexShrink: 0, transition: 'all 0.15s' }}
+                        onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(239,68,68,0.32)' }}
+                        onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(239,68,68,0.18)' }}
+                      >Yes</button>
+                      <button onClick={() => setConfirmDeleteId(null)}
+                        style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 6, padding: '3px 9px', cursor: 'pointer', flexShrink: 0, transition: 'all 0.15s' }}
+                        onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.12)' }}
+                        onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.06)' }}
+                      >No</button>
+                    </div>
+                  ) : (
+                    <div
+                      className="chat-history-row"
+                      onClick={() => handleSelectSession(s.id)}
+                      style={{ padding: '10px 12px', borderRadius: 10, background: s.id === activeId ? 'rgba(255,255,255,0.08)' : 'transparent', border: s.id === activeId ? '1px solid rgba(255,255,255,0.12)' : '1px solid transparent', cursor: 'pointer', transition: 'all 0.15s', display: 'flex', alignItems: 'center', gap: 8 }}
+                      onMouseEnter={e => { if (s.id !== activeId) (e.currentTarget as HTMLDivElement).style.background = 'rgba(255,255,255,0.05)' }}
+                      onMouseLeave={e => { if (s.id !== activeId) (e.currentTarget as HTMLDivElement).style.background = 'transparent' }}
+                    >
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 12, fontWeight: s.id === activeId ? 600 : 400, color: s.id === activeId ? '#fff' : 'rgba(255,255,255,0.6)', marginBottom: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.title}</div>
+                        <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.25)' }}>{s.messages.filter(m => m.role === 'user').length} message{s.messages.filter(m => m.role === 'user').length !== 1 ? 's' : ''} · {timeAgo(s.updatedAt)}</div>
+                      </div>
+                      <button onClick={e => { e.stopPropagation(); setConfirmDeleteId(s.id) }} title="Delete chat"
+                        style={{ width: 24, height: 24, borderRadius: 6, border: 'none', background: 'transparent', color: 'rgba(255,255,255,0.18)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.15s', opacity: 0 }}
+                        className="chat-history-delete"
+                        onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = '#f87171'; (e.currentTarget as HTMLButtonElement).style.background = 'rgba(239,68,68,0.12)'; (e.currentTarget as HTMLButtonElement).style.opacity = '1' }}
+                        onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = 'rgba(255,255,255,0.18)'; (e.currentTarget as HTMLButtonElement).style.background = 'transparent' }}
+                      >
+                        <svg width="11" height="11" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
+                    </div>
+                  )}
+                </div>
               ))}
             </div>
           </div>

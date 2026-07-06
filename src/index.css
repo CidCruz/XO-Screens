@@ -107,4 +107,6 @@ body {
 }
 .pulse-glow { animation: pulse-glow 2s ease-in-out infinite; }
 
+.chat-history-row:hover .chat-history-delete { opacity: 1 !important; }
+
 div:hover > .corner-handle { opacity: 0.35 !important; }

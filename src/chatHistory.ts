@@ -49,6 +49,11 @@ export function deriveTitleFromMessage(text: string): string {
   return trimmed.length > 36 ? trimmed.slice(0, 36).trimEnd() + '…' : trimmed
 }
 
+// ── Delete helper ───────────────────────────────────────────────────────────
+export function deleteSession(sessions: ChatSession[], id: string): ChatSession[] {
+  return sessions.filter(s => s.id !== id)
+}
+
 // ── Upsert helper ────────────────────────────────────────────────────────────
 // Replaces the session with matching id, or appends if not found.
 export function upsertSession(sessions: ChatSession[], updated: ChatSession): ChatSession[] {
