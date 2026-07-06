@@ -502,7 +502,7 @@ export default function ChatBox({ onCornerDown, activeNote, appControl }: Props)
         <div data-reset-widget style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', borderBottom: '1px solid rgba(255,255,255,0.08)', flexShrink: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <span style={{ color: '#fff', fontWeight: 900, fontSize: 14, letterSpacing: '-0.02em', textShadow: '0 0 12px rgba(255,255,255,0.9), 0 0 24px rgba(255,255,255,0.5)' }}>XO</span>
-            <span style={{ color: 'rgba(255,255,255,0.25)', fontSize: 11, maxWidth: 130, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            <span style={{ color: 'rgba(255,255,255,0.25)', fontSize: 11, maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {activeSession?.title ?? 'Assistant'}
             </span>
           </div>
@@ -523,17 +523,16 @@ export default function ChatBox({ onCornerDown, activeNote, appControl }: Props)
             >
               <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
             </button>
-            {/* Capabilities / settings — badge shows how many groups are on */}
+            {/* Capabilities settings icon */}
             <button data-no-drag onClick={() => { setSettingsOpen(v => !v); setHistoryOpen(false) }} title="Chat capabilities"
-              style={{ height: 28, padding: '0 8px', borderRadius: 8, border: `1px solid ${settingsOpen ? 'rgba(167,139,250,0.4)' : 'rgba(255,255,255,0.1)'}`, background: settingsOpen ? 'rgba(167,139,250,0.15)' : 'rgba(255,255,255,0.05)', color: settingsOpen ? 'rgba(167,139,250,0.9)' : 'rgba(255,255,255,0.45)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, transition: 'all 0.15s', fontSize: 10, fontWeight: 600 }}
+              style={{ width: 28, height: 28, borderRadius: 8, border: `1px solid ${settingsOpen ? 'rgba(167,139,250,0.4)' : 'rgba(255,255,255,0.1)'}`, background: settingsOpen ? 'rgba(167,139,250,0.15)' : 'rgba(255,255,255,0.05)', color: settingsOpen ? 'rgba(167,139,250,0.9)' : 'rgba(255,255,255,0.45)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s' }}
               onMouseEnter={e => { if (!settingsOpen) { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.1)'; (e.currentTarget as HTMLButtonElement).style.color = '#fff' } }}
               onMouseLeave={e => { if (!settingsOpen) { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.05)'; (e.currentTarget as HTMLButtonElement).style.color = 'rgba(255,255,255,0.45)' } }}
             >
-              <svg width="11" height="11" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <circle cx="12" cy="12" r="3" strokeWidth={2} />
                 <path strokeWidth={2} strokeLinecap="round" d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z" />
               </svg>
-              <span style={{ fontVariantNumeric: 'tabular-nums' }}>{enabledGroupCount}/{CAPABILITY_GROUPS.length}</span>
             </button>
             {/* Status dot */}
             <span style={{ width: 6, height: 6, borderRadius: '50%', background: activeTools.length > 0 ? '#a78bfa' : '#34d399', display: 'inline-block', transition: 'background 0.3s', boxShadow: activeTools.length > 0 ? '0 0 6px rgba(167,139,250,0.8)' : 'none' }} />
