@@ -29,6 +29,11 @@
     "react": "^19.2.7",
     "react-dom": "^19.2.7"
   },
+  "allowScripts": {
+    "@google/genai": true,
+    "electron-winstaller": true,
+    "protobufjs": true
+  },
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.2",
     "@types/node": "^24.13.2",
