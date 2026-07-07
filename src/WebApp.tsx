@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
-import type { AppItem, Note, AppControl, WidgetId } from './types'
+import type { AppItem, Note, AppControl } from './types'
 import { APP_TOOLS, makeExecutor } from './appBridge'
 import { sendToGeminiWithTools, sendToGeminiWithSystem } from './gemini'
 import type { ToolCallRequest } from './fireworks'
@@ -329,13 +329,6 @@ function defaultCaps(): EnabledCaps {
 }
 function saveCaps(c: EnabledCaps) { localStorage.setItem(CAPS_KEY, JSON.stringify(c)) }
 
-const TOOL_LABELS: Record<string, string> = {
-  list_notes: 'Reading notes', get_note: 'Reading note',
-  create_note: 'Creating note', update_note: 'Updating note',
-  delete_note: 'Deleting note', focus_note: 'Focusing note',
-  get_caption_history: 'Reading caption history',
-}
-
 function timeAgoChat(ts: number) {
   const d = Date.now() - ts
   if (d < 60_000) return 'just now'
@@ -383,7 +376,7 @@ function WebChatPanel({ activeNote, appControl }: WebChatPanelProps) {
   const activeSession = sessions.find(s => s.id === activeId) ?? sessions[0]
   const messages: Message[] = activeSession?.messages ?? []
 
-  const enabledToolNames = new Set(
+  const enabledToolNames: Set<string> = new Set(
     WEB_CAP_GROUPS.filter(g => enabledCaps[g.id]).flatMap(g => [...g.tools])
   )
   const activeAppTools = APP_TOOLS.filter(t => enabledToolNames.has(t.name))
@@ -516,33 +509,36 @@ function WebChatPanel({ activeNote, appControl }: WebChatPanelProps) {
           {/* Session list */}
           <div className="web-scroll" style={{ flex: 1, overflowY: 'auto', padding: '8px', display: 'flex', flexDirection: 'column', gap: 2 }}>
             {sessions.map(s => (
-              <button
-                key={s.id}
-                onClick={() => { setActiveId(s.id); setInput('') }}
-                style={{
-                  width: '100%', textAlign: 'left', padding: '9px 11px', borderRadius: 10,
-                  background: s.id === activeId ? 'rgba(255,255,255,0.08)' : 'transparent',
-                  border: s.id === activeId ? '1px solid rgba(255,255,255,0.12)' : '1px solid transparent',
-                  cursor: 'pointer', transition: 'all 0.15s',
-                }}
-                onMouseEnter={e => {
-                  if (s.id !== activeId) (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.04)'
-                }}
-                onMouseLeave={e => {
-                  if (s.id !== activeId) (e.currentTarget as HTMLButtonElement).style.background = 'transparent'
-                }}
-              >
-                <div style={{
-                  fontSize: 12, fontWeight: s.id === activeId ? 600 : 400,
-                  color: s.id === activeId ? '#fff' : 'rgba(255,255,255,0.55)',
-                  marginBottom: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                }}>
-                  {s.title}
-                </div>
-                <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.25)' }}>
-                  {s.messages.filter(m => m.role === 'user').length} msg · {timeAgoChat(s.updatedAt)}
-                </div>
-              </button>
+              <div key={s.id} style={{ position: 'relative' }}>
+                {confirmDeleteId === s.id ? (
+                  <div style={{ padding: '8px 10px', borderRadius: 10, background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>Delete?</span>
+                    <button onClick={() => handleDeleteSession(s.id)} style={{ fontSize: 10, fontWeight: 600, color: '#f87171', background: 'rgba(239,68,68,0.18)', border: '1px solid rgba(239,68,68,0.35)', borderRadius: 6, padding: '2px 8px', cursor: 'pointer' }}>Yes</button>
+                    <button onClick={() => setConfirmDeleteId(null)} style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 6, padding: '2px 8px', cursor: 'pointer' }}>No</button>
+                  </div>
+                ) : (
+                  <div
+                    className="chat-history-row"
+                    onClick={() => { setActiveId(s.id); setInput('') }}
+                    style={{ padding: '9px 11px', borderRadius: 10, background: s.id === activeId ? 'rgba(255,255,255,0.08)' : 'transparent', border: s.id === activeId ? '1px solid rgba(255,255,255,0.12)' : '1px solid transparent', cursor: 'pointer', transition: 'all 0.15s', display: 'flex', alignItems: 'center', gap: 6 }}
+                    onMouseEnter={e => { if (s.id !== activeId) (e.currentTarget as HTMLDivElement).style.background = 'rgba(255,255,255,0.04)' }}
+                    onMouseLeave={e => { if (s.id !== activeId) (e.currentTarget as HTMLDivElement).style.background = 'transparent' }}
+                  >
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 12, fontWeight: s.id === activeId ? 600 : 400, color: s.id === activeId ? '#fff' : 'rgba(255,255,255,0.55)', marginBottom: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.title}</div>
+                      <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.25)' }}>{s.messages.filter(m => m.role === 'user').length} msg · {timeAgoChat(s.updatedAt)}</div>
+                    </div>
+                    <button onClick={e => { e.stopPropagation(); setConfirmDeleteId(s.id) }}
+                      className="chat-history-delete"
+                      style={{ width: 22, height: 22, borderRadius: 6, border: 'none', background: 'transparent', color: 'rgba(255,255,255,0.18)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.15s', opacity: 0 }}
+                      onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = '#f87171'; (e.currentTarget as HTMLButtonElement).style.background = 'rgba(239,68,68,0.12)'; (e.currentTarget as HTMLButtonElement).style.opacity = '1' }}
+                      onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = 'rgba(255,255,255,0.18)'; (e.currentTarget as HTMLButtonElement).style.background = 'transparent' }}
+                    >
+                      <svg width="10" height="10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                    </button>
+                  </div>
+                )}
+              </div>
             ))}
           </div>
         </div>
@@ -578,8 +574,41 @@ function WebChatPanel({ activeNote, appControl }: WebChatPanelProps) {
               )}
               <div className="status-dot" />
               <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>Gemma 4 (Fireworks)</span>
+              {/* Capabilities gear */}
+              <button onClick={() => setSettingsOpen(v => !v)} title="Chat capabilities"
+                style={{ width: 26, height: 26, borderRadius: 8, border: 'none', background: settingsOpen ? 'rgba(255,255,255,0.1)' : 'transparent', color: settingsOpen ? '#fff' : 'rgba(255,255,255,0.3)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s' }}
+                onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.1)'; (e.currentTarget as HTMLButtonElement).style.color = '#fff' }}
+                onMouseLeave={e => { if (!settingsOpen) { (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; (e.currentTarget as HTMLButtonElement).style.color = 'rgba(255,255,255,0.3)' } }}
+              >
+                <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <circle cx="12" cy="12" r="3" strokeWidth={2} />
+                  <path strokeWidth={2} strokeLinecap="round" d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z" />
+                </svg>
+              </button>
             </div>
           </div>
+
+          {/* Capabilities drawer */}
+          {settingsOpen && (
+            <div style={{ padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)', background: 'rgba(0,0,0,0.3)', display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', margin: '0 0 4px', lineHeight: 1.5 }}>Control what XO can do. Disabled tools are never sent to the AI.</p>
+              {WEB_CAP_GROUPS.map(group => {
+                const isOn = !!enabledCaps[group.id]
+                return (
+                  <div key={group.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 10, background: isOn ? 'rgba(255,255,255,0.04)' : 'rgba(255,255,255,0.02)', border: `1px solid ${isOn ? group.color.replace('0.9', '0.18') : 'rgba(255,255,255,0.06)'}`, transition: 'all 0.2s' }}>
+                    <div style={{ width: 28, height: 28, borderRadius: 8, flexShrink: 0, background: isOn ? group.color.replace('0.9', '0.12') : 'rgba(255,255,255,0.05)', border: `1px solid ${isOn ? group.color.replace('0.9', '0.25') : 'rgba(255,255,255,0.08)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: isOn ? group.color : 'rgba(255,255,255,0.25)', transition: 'all 0.2s' }}>
+                      {group.icon}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: isOn ? '#fff' : 'rgba(255,255,255,0.4)', marginBottom: 1 }}>{group.label}</div>
+                      <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.28)', lineHeight: 1.4 }}>{group.description}</div>
+                    </div>
+                    <CapToggle on={isOn} onChange={v => setEnabledCaps(prev => ({ ...prev, [group.id]: v }))} color={group.color} />
+                  </div>
+                )
+              })}
+            </div>
+          )}
 
           {/* Messages */}
           <div className="web-scroll" style={{ flex: 1, padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -632,7 +661,7 @@ function WebChatPanel({ activeNote, appControl }: WebChatPanelProps) {
               borderRadius: 16, padding: '0 10px 0 16px', minHeight: 48,
             }}>
               <div
-                ref={textareaRef as unknown as React.RefObject<HTMLDivElement>}
+                ref={inputRef}
                 contentEditable
                 suppressContentEditableWarning
                 className="web-chat-input"
@@ -662,7 +691,7 @@ function WebChatPanel({ activeNote, appControl }: WebChatPanelProps) {
                 {/* Send button */}
                 <button
                   onClick={() => {
-                    const el = (textareaRef.current as unknown as HTMLDivElement)
+                    const el = inputRef.current
                     const text = el?.innerText?.trim() ?? input.trim()
                     if (!text || loading) return
                     if (el) el.innerText = ''
@@ -759,6 +788,16 @@ function WebNotesInner({ onNoteChange }: { onNoteChange?: (note: Note | null) =>
     }
     window.addEventListener('xo-notes-updated', handleNotesUpdated)
     return () => window.removeEventListener('xo-notes-updated', handleNotesUpdated)
+  }, [])
+
+  // Focus a specific note when AI calls focus_note tool
+  useEffectN(() => {
+    function handleFocusNote(e: Event) {
+      const id = (e as CustomEvent<{ id: string }>).detail?.id
+      if (id) setActiveId(id)
+    }
+    window.addEventListener('xo-focus-note', handleFocusNote)
+    return () => window.removeEventListener('xo-focus-note', handleFocusNote)
   }, [])
 
   const activeNote = notes.find(n => n.id === activeId) ?? notes[0]
@@ -1524,31 +1563,138 @@ function WebVideoPanel() {
   )
 }
 
+/* ── Usage Tracking panel ─────────────────────────────────────────────────── */
+
+function UsageTrackingPanel() {
+  const sessions = initSessions().sessions
+  const totalMessages = sessions.reduce((a, s) => a + s.messages.filter(m => m.role === 'user').length, 0)
+  const captionHistory = loadCaptionHistory()
+  const totalTones = captionHistory.reduce((a, e) => a + Object.keys(e.results).length, 0)
+
+  const stats = [
+    { label: 'Chat Sessions',       value: sessions.length,    color: 'rgba(99,102,241,0.9)'  },
+    { label: 'Messages Sent',        value: totalMessages,      color: 'rgba(52,211,153,0.9)'  },
+    { label: 'Videos Captioned',     value: captionHistory.length, color: 'rgba(139,92,246,0.9)' },
+    { label: 'Captions Generated',   value: totalTones,         color: 'rgba(245,158,11,0.9)'  },
+  ]
+
+  const modelInfo = [
+    { model: 'Gemma 4 E4B',    role: 'Chat (simple messages)',          badge: 'Fast'     },
+    { model: 'Gemma 4 26B',    role: 'Chat with tools (notes/widgets)', badge: 'Balanced' },
+    { model: 'Gemma 4 31B IT', role: 'Video captions & summaries',      badge: 'Powerful' },
+  ]
+
+  return (
+    <div className="web-panel-main" style={{ padding: '28px 32px', overflowY: 'auto' }}>
+      <div style={{ maxWidth: 560 }}>
+        <h2 style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-0.02em', marginBottom: 6 }}>Usage Tracking</h2>
+        <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.3)', marginBottom: 32 }}>Your activity in this session.</p>
+
+        {/* Stats grid */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 32 }}>
+          {stats.map(s => (
+            <div key={s.label} style={{ padding: '16px 18px', borderRadius: 14, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+              <div style={{ fontSize: 28, fontWeight: 800, letterSpacing: '-0.04em', color: s.color, marginBottom: 4, fontFamily: '"Montserrat", sans-serif' }}>{s.value}</div>
+              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)' }}>{s.label}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Models section */}
+        <div style={{ fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.35)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 12 }}>Model Routing</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {modelInfo.map(m => (
+            <div key={m.model} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderRadius: 12, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: '#fff', marginBottom: 2, fontFamily: 'monospace' }}>{m.model}</div>
+                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)' }}>{m.role}</div>
+              </div>
+              <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 6, background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.5)', letterSpacing: '0.05em' }}>{m.badge}</span>
+            </div>
+          ))}
+        </div>
+
+        {/* Provider */}
+        <div style={{ marginTop: 24, padding: '12px 14px', borderRadius: 12, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#34d399', boxShadow: '0 0 6px rgba(52,211,153,0.6)', flexShrink: 0 }} />
+          <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>All inference via <span style={{ color: 'rgba(255,255,255,0.7)', fontWeight: 600 }}>Fireworks AI</span> · AMD hardware</span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 /* ── Root WebApp component ────────────────────────────────────────────────── */
 export default function WebApp() {
   const [activeId, setActiveId] = useState('home')
   const [activeNote, setActiveNote] = useState<Note | null>(null)
 
+  // Build a web-native AppControl — no Electron APIs, just localStorage + events
+  const appControl: AppControl = useMemo(() => {
+    const NOTES_KEY = 'xo-notes'
+    function loadN(): import('./types').Note[] {
+      try { return JSON.parse(localStorage.getItem(NOTES_KEY) ?? '[]') } catch { return [] }
+    }
+    function saveN(notes: import('./types').Note[]) {
+      localStorage.setItem(NOTES_KEY, JSON.stringify(notes))
+      window.dispatchEvent(new CustomEvent('xo-notes-updated'))
+    }
+    function makeNote(title: string, content: string): import('./types').Note {
+      const now = Date.now()
+      return { id: now.toString() + Math.random().toString(36).slice(2), title, content, color: 'rgba(255,255,255,0.0)', createdAt: now, updatedAt: now }
+    }
+    return {
+      // In the web app, "open widget" = navigate to that panel
+      openWidget:      (id) => setActiveId(id === 'video' ? 'video' : id === 'settings' ? 'settings' : id),
+      closeWidget:     (_id) => { /* no-op in web — can't hide panels */ },
+      getOpenWidgets:  () => [activeId as import('./types').WidgetId].filter(Boolean),
+      listNotes:       () => loadN(),
+      getNote:         (id) => loadN().find(n => n.id === id),
+      createNote:      (title, content) => {
+        const n = makeNote(title, content)
+        saveN([n, ...loadN()])
+        return n
+      },
+      updateNote:      (id, patch) => {
+        const notes = loadN()
+        const idx = notes.findIndex(n => n.id === id)
+        if (idx === -1) return null
+        const updated = { ...notes[idx], ...patch, updatedAt: Date.now() }
+        notes[idx] = updated
+        saveN(notes)
+        return updated
+      },
+      deleteNote:      (id) => {
+        const notes = loadN()
+        const next = notes.filter(n => n.id !== id)
+        if (next.length === notes.length) return false
+        saveN(next)
+        return true
+      },
+      focusNote:       (id) => {
+        window.dispatchEvent(new CustomEvent('xo-focus-note', { detail: { id } }))
+      },
+      getCaptionHistory: () => loadCaptionHistory(),
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeId])
+
   function renderContent() {
     switch (activeId) {
-      case 'chat':     return <WebChatPanel activeNote={activeNote} />
-      case 'notes':    return <WebNotesPanel onNoteChange={setActiveNote} />
-      case 'video':    return <WebVideoPanel />
-      case 'settings': return <SettingsPanel />
-      default:         return <HomePanel onNavigate={setActiveId} />
+      case 'chat':    return <WebChatPanel activeNote={activeNote} appControl={appControl} />
+      case 'notes':   return <WebNotesPanel onNoteChange={setActiveNote} />
+      case 'video':   return <WebVideoPanel />
+      case 'usage':   return <UsageTrackingPanel />
+      case 'settings':return <SettingsPanel />
+      default:        return <HomePanel onNavigate={setActiveId} />
     }
   }
 
   return (
     <div className="web-shell">
-      {/* Ambient glow */}
       <div className="web-bg-glow-1" />
       <div className="web-bg-glow-2" />
-
-      {/* Sidebar */}
       <Sidebar activeId={activeId} onSelect={setActiveId} />
-
-      {/* Main content */}
       <main className="web-content">
         {renderContent()}
       </main>
