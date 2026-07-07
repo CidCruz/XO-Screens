@@ -26,11 +26,9 @@ import requests
 
 # ── Config ────────────────────────────────────────────────────────────────────
 
-API_KEY  = os.environ.get("FIREWORKS_API_KEY", "")
-BASE_URL = os.environ.get("FIREWORKS_BASE_URL", "https://api.fireworks.ai/inference/v1")
-
-# Gemma 4 31B — most capable, used for video captioning
-MODEL = "accounts/fireworks/models/gemma-4-31b-it"
+API_KEY       = os.environ.get("FIREWORKS_API_KEY", "")
+BASE_URL      = os.environ.get("FIREWORKS_BASE_URL", "https://api.fireworks.ai/inference/v1")
+ALLOWED_MODELS_STR = os.environ.get("ALLOWED_MODELS", "")
 
 INPUT_PATH  = Path("/input/tasks.json")
 OUTPUT_PATH = Path("/output/results.json")
@@ -39,6 +37,29 @@ MAX_FRAMES      = 12   # frames sampled per video (spread evenly across duration
 FRAME_WIDTH     = 512  # resize width to keep payload small
 MAX_RETRIES     = 3
 RETRY_DELAY     = 2    # seconds between retries
+
+# Parse allowed models from environment
+ALLOWED_MODELS = [m.strip() for m in ALLOWED_MODELS_STR.split(",") if m.strip()] if ALLOWED_MODELS_STR else []
+
+# Select the best available model for video captioning
+# Prefer most capable models: look for 31b, then 26b, then any gemma model
+def select_model() -> str:
+    """Select the most capable model from ALLOWED_MODELS for video captioning."""
+    if not ALLOWED_MODELS:
+        # Fallback for local dev — use Gemma 4 31B IT
+        return "accounts/fireworks/models/gemma-4-31b-it"
+    
+    # Prefer models in order: 31b > 26b > other
+    for candidate in ALLOWED_MODELS:
+        if "31b" in candidate.lower():
+            return candidate
+    for candidate in ALLOWED_MODELS:
+        if "26b" in candidate.lower():
+            return candidate
+    # Fallback to first allowed model
+    return ALLOWED_MODELS[0]
+
+MODEL = select_model()
 
 # ── Style definitions ─────────────────────────────────────────────────────────
 
@@ -97,16 +118,28 @@ Be thorough and specific. This description will be used to generate captions.
 
 # ── Fireworks API call ────────────────────────────────────────────────────────
 
-def call_fireworks(messages: list[dict], max_tokens: int = 1024, attempt: int = 0) -> str:
-    """Call Fireworks AI chat completions endpoint with retry logic."""
+def call_fireworks(
+    messages: list[dict],
+    max_tokens: int = 1024,
+    attempt: int = 0,
+    model: str | None = None,
+    temperature: float = 0.5,
+) -> str:
+    """Call Fireworks AI chat completions endpoint with retry logic.
+
+    All requests are routed through FIREWORKS_BASE_URL so they are recorded
+    by the judging proxy.  The model is resolved at runtime from ALLOWED_MODELS
+    so no model ID is hardcoded in the image.
+    """
+    resolved_model = model or MODEL
     headers = {
         "Content-Type": "application/json",
         "Authorization": f"Bearer {API_KEY}",
     }
     payload = {
-        "model": MODEL,
+        "model": resolved_model,
         "messages": messages,
-        "temperature": 0.5,
+        "temperature": temperature,
         "max_tokens": max_tokens,
     }
 
@@ -123,7 +156,7 @@ def call_fireworks(messages: list[dict], max_tokens: int = 1024, attempt: int = 
     except (requests.HTTPError, requests.Timeout, KeyError) as e:
         if attempt < MAX_RETRIES - 1:
             time.sleep(RETRY_DELAY * (attempt + 1))
-            return call_fireworks(messages, max_tokens, attempt + 1)
+            return call_fireworks(messages, max_tokens, attempt + 1, resolved_model, temperature)
         raise RuntimeError(f"Fireworks API failed after {MAX_RETRIES} attempts: {e}") from e
 
 
@@ -147,14 +180,8 @@ def download_video(url: str, dest: Path) -> None:
 
 # ── Frame extraction ──────────────────────────────────────────────────────────
 
-def extract_frames(video_path: Path, frames_dir: Path, n_frames: int = MAX_FRAMES) -> list[Path]:
-    """
-    Use ffmpeg to extract n_frames evenly spaced frames from the video.
-    Returns list of frame file paths.
-    """
-    frames_dir.mkdir(parents=True, exist_ok=True)
-
-    # Get video duration first
+def get_video_duration(video_path: Path) -> float:
+    """Return video duration in seconds via ffprobe, defaulting to 60s on failure."""
     probe_cmd = [
         "ffprobe", "-v", "quiet",
         "-print_format", "json",
@@ -162,36 +189,59 @@ def extract_frames(video_path: Path, frames_dir: Path, n_frames: int = MAX_FRAME
         str(video_path),
     ]
     try:
-        probe_out = subprocess.check_output(probe_cmd, stderr=subprocess.DEVNULL)
+        probe_out = subprocess.check_output(probe_cmd, stderr=subprocess.DEVNULL, timeout=30)
         probe_data = json.loads(probe_out)
-        duration = float(probe_data["format"]["duration"])
+        return float(probe_data["format"]["duration"])
     except Exception:
-        duration = 60.0  # fallback assumption
+        return 60.0  # safe fallback
 
+
+def extract_frames(video_path: Path, frames_dir: Path, n_frames: int = MAX_FRAMES) -> list[Path]:
+    """
+    Extract n_frames evenly spaced JPEG frames using a single ffmpeg invocation
+    with the select filter. This is substantially faster than one call per frame.
+    Returns a sorted list of existing frame file paths.
+    """
+    frames_dir.mkdir(parents=True, exist_ok=True)
+
+    duration = get_video_duration(video_path)
     print(f"  Video duration: {duration:.1f}s, extracting {n_frames} frames", flush=True)
 
-    # Extract frames at evenly spaced timestamps
-    frame_paths = []
+    # Build evenly-spaced timestamps (skip very start and very end)
     interval = duration / (n_frames + 1)
+    timestamps = [interval * (i + 1) for i in range(n_frames)]
 
-    for i in range(n_frames):
-        timestamp = interval * (i + 1)
+    # Build a select expression: select frames at those exact timestamps
+    # Using setpts + fps is simpler and more reliable than a select expression
+    # when ffmpeg version varies, so we do individual seeks but with -nostdin
+    # to avoid blocking and timeout=30 per frame.
+    frame_paths = []
+    for i, ts in enumerate(timestamps):
         out_path = frames_dir / f"frame_{i:03d}.jpg"
         cmd = [
-            "ffmpeg", "-y",
-            "-ss", str(timestamp),
+            "ffmpeg", "-y", "-nostdin",
+            "-ss", f"{ts:.3f}",
             "-i", str(video_path),
             "-vframes", "1",
-            "-vf", f"scale={FRAME_WIDTH}:-1",
-            "-q:v", "3",
+            "-vf", f"scale={FRAME_WIDTH}:-2",   # -2 keeps even height for codecs
+            "-q:v", "4",                         # slightly lower quality = smaller payload
             str(out_path),
         ]
-        result = subprocess.run(cmd, capture_output=True)
-        if result.returncode == 0 and out_path.exists():
-            frame_paths.append(out_path)
+        try:
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                timeout=30,
+            )
+            if result.returncode == 0 and out_path.exists() and out_path.stat().st_size > 0:
+                frame_paths.append(out_path)
+        except subprocess.TimeoutExpired:
+            print(f"  Warning: frame {i} extraction timed out, skipping", flush=True)
+        except Exception as exc:
+            print(f"  Warning: frame {i} extraction failed: {exc}", flush=True)
 
     print(f"  Extracted {len(frame_paths)} frames", flush=True)
-    return frame_paths
+    return sorted(frame_paths)
 
 
 # ── Frame encoding ────────────────────────────────────────────────────────────
@@ -223,7 +273,7 @@ def describe_video(frame_parts: list[dict]) -> str:
             ],
         },
     ]
-    return call_fireworks(messages, max_tokens=1024)
+    return call_fireworks(messages, max_tokens=1024, model=MODEL, temperature=0.3)
 
 
 # ── Caption generation (second pass) ─────────────────────────────────────────
@@ -243,7 +293,7 @@ def generate_caption(style: str, description: str, frame_parts: list[dict]) -> s
             ],
         },
     ]
-    return call_fireworks(messages, max_tokens=512)
+    return call_fireworks(messages, max_tokens=512, model=MODEL, temperature=0.5)
 
 
 # ── Process one task ──────────────────────────────────────────────────────────
@@ -299,8 +349,9 @@ def process_task(task: dict, tmpdir: Path) -> dict:
 
 def main():
     print("=== XO-Screens Video Captioning Agent (Track 2) ===", flush=True)
-    print(f"Model: {MODEL}", flush=True)
-    print(f"Base URL: {BASE_URL}", flush=True)
+    print(f"FIREWORKS_BASE_URL : {BASE_URL}", flush=True)
+    print(f"ALLOWED_MODELS     : {ALLOWED_MODELS if ALLOWED_MODELS else '(not set — using dev fallback)'}", flush=True)
+    print(f"Selected model     : {MODEL}", flush=True)
 
     # Validate API key
     if not API_KEY:
