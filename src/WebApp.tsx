@@ -1,5 +1,8 @@
-import { useState, useRef, useEffect } from 'react'
-import type { AppItem, Note } from './types'
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
+import type { AppItem, Note, AppControl, WidgetId } from './types'
+import { APP_TOOLS, makeExecutor } from './appBridge'
+import { sendToGeminiWithTools, sendToGeminiWithSystem } from './gemini'
+import type { ToolCallRequest } from './fireworks'
 
 /* ── Nav items ────────────────────────────────────────────────────────────── */
 const APPS: AppItem[] = [
@@ -7,6 +10,7 @@ const APPS: AppItem[] = [
   { id: 'chat',     label: 'Assistant'       },
   { id: 'notes',    label: 'Notes'           },
   { id: 'video',    label: 'Video Captions'  },
+  { id: 'usage',    label: 'Usage Tracking'  },
   { id: 'settings', label: 'Settings'        },
 ]
 
@@ -48,6 +52,13 @@ function NavIcon({ id }: { id: string }) {
         <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
             d="M15 10l4.553-2.276A1 1 0 0121 8.723v6.554a1 1 0 01-1.447.894L15 14M4 8a2 2 0 012-2h9a2 2 0 012 2v8a2 2 0 01-2 2H6a2 2 0 01-2-2V8z" />
+        </svg>
+      )
+    case 'usage':
+      return (
+        <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
+            d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
         </svg>
       )
     default: return null
@@ -115,7 +126,7 @@ function HomePanel({ onNavigate }: { onNavigate: (id: string) => void }) {
         </svg>
       ),
       title: 'AI Assistant',
-      desc: 'Chat with XO — powered by Gemini.',
+      desc: 'Chat with XO — powered by Fireworks AI (Gemma 4).',
       accent: 'rgba(99,102,241,0.15)',
       border: 'rgba(99,102,241,0.25)',
       dot: 'rgba(99,102,241,0.9)',
@@ -214,7 +225,7 @@ function HomePanel({ onNavigate }: { onNavigate: (id: string) => void }) {
 
 /* ── Settings panel ───────────────────────────────────────────────────────── */
 function SettingsPanel() {
-  const apiKey = import.meta.env.VITE_GEMINI_API_KEY
+  const apiKey = import.meta.env.VITE_FIREWORKS_API_KEY
   const masked = apiKey ? `${apiKey.slice(0, 6)}${'•'.repeat(20)}` : 'Not set'
 
   return (
@@ -226,7 +237,7 @@ function SettingsPanel() {
         {/* API key section */}
         <div style={{ marginBottom: 28 }}>
           <div style={{ fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.35)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 12 }}>
-            Gemini API
+            Fireworks AI
           </div>
           <div style={{
             padding: '14px 16px', borderRadius: 12,
@@ -240,7 +251,7 @@ function SettingsPanel() {
             }}>{masked}</div>
             {!apiKey && (
               <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', marginTop: 8 }}>
-                Set <code style={{ background: 'rgba(255,255,255,0.07)', padding: '1px 5px', borderRadius: 4 }}>VITE_GEMINI_API_KEY</code> in your <code style={{ background: 'rgba(255,255,255,0.07)', padding: '1px 5px', borderRadius: 4 }}>.env.local</code> file.
+                Set <code style={{ background: 'rgba(255,255,255,0.07)', padding: '1px 5px', borderRadius: 4 }}>VITE_FIREWORKS_API_KEY</code> in your <code style={{ background: 'rgba(255,255,255,0.07)', padding: '1px 5px', borderRadius: 4 }}>.env.local</code> file.
               </div>
             )}
           </div>
@@ -259,7 +270,9 @@ function SettingsPanel() {
             {[
               { label: 'Version', value: '0.0.0' },
               { label: 'Mode', value: 'Web App' },
-              { label: 'Model', value: 'gemini-2.5-flash' },
+              { label: 'Provider', value: 'Fireworks AI' },
+              { label: 'Chat', value: 'Gemma 4 E4B / 26B' },
+              { label: 'Captions', value: 'Gemma 4 31B IT' },
             ].map(row => (
               <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)' }}>{row.label}</span>
@@ -274,11 +287,54 @@ function SettingsPanel() {
 }
 
 /* ── Web-native chat panel ────────────────────────────────────────────────── */
-import { sendToGeminiWithSystem } from './gemini'
 import type { Message, ChatSession } from './types'
 import {
-  initSessions, newSession, upsertSession, saveSessions, deriveTitleFromMessage,
+  initSessions, newSession, upsertSession, saveSessions, deriveTitleFromMessage, deleteSession,
 } from './chatHistory'
+
+// Capability groups — mirrors overlay ChatBox exactly
+const WEB_CAP_GROUPS = [
+  {
+    id: 'notes_read', label: 'Read Notes',
+    description: 'List all notes and read their contents.',
+    color: 'rgba(52,211,153,0.9)',
+    tools: ['list_notes', 'get_note'],
+    icon: <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>,
+  },
+  {
+    id: 'notes_write', label: 'Write Notes',
+    description: 'Create, edit, delete, and focus notes.',
+    color: 'rgba(167,139,250,0.9)',
+    tools: ['create_note', 'update_note', 'delete_note', 'focus_note'],
+    icon: <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>,
+  },
+  {
+    id: 'caption_history', label: 'Caption History',
+    description: 'Read the video captions history.',
+    color: 'rgba(245,158,11,0.9)',
+    tools: ['get_caption_history'],
+    icon: <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.723v6.554a1 1 0 01-1.447.894L15 14M4 8a2 2 0 012-2h9a2 2 0 012 2v8a2 2 0 01-2 2H6a2 2 0 01-2-2V8z" /></svg>,
+  },
+] as const
+
+type CapId = typeof WEB_CAP_GROUPS[number]['id']
+type EnabledCaps = Record<CapId, boolean>
+const CAPS_KEY = 'xo-web-chat-capabilities'
+function loadCaps(): EnabledCaps {
+  try { return { ...defaultCaps(), ...JSON.parse(localStorage.getItem(CAPS_KEY) ?? '{}') } }
+  catch { return defaultCaps() }
+}
+function defaultCaps(): EnabledCaps {
+  return Object.fromEntries(WEB_CAP_GROUPS.map(g => [g.id, true])) as EnabledCaps
+}
+function saveCaps(c: EnabledCaps) { localStorage.setItem(CAPS_KEY, JSON.stringify(c)) }
+
+const TOOL_LABELS: Record<string, string> = {
+  list_notes: 'Reading notes', get_note: 'Reading note',
+  create_note: 'Creating note', update_note: 'Updating note',
+  delete_note: 'Deleting note', focus_note: 'Focusing note',
+  get_caption_history: 'Reading caption history',
+}
 
 function timeAgoChat(ts: number) {
   const d = Date.now() - ts
@@ -288,106 +344,129 @@ function timeAgoChat(ts: number) {
   return `${Math.floor(d / 86_400_000)}d ago`
 }
 
-interface WebChatPanelProps {
-  activeNote?: Note | null
+function CapToggle({ on, onChange, color }: { on: boolean; onChange: (v: boolean) => void; color: string }) {
+  return (
+    <button onClick={() => onChange(!on)} style={{
+      width: 32, height: 18, borderRadius: 99, border: 'none', cursor: 'pointer',
+      background: on ? color.replace('0.9', '0.7') : 'rgba(255,255,255,0.1)',
+      position: 'relative', flexShrink: 0, transition: 'background 0.2s',
+      boxShadow: on ? `0 0 8px ${color.replace('0.9', '0.35')}` : 'none',
+    }}>
+      <span style={{
+        position: 'absolute', top: 2, left: on ? 16 : 2,
+        width: 14, height: 14, borderRadius: '50%',
+        background: on ? '#fff' : 'rgba(255,255,255,0.4)',
+        transition: 'left 0.2s, background 0.2s', display: 'block',
+      }} />
+    </button>
+  )
 }
 
-function WebChatPanel({ activeNote }: WebChatPanelProps) {
+interface WebChatPanelProps {
+  activeNote?: Note | null
+  appControl?: AppControl
+}
+
+function WebChatPanel({ activeNote, appControl }: WebChatPanelProps) {
   const [sessions, setSessions] = useState<ChatSession[]>(() => initSessions().sessions)
   const [activeId, setActiveId] = useState<string>(() => initSessions().active.id)
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
+  const [activeTools, setActiveTools] = useState<string[]>([])
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
+  const [enabledCaps, setEnabledCaps] = useState<EnabledCaps>(loadCaps)
   const bottomRef = useRef<HTMLDivElement>(null)
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const inputRef = useRef<HTMLDivElement>(null)
+  const executorRef = useRef<((c: ToolCallRequest) => Promise<unknown>) | null>(null)
 
   const activeSession = sessions.find(s => s.id === activeId) ?? sessions[0]
   const messages: Message[] = activeSession?.messages ?? []
 
-  // Persist whenever sessions change
-  useEffect(() => {
-    saveSessions(sessions)
-  }, [sessions])
+  const enabledToolNames = new Set(
+    WEB_CAP_GROUPS.filter(g => enabledCaps[g.id]).flatMap(g => [...g.tools])
+  )
+  const activeAppTools = APP_TOOLS.filter(t => enabledToolNames.has(t.name))
 
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages, loading])
-
-  // Auto-resize textarea
-  useEffect(() => {
-    const ta = textareaRef.current
-    if (!ta) return
-    ta.style.height = 'auto'
-    ta.style.height = `${Math.min(ta.scrollHeight, 120)}px`
-  }, [input])
+  useEffect(() => { if (appControl) executorRef.current = makeExecutor(appControl) }, [appControl])
+  useEffect(() => { saveSessions(sessions) }, [sessions])
+  useEffect(() => { saveCaps(enabledCaps) }, [enabledCaps])
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages, loading, activeTools])
 
   function handleNewChat() {
-    const session = newSession()
-    setSessions(prev => [session, ...prev])
-    setActiveId(session.id)
+    const s = newSession()
+    setSessions(prev => [s, ...prev])
+    setActiveId(s.id)
+    setSettingsOpen(false)
+    setConfirmDeleteId(null)
     setInput('')
   }
 
-  async function handleSend(overrideText?: string) {
+  function handleDeleteSession(id: string) {
+    const next = deleteSession(sessions, id)
+    const fallback = next.length > 0 ? next : [newSession()]
+    setSessions(fallback)
+    if (activeId === id) setActiveId(fallback[0].id)
+    setConfirmDeleteId(null)
+  }
+
+  const handleSend = useCallback(async (overrideText?: string) => {
     const text = (overrideText ?? input).trim()
     if (!text || loading) return
 
-    const userMsg: Message = {
-      id: Date.now().toString(),
-      role: 'user',
-      content: text,
-      timestamp: new Date(),
-    }
-
-    // Auto-title on first user message
+    const userMsg: Message = { id: Date.now().toString(), role: 'user', content: text, timestamp: new Date() }
     const isFirstUserMsg = messages.filter(m => m.role === 'user').length === 0
     const newTitle = isFirstUserMsg ? deriveTitleFromMessage(text) : activeSession.title
-
     const updatedMessages = [...messages, userMsg]
-    setSessions(prev => upsertSession(prev, {
-      ...activeSession,
-      title: newTitle,
-      messages: updatedMessages,
-      updatedAt: Date.now(),
-    }))
 
+    setSessions(prev => upsertSession(prev, { ...activeSession, title: newTitle, messages: updatedMessages, updatedAt: Date.now() }))
     setInput('')
     setLoading(true)
+    setActiveTools([])
 
     try {
       const noteCtx = activeNote
-        ? `The user has a note open titled "${activeNote.title || 'Untitled'}" with the following content:\n"""\n${activeNote.content || '(empty)'}\n"""\nYou are aware of this note and can reference or help with it if relevant.`
+        ? `The user has a note open titled "${activeNote.title || 'Untitled'}" with content:\n"""\n${activeNote.content || '(empty)'}\n"""\nYou can reference it or edit it using the update_note tool (if write access is enabled).`
         : ''
-      const systemPrompt = `You are XO, an intelligent AI assistant running as a web app. Be concise, helpful, and friendly.${noteCtx ? '\n\n' + noteCtx : ''}`
-      const reply = await sendToGeminiWithSystem(updatedMessages, text, systemPrompt)
-      const assistantMsg: Message = {
-        id: Date.now().toString(),
-        role: 'assistant',
-        content: reply,
-        timestamp: new Date(),
+      const capLines = WEB_CAP_GROUPS.filter(g => enabledCaps[g.id]).map(g => `- ${g.label}: ${g.description}`).join('\n')
+      const toolsCtx = appControl && activeAppTools.length > 0
+        ? `You have access to XO web app capabilities:\n${capLines}\nUse tools proactively when the user asks you to do something in the app. After taking actions, summarise what you did briefly.`
+        : appControl ? 'All app-control capabilities are currently disabled by the user.' : ''
+      const systemPrompt = ['You are XO, an intelligent AI assistant running as a web app. Be concise, helpful, and friendly.', toolsCtx, noteCtx].filter(Boolean).join('\n\n')
+
+      let reply: string
+      if (appControl && executorRef.current && activeAppTools.length > 0) {
+        reply = await sendToGeminiWithTools(
+          updatedMessages, text, systemPrompt, activeAppTools,
+          executorRef.current,
+          (call) => setActiveTools(prev => [...prev, call.name]),
+        )
+      } else {
+        reply = await sendToGeminiWithSystem(updatedMessages, text, systemPrompt)
       }
+
+      setActiveTools([])
       setSessions(prev => upsertSession(prev, {
-        ...activeSession,
-        title: newTitle,
-        messages: [...updatedMessages, assistantMsg],
+        ...activeSession, title: newTitle,
+        messages: [...updatedMessages, { id: Date.now().toString(), role: 'assistant', content: reply, timestamp: new Date() }],
         updatedAt: Date.now(),
       }))
-    } catch {
-      const errMsg: Message = {
-        id: Date.now().toString(),
-        role: 'assistant',
-        content: '⚠️ Failed to reach Gemini. Check your API key in .env.local.',
-        timestamp: new Date(),
-      }
+    } catch (err) {
+      setActiveTools([])
       setSessions(prev => upsertSession(prev, {
-        ...activeSession,
-        title: newTitle,
-        messages: [...updatedMessages, errMsg],
+        ...activeSession, title: newTitle,
+        messages: [...updatedMessages, {
+          id: Date.now().toString(), role: 'assistant',
+          content: `⚠️ ${err instanceof Error ? err.message : 'Failed to reach Fireworks AI. Check your API key.'}`,
+          timestamp: new Date(),
+        }],
         updatedAt: Date.now(),
       }))
     } finally {
       setLoading(false)
     }
-  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [input, loading, messages, activeSession, activeNote, appControl, enabledCaps, activeAppTools])
 
   return (
     <>
@@ -498,7 +577,7 @@ function WebChatPanel({ activeNote }: WebChatPanelProps) {
                 </div>
               )}
               <div className="status-dot" />
-              <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>Gemini 2.5</span>
+              <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>Gemma 4 (Fireworks)</span>
             </div>
           </div>
 
@@ -1156,7 +1235,7 @@ function WebVideoPanel() {
                   <span style={{ fontSize: 11, color: 'rgba(245,158,11,0.9)', fontWeight: 500 }}>
                     {uploadPhase === 'uploading'
                       ? `Uploading to Files API… ${uploadPct}%`
-                      : 'Gemini is processing your video…'}
+                      : 'Fireworks AI is processing your video…'}
                   </span>
                 </div>
                 {uploadPhase === 'uploading' && (
