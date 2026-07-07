@@ -16,7 +16,7 @@ Generates video captions in 4 styles using **Fireworks AI** (Gemma 4 31B IT runn
 6. Writes `/output/results.json` — one entry per task with captions for every style
 7. Exits with code `0`
 
-Model selection is read from the `ALLOWED_MODELS` environment variable at runtime — no model IDs are hardcoded in the image. When `ALLOWED_MODELS` is set, the agent selects the most capable available model (prefers `31b` > `26b` > first entry).
+Model selection is read from the `ALLOWED_MODELS` environment variable at runtime — no model IDs are hardcoded in the image. When `ALLOWED_MODELS` is set, the agent selects the most capable available vision model (prefers `kimi` > `gemma` > `llava` > first entry).
 
 ---
 

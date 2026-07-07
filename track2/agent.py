@@ -44,18 +44,18 @@ ALLOWED_MODELS = [m.strip() for m in ALLOWED_MODELS_STR.split(",") if m.strip()]
 # Select the best available model for video captioning
 # Prefer most capable models: look for 31b, then 26b, then any gemma model
 def select_model() -> str:
-    """Select the most capable model from ALLOWED_MODELS for video captioning."""
+    """Select the best vision-capable model from ALLOWED_MODELS for video captioning."""
     if not ALLOWED_MODELS:
-        # Fallback for local dev — use Gemma 4 31B IT
-        return "accounts/fireworks/models/gemma-4-31b-it"
-    
-    # Prefer models in order: 31b > 26b > other
-    for candidate in ALLOWED_MODELS:
-        if "31b" in candidate.lower():
-            return candidate
-    for candidate in ALLOWED_MODELS:
-        if "26b" in candidate.lower():
-            return candidate
+        # Fallback for local dev — kimi-k2p6 is vision-capable on this account
+        return "accounts/fireworks/models/kimi-k2p6"
+
+    # Prefer vision-capable models in order of capability
+    VISION_KEYWORDS = ["kimi", "gemma", "llava", "vision", "vl", "claude", "gpt"]
+    for kw in VISION_KEYWORDS:
+        for candidate in ALLOWED_MODELS:
+            if kw in candidate.lower():
+                return candidate
+
     # Fallback to first allowed model
     return ALLOWED_MODELS[0]
 

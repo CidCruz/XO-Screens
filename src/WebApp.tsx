@@ -271,8 +271,8 @@ function SettingsPanel() {
               { label: 'Version', value: '0.0.0' },
               { label: 'Mode', value: 'Web App' },
               { label: 'Provider', value: 'Fireworks AI' },
-              { label: 'Chat', value: 'Gemma 4 E4B / 26B' },
-              { label: 'Captions', value: 'Gemma 4 31B IT' },
+              { label: 'Chat',    value: 'DeepSeek V4 Pro' },
+              { label: 'Captions', value: 'Kimi K2 P6 (Vision)' },
             ].map(row => (
               <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)' }}>{row.label}</span>
@@ -573,7 +573,7 @@ function WebChatPanel({ activeNote, appControl }: WebChatPanelProps) {
                 </div>
               )}
               <div className="status-dot" />
-              <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>Gemma 4 (Fireworks)</span>
+              <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>DeepSeek V4 Pro</span>
               {/* Capabilities gear */}
               <button onClick={() => setSettingsOpen(v => !v)} title="Chat capabilities"
                 style={{ width: 26, height: 26, borderRadius: 8, border: 'none', background: settingsOpen ? 'rgba(255,255,255,0.1)' : 'transparent', color: settingsOpen ? '#fff' : 'rgba(255,255,255,0.3)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s' }}

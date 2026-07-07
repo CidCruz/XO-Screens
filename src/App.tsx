@@ -125,8 +125,8 @@ function SettingsWidget({ onClose, onCornerDown }: SettingsWidgetProps) {
                 { label: 'Version',   value: '0.0.0' },
                 { label: 'Mode',      value: 'Desktop Overlay' },
                 { label: 'Provider',  value: 'Fireworks AI' },
-                { label: 'Chat',      value: 'Gemma 4 E4B / 26B' },
-                { label: 'Captions',  value: 'Gemma 4 31B IT' },
+                { label: 'Chat',      value: 'DeepSeek V4 Pro' },
+                { label: 'Captions',  value: 'Kimi K2 P6 (Vision)' },
                 { label: 'Platform',  value: xo.platform ?? 'electron' },
               ].map(row => (
                 <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

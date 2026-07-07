@@ -2,12 +2,12 @@
  * fireworks.ts
  *
  * All AI inference routed through Fireworks AI using the OpenAI-compatible API.
- * Models used: Google DeepMind Gemma 4 family (all three variants).
  *
  * Model routing strategy:
- *   GEMMA_E4B  — fast, efficient; simple chat, routing, short tasks
- *   GEMMA_26B  — balanced; summarisation, NER, sentiment, code debugging
- *   GEMMA_31B  — most capable; video captioning, complex reasoning, code generation
+ *   CHAT   (deepseek-v4-pro)  — all text chat, tool-calling, reasoning
+ *   VISION (kimi-k2p6)        — video captioning, multimodal tasks
+ *
+ * GEMMA_MODELS aliases kept for backward compatibility with existing imports.
  */
 
 import type { Message } from './types'
@@ -18,18 +18,23 @@ const API_KEY  = import.meta.env.VITE_FIREWORKS_API_KEY as string
 const BASE_URL = (import.meta.env.VITE_FIREWORKS_BASE_URL as string | undefined)
   ?? 'https://api.fireworks.ai/inference/v1'
 
-// ─── Gemma 4 Models ───────────────────────────────────────────────────────────
+// ─── Available Models ─────────────────────────────────────────────────────────
 
-export const GEMMA_MODELS = {
-  /** Gemma 4 E4B — fast & efficient, best for simple/short tasks */
-  E4B:  'accounts/fireworks/models/gemma-4-e4b',
-  /** Gemma 4 26B A4B IT — balanced capability, good for most tasks */
-  B26:  'accounts/fireworks/models/gemma-4-26b-a4b-it',
-  /** Gemma 4 31B IT — most capable, used for video captioning & complex tasks */
-  B31:  'accounts/fireworks/models/gemma-4-31b-it',
+export const FW_MODELS = {
+  /** DeepSeek V4 Pro — best for chat, reasoning, tool-calling */
+  CHAT:   'accounts/fireworks/models/deepseek-v4-pro',
+  /** Kimi K2 P6 — only vision-capable model; used for video captions */
+  VISION: 'accounts/fireworks/models/kimi-k2p6',
 } as const
 
-export type GemmaModel = typeof GEMMA_MODELS[keyof typeof GEMMA_MODELS]
+// Legacy aliases so nothing else in the codebase breaks
+export const GEMMA_MODELS = {
+  E4B: FW_MODELS.CHAT,
+  B26: FW_MODELS.CHAT,
+  B31: FW_MODELS.VISION,
+} as const
+
+export type GemmaModel = typeof FW_MODELS[keyof typeof FW_MODELS]
 
 // ─── Core fetch helper ────────────────────────────────────────────────────────
 
@@ -193,30 +198,31 @@ function parseToneResult(raw: string): ToneResult {
 }
 
 /**
- * Process a video URL through Fireworks AI (Gemma 4 31B).
- * Fireworks vision models accept image frames; for video URLs we describe
- * the video via a fetch-and-describe approach using the multimodal endpoint.
+ * Process a video URL through Fireworks AI (kimi-k2p6 vision model).
+ * Sends the URL as an image_url content part — kimi supports direct URL references.
  */
 export async function processVideoURL(
   url: string,
   onProgress?: (tone: CaptionTone) => void,
 ): Promise<CaptionResults> {
-  // Use Gemma 4 31B for video captioning — most capable model
   const model = GEMMA_MODELS.B31
 
-  // First pass: get a detailed description of the video content
+  // First pass: describe the video using the URL as a visual input
   const descMessages: FWMessage[] = [
     {
       role: 'system',
-      content: 'You are a video analysis assistant. Describe the video at the given URL in exhaustive detail: every scene, speaker, action, on-screen text, and timestamp. Be thorough.',
+      content: 'You are a video analysis assistant. Describe the video in exhaustive detail: every scene, speaker, action, on-screen text, mood, and setting. Be thorough.',
     },
     {
       role: 'user',
-      content: `Analyse this video in detail: ${url}\n\nDescribe everything you observe: scenes, people, actions, dialogue, on-screen text, timestamps. Be exhaustive.`,
+      content: JSON.stringify([
+        { type: 'image_url', image_url: { url } },
+        { type: 'text', text: 'Analyse this video in detail. Describe every scene, person, action, dialogue, on-screen text, and the overall mood. Be exhaustive.' },
+      ]),
     },
   ]
 
-  const descChoice = await callFW(descMessages, model, { temperature: 0.3, maxTokens: 4096 })
+  const descChoice = await callFW(descMessages, model, { temperature: 0.3, maxTokens: 2048 })
   const videoDescription = descChoice.message.content ?? `Video from URL: ${url}`
 
   // Second pass: generate all 4 tones in parallel
@@ -230,9 +236,15 @@ export async function processVideoURL(
       try {
         const msgs: FWMessage[] = [
           { role: 'system', content: TONE_SYSTEM_PROMPTS[tone] },
-          { role: 'user',   content: CAPTION_USER_PROMPT(videoDescription) },
+          {
+            role: 'user',
+            content: JSON.stringify([
+              { type: 'image_url', image_url: { url } },
+              { type: 'text', text: CAPTION_USER_PROMPT(videoDescription) },
+            ]),
+          },
         ]
-        const choice = await callFW(msgs, model, { temperature: 0.5, maxTokens: 8192 })
+        const choice = await callFW(msgs, model, { temperature: 0.5, maxTokens: 4096 })
         results[tone] = parseToneResult(choice.message.content ?? '')
         return
       } catch (err) {
@@ -250,8 +262,9 @@ export async function processVideoURL(
 }
 
 /**
+/**
  * Process a local video file.
- * Converts to base64 and sends as a multimodal message to Gemma 4 31B.
+ * Converts to base64 and sends as a multimodal message to kimi-k2p6.
  */
 export async function processVideoFile(
   file: File,
@@ -270,33 +283,28 @@ export async function processVideoFile(
   }
   const base64 = btoa(binary)
   const mimeType = file.type || 'video/mp4'
+  const dataUrl = `data:${mimeType};base64,${base64}`
 
   onUploadProgress?.('processing')
 
-  const model = GEMMA_MODELS.B31
+  const model = GEMMA_MODELS.B31  // vision model
 
   // First pass: describe the video
   const descMessages: FWMessage[] = [
     {
       role: 'system',
-      content: 'You are a video analysis assistant. Describe the video in exhaustive detail: every scene, speaker, action, on-screen text, and timestamp.',
+      content: 'You are a video analysis assistant. Describe the video in exhaustive detail: every scene, speaker, action, on-screen text, mood, and setting.',
     },
     {
       role: 'user',
       content: JSON.stringify([
-        {
-          type: 'image_url',
-          image_url: { url: `data:${mimeType};base64,${base64}` },
-        },
-        {
-          type: 'text',
-          text: 'Analyse this video in detail. Describe every scene, person, action, dialogue, on-screen text, and timestamp. Be exhaustive.',
-        },
+        { type: 'image_url', image_url: { url: dataUrl } },
+        { type: 'text', text: 'Analyse this video in detail. Describe every scene, person, action, dialogue, on-screen text, and the overall mood. Be exhaustive.' },
       ]),
     },
   ]
 
-  const descChoice = await callFW(descMessages, model, { temperature: 0.3, maxTokens: 4096 })
+  const descChoice = await callFW(descMessages, model, { temperature: 0.3, maxTokens: 2048 })
   const videoDescription = descChoice.message.content ?? `Video file: ${file.name}`
 
   const results = {} as CaptionResults
@@ -309,9 +317,15 @@ export async function processVideoFile(
       try {
         const msgs: FWMessage[] = [
           { role: 'system', content: TONE_SYSTEM_PROMPTS[tone] },
-          { role: 'user',   content: CAPTION_USER_PROMPT(videoDescription) },
+          {
+            role: 'user',
+            content: JSON.stringify([
+              { type: 'image_url', image_url: { url: dataUrl } },
+              { type: 'text', text: CAPTION_USER_PROMPT(videoDescription) },
+            ]),
+          },
         ]
-        const choice = await callFW(msgs, model, { temperature: 0.5, maxTokens: 8192 })
+        const choice = await callFW(msgs, model, { temperature: 0.5, maxTokens: 4096 })
         results[tone] = parseToneResult(choice.message.content ?? '')
         return
       } catch (err) {
@@ -367,7 +381,7 @@ export async function sendMessageWithTools(
   }
   fwMsgs.push({ role: 'user', content: userMessage })
 
-  // Use 26B for tool-calling — good balance of speed and capability
+  // Use chat model for tool-calling
   const model = GEMMA_MODELS.B26
   const MAX_ROUNDS = 10
 
