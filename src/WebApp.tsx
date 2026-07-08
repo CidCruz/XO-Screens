@@ -568,49 +568,43 @@ function WebChatPanel({ activeNote, appControl }: WebChatPanelProps) {
 
   return (
     <>
-      {/* â”€â”€ Bento Chat Layout â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* Bento Chat Layout */}
       <div className="xo-bento-chat">
 
-        {/* â•â• LEFT COLUMN â•â• */}
+        {/* LEFT COLUMN */}
         <div className="xo-bento-col xo-bento-col--left">
 
-          {/* Card 1 "” Brand / model info */}
+          {/* Card 1 - Brand */}
           <div className="xo-bento-card xo-bento-card--brand">
-            {/* Ambient glow blob */}
-            <div style={{
-              position: 'absolute', inset: 0, borderRadius: 'inherit', overflow: 'hidden',
-              pointerEvents: 'none',
-            }}>
-              <div style={{
-                position: 'absolute', width: 180, height: 180,
-                borderRadius: '50%',
-                background: 'radial-gradient(circle, rgba(235,177,89,0.18) 0%, transparent 70%)',
-                top: -60, right: -40,
-                filter: 'blur(20px)',
-              }} />
+            {/* Glow blob */}
+            <div style={{ position:'absolute', inset:0, borderRadius:'inherit', overflow:'hidden', pointerEvents:'none' }}>
+              <div style={{ position:'absolute', width:220, height:220, borderRadius:'50%', background:'radial-gradient(circle, rgba(235,177,89,0.22) 0%, transparent 65%)', top:-80, right:-60, filter:'blur(24px)' }} />
+              <div style={{ position:'absolute', width:120, height:120, borderRadius:'50%', background:'radial-gradient(circle, rgba(238,111,83,0.12) 0%, transparent 70%)', bottom:-30, left:-20, filter:'blur(16px)' }} />
             </div>
-            {/* XO wordmark */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            {/* XO identity */}
+            <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:16, position:'relative' }}>
               <div style={{
-                width: 40, height: 40, borderRadius: 13,
-                background: 'linear-gradient(135deg, rgba(235,177,89,0.22), rgba(238,111,83,0.12))',
-                border: '1px solid rgba(235,177,89,0.3)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                boxShadow: '0 0 20px rgba(235,177,89,0.15)',
-                flexShrink: 0,
+                width:46, height:46, borderRadius:15, flexShrink:0,
+                background:'linear-gradient(145deg, rgba(235,177,89,0.28), rgba(238,111,83,0.14))',
+                border:'1px solid rgba(235,177,89,0.35)',
+                display:'flex', alignItems:'center', justifyContent:'center',
+                boxShadow:'0 0 24px rgba(235,177,89,0.2), inset 0 1px 0 rgba(255,255,255,0.12)',
               }}>
-                <span style={{ fontFamily: '"Syne", sans-serif', fontSize: 15, fontWeight: 800, color: '#EBB159', letterSpacing: '-0.04em' }}>XO</span>
+                <span style={{ fontFamily:'"Syne", sans-serif', fontSize:16, fontWeight:800, color:'#EBB159', letterSpacing:'-0.04em', textShadow:'0 0 12px rgba(235,177,89,0.8)' }}>XO</span>
               </div>
               <div>
-                <div style={{ fontSize: 14, fontWeight: 700, color: '#fff', letterSpacing: '-0.02em' }}>Assistant</div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 2 }}>
-                  <div className="status-dot" style={{ width: 5, height: 5 }} />
-                  <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', fontWeight: 500 }}>DeepSeek V4 Pro</span>
+                <div style={{ fontSize:15, fontWeight:700, color:'#fff', letterSpacing:'-0.02em', lineHeight:1.2 }}>Assistant</div>
+                <div style={{ display:'flex', alignItems:'center', gap:6, marginTop:4 }}>
+                  <div className="status-dot" />
+                  <span style={{ fontSize:11, color:'rgba(255,255,255,0.35)', fontWeight:500, letterSpacing:'0.02em' }}>DeepSeek V4 Pro</span>
                 </div>
               </div>
             </div>
-            {/* Capabilities pills */}
-            <div style={{ marginTop: 14, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {/* Divider */}
+            <div style={{ height:1, background:'linear-gradient(90deg, rgba(235,177,89,0.2), transparent)', marginBottom:14, position:'relative' }} />
+            {/* Capability pills */}
+            <div style={{ display:'flex', flexDirection:'column', gap:6, position:'relative' }}>
+              <div style={{ fontSize:9, fontWeight:700, color:'rgba(255,255,255,0.25)', letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:2 }}>Capabilities</div>
               {WEB_CAP_GROUPS.map(group => {
                 const isOn = !!enabledCaps[group.id]
                 return (
@@ -619,20 +613,26 @@ function WebChatPanel({ activeNote, appControl }: WebChatPanelProps) {
                     onClick={() => setEnabledCaps(prev => ({ ...prev, [group.id]: !isOn }))}
                     title={group.description}
                     style={{
-                      display: 'flex', alignItems: 'center', gap: 5,
-                      padding: '4px 9px 4px 6px', borderRadius: 8,
-                      background: isOn ? group.color.replace('0.9', '0.1') : 'rgba(255,255,255,0.03)',
-                      border: `1px solid ${isOn ? group.color.replace('0.9', '0.22') : 'rgba(255,255,255,0.07)'}`,
-                      cursor: 'pointer', transition: 'all 0.18s',
+                      display:'flex', alignItems:'center', gap:8,
+                      padding:'7px 10px', borderRadius:10, textAlign:'left',
+                      background: isOn ? group.color.replace('0.9','0.1') : 'rgba(255,255,255,0.03)',
+                      border:`1px solid ${isOn ? group.color.replace('0.9','0.22') : 'rgba(255,255,255,0.06)'}`,
+                      cursor:'pointer', transition:'all 0.18s', width:'100%',
                     }}
                   >
-                    <span style={{
-                      width: 5, height: 5, borderRadius: '50%', flexShrink: 0,
-                      background: isOn ? group.color : 'rgba(255,255,255,0.15)',
-                      boxShadow: isOn ? `0 0 5px ${group.color.replace('0.9', '0.7')}` : 'none',
-                      transition: 'all 0.18s',
+                    <div style={{
+                      width:20, height:20, borderRadius:6, flexShrink:0,
+                      background: isOn ? group.color.replace('0.9','0.15') : 'rgba(255,255,255,0.05)',
+                      display:'flex', alignItems:'center', justifyContent:'center',
+                      color: isOn ? group.color : 'rgba(255,255,255,0.2)',
+                    }}>{group.icon}</div>
+                    <span style={{ fontSize:11, fontWeight:600, color: isOn ? 'rgba(255,255,255,0.8)' : 'rgba(255,255,255,0.25)', flex:1 }}>{group.label}</span>
+                    <div style={{
+                      width:6, height:6, borderRadius:'50%', flexShrink:0,
+                      background: isOn ? group.color : 'rgba(255,255,255,0.1)',
+                      boxShadow: isOn ? `0 0 6px ${group.color.replace('0.9','0.7')}` : 'none',
+                      transition:'all 0.18s',
                     }} />
-                    <span style={{ fontSize: 10, fontWeight: 600, color: isOn ? 'rgba(255,255,255,0.7)' : 'rgba(255,255,255,0.25)', whiteSpace: 'nowrap' }}>{group.label}</span>
                   </button>
                 )
               })}
@@ -640,101 +640,103 @@ function WebChatPanel({ activeNote, appControl }: WebChatPanelProps) {
             {/* Note context badge */}
             {activeNote && (
               <div style={{
-                marginTop: 12, display: 'flex', alignItems: 'center', gap: 6,
-                padding: '6px 10px', borderRadius: 9,
-                background: 'rgba(235,177,89,0.07)', border: '1px solid rgba(235,177,89,0.18)',
+                marginTop:14, display:'flex', alignItems:'center', gap:7,
+                padding:'8px 12px', borderRadius:11,
+                background:'rgba(235,177,89,0.08)', border:'1px solid rgba(235,177,89,0.2)',
+                position:'relative',
               }}>
-                <svg width="9" height="9" fill="none" stroke="rgba(235,177,89,0.7)" viewBox="0 0 24 24">
+                <svg width="10" height="10" fill="none" stroke="rgba(235,177,89,0.8)" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                 </svg>
-                <span style={{ fontSize: 10, color: 'rgba(235,177,89,0.7)', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
+                <span style={{ fontSize:11, color:'rgba(235,177,89,0.85)', fontWeight:500, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', flex:1 }}>
                   {activeNote.title || 'Untitled'}
                 </span>
-                <span style={{ fontSize: 9, color: 'rgba(235,177,89,0.4)', fontWeight: 600, flexShrink: 0 }}>NOTE CTX</span>
+                <span style={{ fontSize:9, color:'rgba(235,177,89,0.45)', fontWeight:700, letterSpacing:'0.06em', flexShrink:0 }}>CTX</span>
               </div>
             )}
           </div>
 
-          {/* Card 2 "” Session list */}
+          {/* Card 2 - Sessions */}
           <div className="xo-bento-card xo-bento-card--sessions">
-            {/* Header */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, flexShrink: 0 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                <span style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.5)', letterSpacing: '0.07em', textTransform: 'uppercase' }}>Chats</span>
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:14, flexShrink:0 }}>
+              <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                <span style={{ fontSize:11, fontWeight:700, color:'rgba(255,255,255,0.4)', letterSpacing:'0.09em', textTransform:'uppercase' }}>Chats</span>
                 <span style={{
-                  fontSize: 9, fontWeight: 700, color: 'rgba(255,255,255,0.3)',
-                  background: 'rgba(255,255,255,0.07)', borderRadius: 5, padding: '1px 6px',
-                  letterSpacing: '0.04em',
+                  fontSize:10, fontWeight:700, color:'rgba(255,255,255,0.35)',
+                  background:'rgba(255,255,255,0.07)', borderRadius:6, padding:'1px 7px',
+                  border:'1px solid rgba(255,255,255,0.06)',
                 }}>{sessions.length}</span>
               </div>
               <button
                 onClick={handleNewChat}
-                title="New chat"
                 style={{
-                  height: 26, padding: '0 10px', borderRadius: 7,
-                  border: '1px solid rgba(235,177,89,0.18)',
-                  background: 'rgba(235,177,89,0.07)', color: '#EBB159',
-                  cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4,
-                  fontSize: 10, fontWeight: 700, transition: 'all 0.15s', letterSpacing: '0.02em',
+                  height:28, padding:'0 12px', borderRadius:8,
+                  border:'1px solid rgba(235,177,89,0.2)',
+                  background:'rgba(235,177,89,0.08)', color:'#EBB159',
+                  cursor:'pointer', display:'flex', alignItems:'center', gap:5,
+                  fontSize:11, fontWeight:700, transition:'all 0.15s', letterSpacing:'0.03em',
+                  boxShadow:'0 0 12px rgba(235,177,89,0.08)',
                 }}
-                onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(235,177,89,0.14)' }}
-                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(235,177,89,0.07)' }}
+                onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background='rgba(235,177,89,0.16)'; (e.currentTarget as HTMLButtonElement).style.boxShadow='0 0 20px rgba(235,177,89,0.15)' }}
+                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background='rgba(235,177,89,0.08)'; (e.currentTarget as HTMLButtonElement).style.boxShadow='0 0 12px rgba(235,177,89,0.08)' }}
               >
-                <svg width="8" height="8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg width="9" height="9" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 4v16m8-8H4" />
                 </svg>
-                NEW
+                New
               </button>
             </div>
-            {/* List */}
             <div className="web-scroll xo-sessions-list">
               {sessions.length === 0 && (
-                <div style={{ padding: '24px 8px', textAlign: 'center', color: 'rgba(255,255,255,0.18)', fontSize: 11 }}>
-                  No conversations yet
+                <div style={{ padding:'28px 8px', textAlign:'center', color:'rgba(255,255,255,0.18)', fontSize:12, lineHeight:1.6 }}>
+                  No conversations yet.<br/>Start one above.
                 </div>
               )}
               {sessions.map(s => (
                 <div key={s.id}>
                   {confirmDeleteId === s.id ? (
-                    <div style={{ padding: '9px 10px', borderRadius: 10, background: 'rgba(239,68,68,0.07)', border: '1px solid rgba(239,68,68,0.2)', display: 'flex', alignItems: 'center', gap: 7, marginBottom: 3 }}>
-                      <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>Delete?</span>
-                      <button onClick={() => handleDeleteSession(s.id)} style={{ fontSize: 10, fontWeight: 700, color: '#f87171', background: 'rgba(239,68,68,0.16)', border: '1px solid rgba(239,68,68,0.28)', borderRadius: 6, padding: '2px 9px', cursor: 'pointer' }}>Yes</button>
-                      <button onClick={() => setConfirmDeleteId(null)} style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 6, padding: '2px 9px', cursor: 'pointer' }}>No</button>
+                    <div style={{ padding:'10px 12px', borderRadius:12, background:'rgba(239,68,68,0.07)', border:'1px solid rgba(239,68,68,0.2)', display:'flex', alignItems:'center', gap:7, marginBottom:4 }}>
+                      <span style={{ fontSize:11, color:'rgba(255,255,255,0.4)', flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>Delete?</span>
+                      <button onClick={() => handleDeleteSession(s.id)} style={{ fontSize:11, fontWeight:700, color:'#f87171', background:'rgba(239,68,68,0.16)', border:'1px solid rgba(239,68,68,0.28)', borderRadius:6, padding:'3px 10px', cursor:'pointer' }}>Yes</button>
+                      <button onClick={() => setConfirmDeleteId(null)} style={{ fontSize:11, color:'rgba(255,255,255,0.35)', background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:6, padding:'3px 10px', cursor:'pointer' }}>No</button>
                     </div>
                   ) : (
                     <div
                       className="chat-history-row xo-session-row"
                       onClick={() => { setActiveId(s.id); setInput('') }}
                       style={{
-                        padding: '9px 10px', borderRadius: 10, marginBottom: 3,
+                        padding:'10px 12px', borderRadius:12, marginBottom:4,
                         background: s.id === activeId ? 'rgba(235,177,89,0.09)' : 'transparent',
-                        border: s.id === activeId ? '1px solid rgba(235,177,89,0.2)' : '1px solid transparent',
-                        cursor: 'pointer', transition: 'all 0.15s', display: 'flex', alignItems: 'center', gap: 9,
+                        border: s.id === activeId ? '1px solid rgba(235,177,89,0.22)' : '1px solid transparent',
+                        cursor:'pointer', transition:'all 0.15s', display:'flex', alignItems:'center', gap:10,
+                        boxShadow: s.id === activeId ? '0 0 20px rgba(235,177,89,0.06)' : 'none',
                       }}
-                      onMouseEnter={e => { if (s.id !== activeId) (e.currentTarget as HTMLDivElement).style.background = 'rgba(255,255,255,0.04)' }}
-                      onMouseLeave={e => { if (s.id !== activeId) (e.currentTarget as HTMLDivElement).style.background = 'transparent' }}
+                      onMouseEnter={e => { if (s.id !== activeId) (e.currentTarget as HTMLDivElement).style.background='rgba(255,255,255,0.04)' }}
+                      onMouseLeave={e => { if (s.id !== activeId) (e.currentTarget as HTMLDivElement).style.background='transparent' }}
                     >
                       <div style={{
-                        width: 28, height: 28, borderRadius: 8, flexShrink: 0,
-                        background: s.id === activeId ? 'rgba(235,177,89,0.14)' : 'rgba(255,255,255,0.05)',
-                        border: `1px solid ${s.id === activeId ? 'rgba(235,177,89,0.22)' : 'rgba(255,255,255,0.07)'}`,
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        width:32, height:32, borderRadius:10, flexShrink:0,
+                        background: s.id === activeId ? 'rgba(235,177,89,0.15)' : 'rgba(255,255,255,0.05)',
+                        border:`1px solid ${s.id === activeId ? 'rgba(235,177,89,0.28)' : 'rgba(255,255,255,0.07)'}`,
+                        display:'flex', alignItems:'center', justifyContent:'center',
+                        boxShadow: s.id === activeId ? '0 0 12px rgba(235,177,89,0.15)' : 'none',
+                        transition:'all 0.15s',
                       }}>
-                        <span style={{ fontSize: 8, fontWeight: 800, color: s.id === activeId ? '#EBB159' : 'rgba(255,255,255,0.25)', fontFamily: '"Syne", sans-serif' }}>XO</span>
+                        <span style={{ fontSize:9, fontWeight:800, color: s.id === activeId ? '#EBB159' : 'rgba(255,255,255,0.25)', fontFamily:'"Syne", sans-serif' }}>XO</span>
                       </div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 11, fontWeight: s.id === activeId ? 600 : 400, color: s.id === activeId ? '#fff' : 'rgba(255,255,255,0.45)', marginBottom: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.title}</div>
-                        <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.2)' }}>
+                      <div style={{ flex:1, minWidth:0 }}>
+                        <div style={{ fontSize:12, fontWeight: s.id === activeId ? 600 : 400, color: s.id === activeId ? '#fff' : 'rgba(255,255,255,0.45)', marginBottom:3, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{s.title}</div>
+                        <div style={{ fontSize:10, color:'rgba(255,255,255,0.22)' }}>
                           {s.messages.filter(m => m.role === 'user').length} msg · {timeAgoChat(s.updatedAt)}
                         </div>
                       </div>
                       <button onClick={e => { e.stopPropagation(); setConfirmDeleteId(s.id) }}
                         className="chat-history-delete"
-                        style={{ width: 22, height: 22, borderRadius: 6, border: 'none', background: 'transparent', color: 'rgba(255,255,255,0.15)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.15s', opacity: 0 }}
-                        onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = '#f87171'; (e.currentTarget as HTMLButtonElement).style.background = 'rgba(239,68,68,0.1)'; (e.currentTarget as HTMLButtonElement).style.opacity = '1' }}
-                        onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = 'rgba(255,255,255,0.15)'; (e.currentTarget as HTMLButtonElement).style.background = 'transparent' }}
+                        style={{ width:24, height:24, borderRadius:7, border:'none', background:'transparent', color:'rgba(255,255,255,0.15)', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, transition:'all 0.15s', opacity:0 }}
+                        onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color='#f87171'; (e.currentTarget as HTMLButtonElement).style.background='rgba(239,68,68,0.12)'; (e.currentTarget as HTMLButtonElement).style.opacity='1' }}
+                        onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color='rgba(255,255,255,0.15)'; (e.currentTarget as HTMLButtonElement).style.background='transparent' }}
                       >
-                        <svg width="10" height="10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                        <svg width="11" height="11" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                       </button>
                     </div>
                   )}
@@ -745,41 +747,41 @@ function WebChatPanel({ activeNote, appControl }: WebChatPanelProps) {
 
         </div>{/* end left col */}
 
-        {/* â•â• RIGHT COLUMN â•â• */}
+        {/* RIGHT COLUMN */}
         <div className="xo-bento-col xo-bento-col--right">
 
-          {/* Card 3 "” Messages */}
+          {/* Card 3 - Messages */}
           <div className="xo-bento-card xo-bento-card--messages">
-            {/* Empty state */}
             {messages.length === 0 && !loading && (
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 14, animation: 'fadeIn 0.4s ease' }}>
+              <div style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:18, animation:'fadeIn 0.5s ease' }}>
+                {/* Hero logo */}
                 <div style={{
-                  width: 52, height: 52, borderRadius: 16,
-                  background: 'linear-gradient(135deg, rgba(235,177,89,0.14), rgba(238,111,83,0.07))',
-                  border: '1px solid rgba(235,177,89,0.18)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  boxShadow: '0 0 28px rgba(235,177,89,0.12)',
+                  width:64, height:64, borderRadius:20,
+                  background:'linear-gradient(145deg, rgba(235,177,89,0.18), rgba(238,111,83,0.09))',
+                  border:'1px solid rgba(235,177,89,0.22)',
+                  display:'flex', alignItems:'center', justifyContent:'center',
+                  boxShadow:'0 0 40px rgba(235,177,89,0.15), inset 0 1px 0 rgba(255,255,255,0.08)',
                 }}>
-                  <span style={{ fontFamily: '"Syne", sans-serif', fontSize: 17, fontWeight: 800, color: '#EBB159', letterSpacing: '-0.04em' }}>XO</span>
+                  <span style={{ fontFamily:'"Syne", sans-serif', fontSize:22, fontWeight:800, color:'#EBB159', letterSpacing:'-0.04em', textShadow:'0 0 16px rgba(235,177,89,0.8)' }}>XO</span>
                 </div>
-                <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: '#fff', marginBottom: 5, letterSpacing: '-0.01em' }}>How can I help?</div>
-                  <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.28)', lineHeight: 1.7, maxWidth: 260 }}>
-                    Ask me anything "” code, analysis, notes, questions.
+                <div style={{ textAlign:'center' }}>
+                  <div style={{ fontSize:18, fontWeight:700, color:'#fff', marginBottom:8, letterSpacing:'-0.02em' }}>How can I help?</div>
+                  <div style={{ fontSize:13, color:'rgba(255,255,255,0.3)', lineHeight:1.75, maxWidth:300 }}>
+                    Ask me anything — code, analysis, notes, or just a question.
                   </div>
                 </div>
-                <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', justifyContent: 'center', marginTop: 2 }}>
+                <div style={{ display:'flex', gap:8, flexWrap:'wrap', justifyContent:'center' }}>
                   {['Summarise my notes', 'Debug this code', 'Explain a concept'].map(s => (
                     <button key={s}
                       onClick={() => { if (inputRef.current) { inputRef.current.innerText = s; setInput(s); inputRef.current.focus() } }}
                       style={{
-                        padding: '5px 13px', borderRadius: 99,
-                        border: '1px solid rgba(255,255,255,0.09)',
-                        background: 'rgba(255,255,255,0.03)', color: 'rgba(255,255,255,0.4)',
-                        fontSize: 11, fontWeight: 500, cursor: 'pointer', transition: 'all 0.15s',
+                        padding:'7px 16px', borderRadius:99,
+                        border:'1px solid rgba(255,255,255,0.09)',
+                        background:'rgba(255,255,255,0.03)', color:'rgba(255,255,255,0.45)',
+                        fontSize:12, fontWeight:500, cursor:'pointer', transition:'all 0.18s',
                       }}
-                      onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.07)'; (e.currentTarget as HTMLButtonElement).style.color = '#fff'; (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(255,255,255,0.18)' }}
-                      onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.03)'; (e.currentTarget as HTMLButtonElement).style.color = 'rgba(255,255,255,0.4)'; (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(255,255,255,0.09)' }}
+                      onMouseEnter={e => { const b = e.currentTarget as HTMLButtonElement; b.style.background='rgba(235,177,89,0.08)'; b.style.color='rgba(255,255,255,0.9)'; b.style.borderColor='rgba(235,177,89,0.22)' }}
+                      onMouseLeave={e => { const b = e.currentTarget as HTMLButtonElement; b.style.background='rgba(255,255,255,0.03)'; b.style.color='rgba(255,255,255,0.45)'; b.style.borderColor='rgba(255,255,255,0.09)' }}
                     >{s}</button>
                   ))}
                 </div>
@@ -787,33 +789,34 @@ function WebChatPanel({ activeNote, appControl }: WebChatPanelProps) {
             )}
 
             {/* Message feed */}
-            <div className="web-scroll" style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 16, paddingRight: 4 }}>
+            <div className="web-scroll" style={{ flex:1, display:'flex', flexDirection:'column', gap:20, paddingRight:6 }}>
               {messages.map((msg, idx) => {
                 const isUser = msg.role === 'user'
                 const prevRole = idx > 0 ? messages[idx - 1].role : null
                 const groupTop = prevRole === msg.role
                 return (
                   <div key={msg.id} className="fade-in" style={{
-                    display: 'flex', justifyContent: isUser ? 'flex-end' : 'flex-start',
-                    alignItems: 'flex-start', gap: 9,
-                    marginTop: groupTop ? -6 : 0,
+                    display:'flex', justifyContent: isUser ? 'flex-end' : 'flex-start',
+                    alignItems:'flex-start', gap:10,
+                    marginTop: groupTop ? -8 : 0,
                   }}>
                     {!isUser && (
-                      <div style={{ flexShrink: 0, marginTop: 2, visibility: groupTop ? 'hidden' : 'visible' }}>
+                      <div style={{ flexShrink:0, marginTop:2, visibility: groupTop ? 'hidden' : 'visible' }}>
                         <div style={{
-                          width: 28, height: 28, borderRadius: 9,
-                          background: 'linear-gradient(135deg, rgba(235,177,89,0.16), rgba(238,111,83,0.09))',
-                          border: '1px solid rgba(235,177,89,0.2)',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          width:32, height:32, borderRadius:11,
+                          background:'linear-gradient(145deg, rgba(235,177,89,0.2), rgba(238,111,83,0.1))',
+                          border:'1px solid rgba(235,177,89,0.25)',
+                          display:'flex', alignItems:'center', justifyContent:'center',
+                          boxShadow:'0 0 16px rgba(235,177,89,0.12)',
                         }}>
-                          <span style={{ fontSize: 8, fontWeight: 900, color: '#EBB159', fontFamily: '"Syne", sans-serif' }}>XO</span>
+                          <span style={{ fontSize:9, fontWeight:900, color:'#EBB159', fontFamily:'"Syne", sans-serif', textShadow:'0 0 8px rgba(235,177,89,0.6)' }}>XO</span>
                         </div>
                       </div>
                     )}
-                    <div style={{ maxWidth: '78%', display: 'flex', flexDirection: 'column', gap: 3, alignItems: isUser ? 'flex-end' : 'flex-start' }}>
+                    <div style={{ maxWidth:'76%', display:'flex', flexDirection:'column', gap:4, alignItems: isUser ? 'flex-end' : 'flex-start' }}>
                       <div className={isUser ? 'web-msg-user' : 'web-msg-ai'}>{msg.content}</div>
-                      <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.18)', paddingLeft: isUser ? 0 : 2, paddingRight: isUser ? 2 : 0 }}>
-                        {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      <div style={{ fontSize:10, color:'rgba(255,255,255,0.2)', paddingLeft: isUser ? 0 : 4, paddingRight: isUser ? 4 : 0 }}>
+                        {new Date(msg.timestamp).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' })}
                       </div>
                     </div>
                   </div>
@@ -822,28 +825,28 @@ function WebChatPanel({ activeNote, appControl }: WebChatPanelProps) {
 
               {/* Tool indicator */}
               {activeTools.length > 0 && (
-                <div className="fade-in" style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-                  <div style={{ width: 28, height: 28, borderRadius: 9, background: 'linear-gradient(135deg, rgba(235,177,89,0.16), rgba(238,111,83,0.09))', border: '1px solid rgba(235,177,89,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    <span style={{ fontSize: 8, fontWeight: 900, color: '#EBB159', fontFamily: '"Syne", sans-serif' }}>XO</span>
+                <div className="fade-in" style={{ display:'flex', alignItems:'center', gap:10 }}>
+                  <div style={{ width:32, height:32, borderRadius:11, background:'linear-gradient(145deg, rgba(235,177,89,0.2), rgba(238,111,83,0.1))', border:'1px solid rgba(235,177,89,0.25)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, boxShadow:'0 0 16px rgba(235,177,89,0.12)' }}>
+                    <span style={{ fontSize:9, fontWeight:900, color:'#EBB159', fontFamily:'"Syne", sans-serif' }}>XO</span>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 13px', borderRadius: 12, background: 'rgba(235,177,89,0.06)', border: '1px solid rgba(235,177,89,0.14)' }}>
-                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="rgba(235,177,89,0.75)" style={{ animation: 'spin 1s linear infinite', flexShrink: 0 }}>
+                  <div style={{ display:'flex', alignItems:'center', gap:9, padding:'9px 15px', borderRadius:14, background:'rgba(235,177,89,0.07)', border:'1px solid rgba(235,177,89,0.18)', boxShadow:'0 0 20px rgba(235,177,89,0.07)' }}>
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="rgba(235,177,89,0.8)" style={{ animation:'spin 1s linear infinite', flexShrink:0 }}>
                       <path strokeLinecap="round" strokeWidth={2.5} d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
                     </svg>
-                    <span style={{ fontSize: 11, color: 'rgba(235,177,89,0.75)', fontWeight: 500 }}>{activeTools[activeTools.length - 1].replace(/_/g, ' ')}…</span>
+                    <span style={{ fontSize:12, color:'rgba(235,177,89,0.85)', fontWeight:500 }}>{activeTools[activeTools.length - 1].replace(/_/g,' ')}...</span>
                   </div>
                 </div>
               )}
 
               {/* Typing indicator */}
               {loading && activeTools.length === 0 && (
-                <div className="fade-in" style={{ display: 'flex', alignItems: 'flex-end', gap: 9 }}>
-                  <div style={{ width: 28, height: 28, borderRadius: 9, background: 'linear-gradient(135deg, rgba(235,177,89,0.16), rgba(238,111,83,0.09))', border: '1px solid rgba(235,177,89,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    <span style={{ fontSize: 8, fontWeight: 900, color: '#EBB159', fontFamily: '"Syne", sans-serif' }}>XO</span>
+                <div className="fade-in" style={{ display:'flex', alignItems:'flex-start', gap:10 }}>
+                  <div style={{ width:32, height:32, borderRadius:11, background:'linear-gradient(145deg, rgba(235,177,89,0.2), rgba(238,111,83,0.1))', border:'1px solid rgba(235,177,89,0.25)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, boxShadow:'0 0 16px rgba(235,177,89,0.12)' }}>
+                    <span style={{ fontSize:9, fontWeight:900, color:'#EBB159', fontFamily:'"Syne", sans-serif' }}>XO</span>
                   </div>
-                  <div style={{ display: 'flex', gap: 4, alignItems: 'center', padding: '11px 14px', borderRadius: '12px 12px 12px 3px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
+                  <div style={{ display:'flex', gap:5, alignItems:'center', padding:'12px 16px', borderRadius:'5px 16px 16px 16px', background:'rgba(255,255,255,0.045)', border:'1px solid rgba(255,255,255,0.08)', marginTop:2 }}>
                     {[0, 160, 320].map(d => (
-                      <span key={d} style={{ width: 5, height: 5, borderRadius: '50%', background: 'rgba(235,177,89,0.55)', display: 'inline-block', animation: `fadeIn 0.7s ${d}ms ease-in-out infinite alternate` }} />
+                      <span key={d} style={{ width:6, height:6, borderRadius:'50%', background:'rgba(235,177,89,0.6)', display:'inline-block', animation:`fadeIn 0.7s ${d}ms ease-in-out infinite alternate` }} />
                     ))}
                   </div>
                 </div>
@@ -852,15 +855,18 @@ function WebChatPanel({ activeNote, appControl }: WebChatPanelProps) {
             </div>
           </div>
 
-          {/* Card 4 "” Input */}
+          {/* Card 4 - Input */}
           <div className="xo-bento-card xo-bento-card--input">
-            <div style={{ display: 'flex', alignItems: 'flex-end', gap: 10 }}>
+            <div className="xo-input-pill"
+              onFocusCapture={e => { (e.currentTarget as HTMLDivElement).style.borderColor = 'rgba(235,177,89,0.4)' }}
+              onBlurCapture={e => { (e.currentTarget as HTMLDivElement).style.borderColor = 'rgba(255,255,255,0.08)' }}
+            >
               <div
                 ref={inputRef}
                 contentEditable
                 suppressContentEditableWarning
-                className="web-chat-input xo-input-field"
-                data-placeholder="Ask anything…"
+                className="web-chat-input"
+                data-placeholder="Ask anything..."
                 onInput={e => setInput((e.currentTarget as HTMLDivElement).innerText)}
                 onKeyDown={e => {
                   if (e.key === 'Enter' && !e.shiftKey) {
@@ -874,11 +880,11 @@ function WebChatPanel({ activeNote, appControl }: WebChatPanelProps) {
                   }
                 }}
                 style={{
-                  flex: 1, outline: 'none', color: '#fff',
-                  fontSize: 13, lineHeight: '20px',
-                  overflowY: 'auto', wordBreak: 'break-word',
-                  maxHeight: 120, fontFamily: 'inherit',
-                  cursor: 'text', whiteSpace: 'pre-wrap',
+                  flex:1, outline:'none', color:'#fff',
+                  fontSize:14, lineHeight:'22px',
+                  overflowY:'auto', wordBreak:'break-word',
+                  maxHeight:130, fontFamily:'inherit',
+                  cursor:'text', whiteSpace:'pre-wrap', minHeight:22,
                 }}
               />
               <button
@@ -892,25 +898,33 @@ function WebChatPanel({ activeNote, appControl }: WebChatPanelProps) {
                 }}
                 disabled={!input.trim() || loading}
                 style={{
-                  width: 36, height: 36, borderRadius: 11, border: 'none', flexShrink: 0,
-                  background: input.trim() && !loading ? 'linear-gradient(135deg, #EBB159, #EE6F53)' : 'rgba(255,255,255,0.06)',
+                  width:38, height:38, borderRadius:12, border:'none', flexShrink:0,
+                  background: input.trim() && !loading
+                    ? 'linear-gradient(145deg, #EBB159, #EE6F53)'
+                    : 'rgba(255,255,255,0.07)',
                   cursor: input.trim() && !loading ? 'pointer' : 'default',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  color: input.trim() && !loading ? '#fff' : 'rgba(255,255,255,0.2)',
-                  transition: 'all 0.15s',
-                  boxShadow: input.trim() && !loading ? '0 4px 16px rgba(238,111,83,0.35)' : 'none',
+                  display:'flex', alignItems:'center', justifyContent:'center',
+                  color: input.trim() && !loading ? '#fff' : 'rgba(255,255,255,0.22)',
+                  transition:'all 0.18s',
+                  boxShadow: input.trim() && !loading
+                    ? '0 4px 20px rgba(238,111,83,0.45), inset 0 1px 0 rgba(255,255,255,0.15)'
+                    : 'none',
                 }}
               >
                 {loading
-                  ? <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" style={{ animation: 'spin 1s linear infinite' }}><path strokeLinecap="round" strokeWidth={2.5} d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4" /></svg>
-                  : <svg width="13" height="13" fill="currentColor" viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+                  ? <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" style={{ animation:'spin 1s linear infinite' }}>
+                      <path strokeLinecap="round" strokeWidth={2.5} d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4" />
+                    </svg>
+                  : <svg width="14" height="14" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+                    </svg>
                 }
               </button>
             </div>
-            <div style={{ marginTop: 9, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.16)' }}>Enter to send · Shift+Enter for newline</span>
+            <div style={{ marginTop:9, display:'flex', alignItems:'center', justifyContent:'space-between', paddingLeft:2 }}>
+              <span style={{ fontSize:11, color:'rgba(255,255,255,0.2)' }}>Enter to send · Shift+Enter for newline</span>
               {input.trim() && (
-                <span style={{ fontSize: 10, color: 'rgba(235,177,89,0.5)', fontWeight: 500 }}>
+                <span style={{ fontSize:11, color:'rgba(235,177,89,0.55)', fontWeight:600 }}>
                   {input.trim().split(/\s+/).filter(Boolean).length}w
                 </span>
               )}

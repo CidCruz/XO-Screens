@@ -1,4 +1,4 @@
-@import "tailwindcss";
+﻿@import "tailwindcss";
 
 /* ── Reset ───────────────────────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -273,17 +273,129 @@ body {
   background: transparent;
 }
 
-/* ── Bento Chat Layout ───────────────────────────────────────────────────── */
+/* -- Bento Chat Layout ------------------------------------------------------ */
 .xo-bento-chat {
   display: flex;
   flex-direction: row;
   width: 100%;
   height: 100%;
-  gap: 10px;
-  padding: 12px;
+  gap: 14px;
+  padding: 0;
   overflow: hidden;
   box-sizing: border-box;
 }
+
+.xo-bento-col--left {
+  width: 280px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow: hidden;
+}
+
+.xo-bento-col--right {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* Base card */
+.xo-bento-card {
+  position: relative;
+  border-radius: 24px;
+  border: 1px solid rgba(255,255,255,0.06);
+  background: rgba(14,10,6,0.72);
+  backdrop-filter: blur(32px) saturate(180%);
+  -webkit-backdrop-filter: blur(32px) saturate(180%);
+  overflow: hidden;
+  transition: border-color 0.25s, box-shadow 0.25s;
+  box-shadow: 0 2px 24px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.04);
+}
+.xo-bento-card:hover {
+  border-color: rgba(255,255,255,0.1);
+  box-shadow: 0 4px 32px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.06);
+}
+
+/* Brand card */
+.xo-bento-card--brand {
+  padding: 22px 20px 20px;
+  flex-shrink: 0;
+  background: rgba(235,177,89,0.05);
+  border-color: rgba(235,177,89,0.15);
+  box-shadow: 0 2px 24px rgba(0,0,0,0.3), inset 0 0 40px rgba(235,177,89,0.03);
+}
+.xo-bento-card--brand:hover {
+  border-color: rgba(235,177,89,0.25);
+  box-shadow: 0 4px 40px rgba(0,0,0,0.4), 0 0 60px rgba(235,177,89,0.06);
+}
+
+/* Sessions card */
+.xo-bento-card--sessions {
+  flex: 1;
+  padding: 18px 16px 14px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.xo-sessions-list {
+  flex: 1;
+  overflow-y: auto;
+  margin-top: 4px;
+}
+
+/* Messages card */
+.xo-bento-card--messages {
+  flex: 1;
+  padding: 24px 24px 20px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Input card */
+.xo-bento-card--input {
+  flex-shrink: 0;
+  padding: 16px 18px;
+  border-color: rgba(255,255,255,0.08);
+  background: rgba(12,8,4,0.85);
+}
+.xo-bento-card--input:focus-within {
+  border-color: rgba(235,177,89,0.35);
+  box-shadow:
+    0 0 0 1px rgba(235,177,89,0.1),
+    0 4px 32px rgba(0,0,0,0.5),
+    0 0 60px rgba(235,177,89,0.07);
+}
+
+/* Input pill */
+.xo-input-pill {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 16px;
+  padding: 12px 12px 12px 16px;
+  transition: border-color 0.15s;
+}
+
+/* Session row */
+.xo-session-row { user-select: none; }
+
+/* -- Status dot ------------------------------------------------------------- */
+.status-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--fire-amber);
+  animation: pulse-dot 2.5s ease-in-out infinite;
+  flex-shrink: 0;
+}
+
+/* -- Panel header ----------------------------------------------------------- */
 .web-panel-header {
   display: flex;
   align-items: center;
@@ -295,232 +407,37 @@ body {
   backdrop-filter: blur(8px);
 }
 .web-panel-subtitle {
-  font-size: 11px;
+  font-size: 13px;
   color: var(--text-muted);
   font-weight: 400;
 }
 
-/* ── Status dot ──────────────────────────────────────────────────────────── */
-.status-dot {
-  width: 6px; height: 6px; border-radius: 50%;
-  background: var(--fire-amber);
-  animation: pulse-dot 2.5s ease-in-out infinite;
-}
-
-
-/* ── Chat messages ───────────────────────────────────────────────────────── */
+/* -- Chat messages ---------------------------------------------------------- */
 .web-msg-user {
-  background: linear-gradient(135deg, rgba(235,177,89,0.2), rgba(238,111,83,0.14));
-  border: 1px solid rgba(238,111,83,0.28);
+  background: linear-gradient(145deg,
+    rgba(235,177,89,0.22) 0%,
+    rgba(238,111,83,0.15) 100%);
+  border: 1px solid rgba(238,111,83,0.3);
   color: #fff;
-  border-radius: 18px 18px 4px 18px;
-  padding: 11px 16px;
-  font-size: 13px; line-height: 1.7;
-  max-width: 78%; word-break: break-word;
-  box-shadow: 0 2px 16px rgba(238,111,83,0.12);
+  border-radius: 20px 20px 5px 20px;
+  padding: 13px 18px;
+  font-size: 14px; line-height: 1.72;
+  max-width: 75%; word-break: break-word;
+  box-shadow:
+    0 2px 20px rgba(238,111,83,0.14),
+    inset 0 1px 0 rgba(255,255,255,0.08);
 }
+
 .web-msg-ai {
-  background: rgba(255,255,255,0.04);
-  border: 1px solid rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.82);
-  font-size: 13px; line-height: 1.8;
-  max-width: 88%; word-break: break-word;
-  padding: 11px 16px;
-  border-radius: 4px 18px 18px 18px;
+  background: rgba(255,255,255,0.045);
+  border: 1px solid rgba(255,255,255,0.08);
+  color: rgba(255,255,255,0.85);
+  font-size: 14px; line-height: 1.78;
+  max-width: 86%; word-break: break-word;
+  padding: 13px 18px;
+  border-radius: 5px 20px 20px 20px;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
 }
-
-/* ── Notes list item ─────────────────────────────────────────────────────── */
-.web-notes-list-item {
-  width: 100%; text-align: left;
-  padding: 10px 12px;
-  border-radius: var(--radius-sm);
-  border: 1px solid transparent;
-  background: transparent;
-  cursor: pointer;
-  transition: all 0.15s;
-  color: #fff;
-}
-.web-notes-list-item:hover { background: var(--surface-1); }
-.web-notes-list-item.active {
-  background: var(--surface-2);
-  border-color: var(--border-bright);
-}
-
-/* ── Empty state ─────────────────────────────────────────────────────────── */
-.web-empty-state {
-  flex: 1;
-  display: flex; flex-direction: column;
-  align-items: center; justify-content: center;
-  gap: 12px;
-  color: var(--text-muted);
-  font-size: 13px; text-align: center;
-  padding: 40px;
-}
-
-/* ── Hero badge ──────────────────────────────────────────────────────────── */
-.web-hero-badge {
-  display: inline-flex; align-items: center; gap: 7px;
-  padding: 5px 14px;
-  border-radius: 999px;
-  background: rgba(255,255,255,0.04);
-  border: 1px solid rgba(255,255,255,0.09);
-  font-size: 10px; font-weight: 600;
-  color: var(--text-muted);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-/* ── Chat input ──────────────────────────────────────────────────────────── */
-.web-chat-input { position: relative; }
-.web-chat-input:empty::before {
-  content: attr(data-placeholder);
-  color: var(--text-muted);
-  pointer-events: none;
-  position: absolute;
-  top: 50%; transform: translateY(-50%);
-  left: 0; right: 0;
-}
-.web-chat-input:not(:empty)::before { display: none; }
-
-/* Designful scrollbar for the input textarea */
-.web-chat-input {
-  scrollbar-width: thin;
-  scrollbar-color: rgba(235,177,89,0.35) transparent;
-}
-.web-chat-input::-webkit-scrollbar {
-  width: 3px;
-}
-.web-chat-input::-webkit-scrollbar-track {
-  background: transparent;
-  margin: 6px 0;
-}
-.web-chat-input::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, rgba(235,177,89,0.6), rgba(238,111,83,0.4));
-  border-radius: 99px;
-  box-shadow: 0 0 6px rgba(235,177,89,0.4);
-}
-.web-chat-input::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(180deg, rgba(235,177,89,0.9), rgba(238,111,83,0.7));
-  box-shadow: 0 0 10px rgba(235,177,89,0.6);
-}
-
-/* ── Scrollable areas — amber brand scrollbars ───────────────────────────── */
-.web-scroll {
-  overflow-y: auto;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(235,177,89,0.25) transparent;
-}
-.web-scroll::-webkit-scrollbar { width: 3px; }
-.web-scroll::-webkit-scrollbar-track {
-  background: transparent;
-  margin: 8px 0;
-}
-.web-scroll::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, rgba(235,177,89,0.5), rgba(238,111,83,0.3));
-  border-radius: 99px;
-}
-.web-scroll::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(180deg, rgba(235,177,89,0.8), rgba(238,111,83,0.6));
-}
-.chat-history-row:hover .chat-history-delete { opacity: 1 !important; }
-
-/* ── Bento Chat Layout ───────────────────────────────────────────────────── */
-.xo-bento-chat {
-  display: flex;
-  height: 100%;
-  gap: 10px;
-  padding: 12px 12px 12px 12px;
-  overflow: hidden;
-}
-
-/* Left column — fixed width, two stacked cards */
-.xo-bento-col--left {
-  width: 256px;
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  overflow: hidden;
-}
-
-/* Right column — fills remaining space, two stacked cards */
-.xo-bento-col--right {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  min-width: 0;
-  overflow: hidden;
-}
-
-/* Base bento card */
-.xo-bento-card {
-  position: relative;
-  border-radius: 20px;
-  border: 1px solid rgba(255,255,255,0.07);
-  background: rgba(255,255,255,0.03);
-  backdrop-filter: blur(16px) saturate(150%);
-  -webkit-backdrop-filter: blur(16px) saturate(150%);
-  overflow: hidden;
-  transition: border-color 0.2s;
-}
-.xo-bento-card:hover {
-  border-color: rgba(255,255,255,0.11);
-}
-
-/* Brand card — amber tint, fixed height */
-.xo-bento-card--brand {
-  padding: 18px 16px;
-  flex-shrink: 0;
-  background: rgba(235,177,89,0.04);
-  border-color: rgba(235,177,89,0.12);
-}
-.xo-bento-card--brand:hover {
-  border-color: rgba(235,177,89,0.2);
-}
-
-/* Sessions card — fills remaining left space */
-.xo-bento-card--sessions {
-  flex: 1;
-  padding: 14px 12px 12px;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.xo-sessions-list {
-  flex: 1;
-  overflow-y: auto;
-}
-
-/* Messages card — fills most of right column */
-.xo-bento-card--messages {
-  flex: 1;
-  padding: 20px 20px 16px;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  gap: 0;
-}
-
-/* Input card — fixed height at bottom of right column */
-.xo-bento-card--input {
-  flex-shrink: 0;
-  padding: 14px 16px 14px;
-  background: rgba(255,255,255,0.03);
-  border-color: rgba(255,255,255,0.08);
-}
-.xo-bento-card--input:focus-within {
-  border-color: rgba(235,177,89,0.28);
-  background: rgba(235,177,89,0.03);
-}
-
-.xo-input-field {
-  min-height: 22px;
-}
-
-/* Session row */
-.xo-session-row { user-select: none; }
 
 /* ── Home panel — hero redesign ──────────────────────────────────────────── */
 .xo-home {
