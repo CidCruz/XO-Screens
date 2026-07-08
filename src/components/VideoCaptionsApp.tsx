@@ -636,7 +636,7 @@ export default function VideoCaptionsApp({ onClose: _onClose, onCornerDown }: Pr
               type="url"
               value={videoURL}
               onChange={e => { setVideoURL(e.target.value); setResults(null); setStatus('idle'); setSavedToNotes(false) }}
-              placeholder="https://example.com/video.mp4"
+              placeholder="Direct video URL only (e.g. .mp4, .webm)"
               style={{
                 width: '100%', boxSizing: 'border-box',
                 background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',

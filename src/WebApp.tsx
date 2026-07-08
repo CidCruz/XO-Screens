@@ -1070,11 +1070,13 @@ function WebVideoPanel() {
   const [errorMsg, setErrorMsg] = useState('')
   const [results, setResults] = useState<CaptionResults | null>(null)
   const [activeTone, setActiveTone] = useState<CaptionTone>('formal')
-  const [activeTab, setActiveTab] = useState<'summary' | 'captions'>('summary')
+  const [activeTab] = useState<'summary'>('summary')
   const [savedToNotes, setSavedToNotes] = useState(false)
   const [currentLabel, setCurrentLabel] = useState('')
   const [history, setHistory] = useState<CaptionHistoryEntry[]>(() => loadCaptionHistory())
   const [showHistory, setShowHistory] = useState(false)
+  const [historyHeight, setHistoryHeight] = useState(220)
+  const dragRef = useRef<{ startY: number; startH: number } | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   function handleFile(file: File) {
@@ -1114,7 +1116,6 @@ function WebVideoPanel() {
     setCurrentLabel(entry.label)
     setStatus('done')
     setActiveTone('formal')
-    setActiveTab('summary')
     setSavedToNotes(false)
     setShowHistory(false)
   }
@@ -1137,8 +1138,7 @@ function WebVideoPanel() {
       const r = results[t.id]
       const content =
         `[Video] ${label}\n[Generated] ${ts}\n\n` +
-        `-- Summary --\n${r.summary}\n\n` +
-        `-- Captions --\n${r.captions || '(No timestamped captions generated)'}`
+        `-- Summary --\n${r.summary}`
       const now = Date.now()
       return { id: now.toString() + Math.random().toString(36).slice(2), title: `[${t.label}] ${label}`, content, color: TONE_NOTE_COLORS[t.id], createdAt: now, updatedAt: now }
     })
@@ -1237,7 +1237,7 @@ function WebVideoPanel() {
           ) : (
             <input type="url" value={videoURL}
               onChange={e => { setVideoURL(e.target.value); setResults(null); setStatus('idle'); setSavedToNotes(false) }}
-              placeholder="https://example.com/video.mp4"
+              placeholder="Direct video URL only (e.g. .mp4, .webm)"
               style={{
                 width: '100%', boxSizing: 'border-box',
                 background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
@@ -1394,13 +1394,39 @@ function WebVideoPanel() {
 
         {/* Collapsible history list */}
         <div style={{
-          height: showHistory ? 260 : 0,
+          height: showHistory ? historyHeight : 0,
           flexShrink: 0,
           overflow: 'hidden',
-          transition: 'height 0.25s cubic-bezier(0.4,0,0.2,1)',
+          transition: dragRef.current ? 'none' : 'height 0.25s cubic-bezier(0.4,0,0.2,1)',
           borderTop: showHistory ? '1px solid rgba(255,255,255,0.05)' : 'none',
         }}>
-          <div style={{ height: 260, display: 'flex', flexDirection: 'column' }}>
+          {/* Drag handle */}
+          <div
+            onMouseDown={e => {
+              dragRef.current = { startY: e.clientY, startH: historyHeight }
+              const onMove = (ev: MouseEvent) => {
+                if (!dragRef.current) return
+                const delta = dragRef.current.startY - ev.clientY
+                setHistoryHeight(Math.max(80, Math.min(500, dragRef.current.startH + delta)))
+              }
+              const onUp = () => {
+                dragRef.current = null
+                window.removeEventListener('mousemove', onMove)
+                window.removeEventListener('mouseup', onUp)
+              }
+              window.addEventListener('mousemove', onMove)
+              window.addEventListener('mouseup', onUp)
+            }}
+            style={{
+              height: 6, cursor: 'ns-resize', flexShrink: 0,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              background: 'rgba(255,255,255,0.02)',
+              borderBottom: '1px solid rgba(255,255,255,0.05)',
+            }}
+          >
+            <div style={{ width: 28, height: 2, borderRadius: 99, background: 'rgba(255,255,255,0.15)' }} />
+          </div>
+          <div style={{ height: historyHeight - 6, display: 'flex', flexDirection: 'column' }}>
             {/* Clear all row */}
             {history.length > 0 && (
               <div style={{ padding: '7px 14px 4px', flexShrink: 0, display: 'flex', justifyContent: 'flex-end' }}>
@@ -1511,16 +1537,7 @@ function WebVideoPanel() {
                   <span style={{ display: 'flex' }}>{t.icon}</span>{t.label}
                 </button>
               ))}
-              <div style={{ marginLeft: 'auto', display: 'flex', gap: 2 }}>
-                {(['summary', 'captions'] as const).map(tab => (
-                  <button key={tab} onClick={() => setActiveTab(tab)} style={{
-                    padding: '5px 12px', borderRadius: 8, border: 'none', cursor: 'pointer',
-                    fontSize: 11, fontWeight: activeTab === tab ? 600 : 400, fontFamily: 'inherit',
-                    background: activeTab === tab ? 'rgba(255,255,255,0.1)' : 'transparent',
-                    color: activeTab === tab ? '#fff' : 'rgba(255,255,255,0.35)', transition: 'all 0.15s',
-                  }}>{tab === 'captions' ? 'Transcription' : 'Summary'}</button>
-                ))}
-              </div>
+
             </>
           ) : (
             <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 12 }}>
@@ -1532,42 +1549,18 @@ function WebVideoPanel() {
         {/* Content */}
         <div className="web-scroll" style={{ flex: 1, padding: '20px 24px', overflowY: 'auto' }}>
           {status === 'done' && results && activeResult ? (
-            activeTab === 'summary' ? (
-              <div style={{
-                background: activeToneData.accent, border: `1px solid ${activeToneData.border}`,
-                borderRadius: 16, padding: '20px 22px', maxWidth: 680,
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
-                  <span style={{ display: 'flex', color: activeToneData.dot }}>{activeToneData.icon}</span>
-                  <span style={{ color: '#fff', fontWeight: 600, fontSize: 14 }}>{activeToneData.label} Summary</span>
-                </div>
-                <p style={{ color: 'rgba(255,255,255,0.75)', fontSize: 13, lineHeight: 1.8, margin: 0, whiteSpace: 'pre-wrap' }}>
-                  {activeResult.summary}
-                </p>
+            <div style={{
+              background: activeToneData.accent, border: `1px solid ${activeToneData.border}`,
+              borderRadius: 16, padding: '20px 22px', maxWidth: 680,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+                <span style={{ display: 'flex', color: activeToneData.dot }}>{activeToneData.icon}</span>
+                <span style={{ color: '#fff', fontWeight: 600, fontSize: 14 }}>{activeToneData.label} Summary</span>
               </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', maxWidth: 680 }}>
-                {(activeResult.captions || '').split('\n').filter(Boolean).map((line, i, arr) => {
-                  const match = line.match(/^(\d+:\d+(?:\.\d+)?(?:\s*[–\-]\s*|\s+))(.+)$/)
-                  const timestamp = match ? match[1].trim().replace(/[–\-]/, '').trim() : null
-                  const text = match ? match[2] : line
-                  return (
-                    <div key={i} style={{
-                      display: 'flex', gap: 14, padding: '9px 0',
-                      borderBottom: i < arr.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none',
-                    }}>
-                      {timestamp && (
-                        <span style={{ color: activeToneData.dot, fontSize: 11, fontFamily: 'monospace', fontWeight: 600, flexShrink: 0, paddingTop: 2, minWidth: 40 }}>{timestamp}</span>
-                      )}
-                      <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13, lineHeight: 1.65 }}>{text}</span>
-                    </div>
-                  )
-                })}
-                {!activeResult.captions && (
-                  <div style={{ color: 'rgba(255,255,255,0.25)', fontSize: 13, padding: '16px 0' }}>No timestamped captions were generated.</div>
-                )}
-              </div>
-            )
+              <p style={{ color: 'rgba(255,255,255,0.75)', fontSize: 13, lineHeight: 1.8, margin: 0, whiteSpace: 'pre-wrap' }}>
+                {activeResult.summary}
+              </p>
+            </div>
           ) : status !== 'processing' ? (
             <div className="web-empty-state">
               <svg width="40" height="40" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ opacity: 0.2 }}>
