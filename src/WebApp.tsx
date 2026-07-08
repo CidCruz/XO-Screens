@@ -1518,7 +1518,7 @@ function WebVideoPanel() {
                     fontSize: 11, fontWeight: activeTab === tab ? 600 : 400, fontFamily: 'inherit',
                     background: activeTab === tab ? 'rgba(255,255,255,0.1)' : 'transparent',
                     color: activeTab === tab ? '#fff' : 'rgba(255,255,255,0.35)', transition: 'all 0.15s',
-                  }}>{tab.charAt(0).toUpperCase() + tab.slice(1)}</button>
+                  }}>{tab === 'captions' ? 'Transcription' : 'Summary'}</button>
                 ))}
               </div>
             </>

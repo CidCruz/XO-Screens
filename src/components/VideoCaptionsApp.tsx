@@ -813,7 +813,7 @@ export default function VideoCaptionsApp({ onClose: _onClose, onCornerDown }: Pr
                     color: activeTab === tab ? '#fff' : 'rgba(255,255,255,0.35)',
                     transition: 'all 0.15s',
                   }}
-                >{tab.charAt(0).toUpperCase() + tab.slice(1)}</button>
+                >{tab === 'captions' ? 'Transcription' : 'Summary'}</button>
               ))}
             </div>
 
