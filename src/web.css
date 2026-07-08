@@ -88,6 +88,10 @@ body {
   background: var(--surface-0);
   position: relative;
   overflow: hidden;
+  /* Fixed horizontal margins — content breathes away from screen edges */
+  padding-left: 120px;
+  padding-right: 120px;
+  padding-top: 40px;
 }
 
 .web-content {
@@ -193,9 +197,9 @@ body {
 .web-content {
   flex: 1;
   display: flex;
-  /* Inside zoom:1.5 root, height is already counter-scaled. Subtract island clearance in the same space. */
-  height: calc(100% - 82px);
-  max-height: calc(100% - 82px);
+  /* island clearance (82px) + top padding (16px) */
+  height: calc(100% - 82px - 40px);
+  max-height: calc(100% - 82px - 40px);
   overflow: hidden;
   position: relative;
   z-index: 1;
