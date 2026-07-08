@@ -12,7 +12,9 @@ function videoProxyPlugin(): Plugin {
       server.middlewares.use('/api/video-proxy', (req, res) => {
         const urlParam = new URLSearchParams(req.url?.slice(1) ?? '').get('url')
         if (!urlParam) { res.writeHead(400); res.end('Missing url param'); return }
-        const parsed = new URL(urlParam)
+        let parsed: URL
+        try { parsed = new URL(urlParam) }
+        catch { res.writeHead(400); res.end('Invalid URL'); return }
         const client = parsed.protocol === 'https:' ? https : http
         client.get(urlParam, (upstream) => {
           res.writeHead(upstream.statusCode ?? 200, {

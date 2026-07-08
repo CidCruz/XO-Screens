@@ -212,6 +212,7 @@ export async function processVideoURL(
   // Fetch via local dev proxy to bypass CORS, then extract frames client-side
   const proxyUrl = `/api/video-proxy?url=${encodeURIComponent(url)}`
   const res = await fetch(proxyUrl)
+  if (res.status === 400) throw new Error('Not a valid URL.')
   if (!res.ok) throw new Error(`Failed to fetch video: ${res.status}`)
   const blob = await res.blob()
   const objectUrl = URL.createObjectURL(blob)
