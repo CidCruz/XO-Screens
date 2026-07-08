@@ -200,21 +200,6 @@ function parseToneResult(raw: string): ToneResult {
 /**
  * Extract N evenly-spaced frames from a video URL using canvas.
  */
-async function extractFramesFromURL(url: string, nFrames = 5): Promise<string[]> {
-  return new Promise((resolve, reject) => {
-    const video = document.createElement('video')
-    video.preload = 'metadata'
-    video.muted = true
-    video.playsInline = true
-    video.crossOrigin = 'anonymous'
-    video.src = url
-    video.addEventListener('error', () => reject(new Error('Video load failed — check URL and CORS')))
-    video.addEventListener('loadedmetadata', () => {
-      captureFrames(video, nFrames).then(resolve).catch(reject)
-    })
-  })
-}
-
 /**
  * Process a video URL — extracts frames via canvas, sends only those to the API.
  */
@@ -224,15 +209,37 @@ export async function processVideoURL(
 ): Promise<CaptionResults> {
   const model = GEMMA_MODELS.B31
 
-  const frameDataUrls = await extractFramesFromURL(url, 6)
-  if (frameDataUrls.length === 0) throw new Error('Could not extract frames from video URL.')
+  // Fetch via local dev proxy to bypass CORS, then extract frames client-side
+  const proxyUrl = `/api/video-proxy?url=${encodeURIComponent(url)}`
+  const res = await fetch(proxyUrl)
+  if (!res.ok) throw new Error(`Failed to fetch video: ${res.status}`)
+  const blob = await res.blob()
+  const objectUrl = URL.createObjectURL(blob)
+
+  let frameDataUrls: string[]
+  try {
+    frameDataUrls = await new Promise<string[]>((resolve, reject) => {
+      const video = document.createElement('video')
+      video.preload = 'metadata'
+      video.muted = true
+      video.playsInline = true
+      video.src = objectUrl
+      video.addEventListener('error', () => reject(new Error('Video load failed')))
+      video.addEventListener('loadedmetadata', () => {
+        captureFrames(video, 6).then(resolve).catch(reject)
+      })
+    })
+  } finally {
+    URL.revokeObjectURL(objectUrl)
+  }
+
+  if (frameDataUrls.length === 0) throw new Error('Could not extract frames from video.')
 
   const frameParts = frameDataUrls.map(u => ({
     type: 'image_url' as const,
     image_url: { url: u },
   }))
 
-  // First pass: describe the video from frames (frames sent ONCE only)
   const descMessages: FWMessage[] = [
     {
       role: 'system',

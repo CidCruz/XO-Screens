@@ -1,6 +1,30 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
+import type { Plugin } from 'vite'
+import http from 'node:http'
+import https from 'node:https'
+
+function videoProxyPlugin(): Plugin {
+  return {
+    name: 'video-proxy',
+    configureServer(server) {
+      server.middlewares.use('/api/video-proxy', (req, res) => {
+        const urlParam = new URLSearchParams(req.url?.slice(1) ?? '').get('url')
+        if (!urlParam) { res.writeHead(400); res.end('Missing url param'); return }
+        const parsed = new URL(urlParam)
+        const client = parsed.protocol === 'https:' ? https : http
+        client.get(urlParam, (upstream) => {
+          res.writeHead(upstream.statusCode ?? 200, {
+            'Content-Type': upstream.headers['content-type'] ?? 'video/mp4',
+            'Access-Control-Allow-Origin': '*',
+          })
+          upstream.pipe(res)
+        }).on('error', () => { res.writeHead(500); res.end('Proxy error') })
+      })
+    },
+  }
+}
 
 /**
  * Shared Vite config.
@@ -13,7 +37,7 @@ export default defineConfig(({ mode }) => {
   const isDesktop = mode === 'desktop'
 
   return {
-    plugins: [react(), tailwindcss()],
+    plugins: [react(), tailwindcss(), videoProxyPlugin()],
     base: './',
     // In web mode, swap the HTML entry so Vite serves index.web.html at /
     publicDir: 'public',
@@ -26,7 +50,6 @@ export default defineConfig(({ mode }) => {
     },
     server: {
       port: isDesktop ? 5173 : 5174,
-      // For web mode, open the correct HTML entry
       open: isDesktop ? false : '/index.web.html',
     },
   }
