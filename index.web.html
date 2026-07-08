@@ -20,9 +20,21 @@
         font-family: 'Inter', system-ui, sans-serif;
         color: #fff;
         -webkit-font-smoothing: antialiased;
+        font-size: 16px;
       }
 
-      #root { width: 100vw; height: 100dvh; }
+      /*
+       * Scale the entire app to replicate 150% browser zoom on a 2560×1440 display.
+       * zoom: 1.5 makes every px render 1.5× larger, so 13px text looks like 19.5px,
+       * layouts feel spacious, and the UI fills a 1440p monitor beautifully.
+       * We counter-scale width/height so the root still covers the full screen.
+       */
+      #root {
+        zoom: 1.2;
+        width: calc(100vw / 1.2);
+        height: calc(100dvh / 1.2);
+        overflow: hidden;
+      }
 
       /* ── Splash screen ── */
       #splash {
