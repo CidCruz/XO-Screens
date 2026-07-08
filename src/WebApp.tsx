@@ -225,8 +225,17 @@ function HomePanel({ onNavigate }: { onNavigate: (id: string) => void }) {
 
 /* ── Settings panel ───────────────────────────────────────────────────────── */
 function SettingsPanel() {
-  const apiKey = import.meta.env.VITE_FIREWORKS_API_KEY
-  const masked = apiKey ? `${apiKey.slice(0, 6)}${'•'.repeat(20)}` : 'Not set'
+  const [apiKey, setApiKey] = useState(() => localStorage.getItem('xo-fireworks-api-key') ?? '')
+  const [saved, setSaved] = useState(false)
+  const [show, setShow] = useState(false)
+
+  function handleSave() {
+    const trimmed = apiKey.trim()
+    if (trimmed) localStorage.setItem('xo-fireworks-api-key', trimmed)
+    else localStorage.removeItem('xo-fireworks-api-key')
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2000)
+  }
 
   return (
     <div className="web-panel-main" style={{ padding: '28px 32px', overflowY: 'auto' }}>
@@ -239,21 +248,50 @@ function SettingsPanel() {
           <div style={{ fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.35)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 12 }}>
             Fireworks AI
           </div>
-          <div style={{
-            padding: '14px 16px', borderRadius: 12,
-            background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)',
-          }}>
-            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', marginBottom: 6 }}>API Key</div>
-            <div style={{
-              fontFamily: 'monospace', fontSize: 12,
-              color: apiKey ? 'rgba(52,211,153,0.85)' : 'rgba(239,68,68,0.8)',
-              wordBreak: 'break-all',
-            }}>{masked}</div>
-            {!apiKey && (
-              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', marginTop: 8 }}>
-                Set <code style={{ background: 'rgba(255,255,255,0.07)', padding: '1px 5px', borderRadius: 4 }}>VITE_FIREWORKS_API_KEY</code> in your <code style={{ background: 'rgba(255,255,255,0.07)', padding: '1px 5px', borderRadius: 4 }}>.env.local</code> file.
-              </div>
-            )}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div style={{ position: 'relative' }}>
+              <input
+                type={show ? 'text' : 'password'}
+                value={apiKey}
+                onChange={e => { setApiKey(e.target.value); setSaved(false) }}
+                onKeyDown={e => e.key === 'Enter' && handleSave()}
+                placeholder="fw_••••••••••••••••••••"
+                spellCheck={false}
+                style={{
+                  width: '100%', boxSizing: 'border-box',
+                  background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
+                  borderRadius: 10, padding: '10px 38px 10px 14px',
+                  color: '#fff', fontSize: 12, fontFamily: 'monospace', outline: 'none',
+                }}
+                onFocus={e => { e.currentTarget.style.borderColor = 'rgba(139,92,246,0.5)' }}
+                onBlur={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)' }}
+              />
+              <button onClick={() => setShow(v => !v)} style={{
+                position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
+                background: 'none', border: 'none', cursor: 'pointer',
+                color: 'rgba(255,255,255,0.3)', padding: 2,
+              }}>
+                <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  {show
+                    ? <><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" /></>
+                    : <><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></>}
+                </svg>
+              </button>
+            </div>
+            <button onClick={handleSave} style={{
+              padding: '10px', borderRadius: 10, border: 'none', cursor: 'pointer',
+              background: saved ? 'rgba(16,185,129,0.2)' : 'rgba(139,92,246,0.6)',
+              color: saved ? 'rgba(16,185,129,0.9)' : '#fff',
+              fontSize: 12, fontWeight: 600, fontFamily: 'inherit', transition: 'all 0.2s',
+            }}>
+              {saved ? '✓ Saved' : 'Save API Key'}
+            </button>
+            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.25)', lineHeight: 1.6 }}>
+              Get your key at{' '}
+              <a href="https://fireworks.ai" target="_blank" rel="noreferrer"
+                style={{ color: 'rgba(139,92,246,0.7)', textDecoration: 'none' }}>fireworks.ai</a>
+              . Stored locally in your browser only.
+            </div>
           </div>
         </div>
 

@@ -14,9 +14,16 @@ import type { Message } from './types'
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 
-const API_KEY  = import.meta.env.VITE_FIREWORKS_API_KEY as string
 const BASE_URL = (import.meta.env.VITE_FIREWORKS_BASE_URL as string | undefined)
   ?? 'https://api.fireworks.ai/inference/v1'
+
+export const BYOK_STORAGE_KEY = 'xo-fireworks-api-key'
+
+function getApiKey(): string {
+  return localStorage.getItem(BYOK_STORAGE_KEY)
+    || (import.meta.env.VITE_FIREWORKS_API_KEY as string | undefined)
+    || ''
+}
 
 // ─── Available Models ─────────────────────────────────────────────────────────
 
@@ -91,7 +98,7 @@ async function callFW(
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${API_KEY}`,
+      'Authorization': `Bearer ${getApiKey()}`,
     },
     body: JSON.stringify(body),
   })
