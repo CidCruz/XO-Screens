@@ -769,8 +769,8 @@ export default function VideoCaptionsApp({ onClose: _onClose, onCornerDown }: Pr
                   <Spinner />
                   <span style={{ fontSize: 11, color: 'rgba(245,158,11,0.9)', fontWeight: 500 }}>
                     {uploadPhase === 'uploading'
-                      ? `Uploading… ${uploadPct}%`
-                      : 'Fireworks AI is processing your video…'}
+                      ? 'Extracting frames…'
+                      : 'Sending frames to AI…'}
                   </span>
                 </div>
                 {uploadPhase === 'uploading' && (
@@ -778,8 +778,8 @@ export default function VideoCaptionsApp({ onClose: _onClose, onCornerDown }: Pr
                     <div style={{
                       height: '100%', borderRadius: 99,
                       background: 'rgba(245,158,11,0.7)',
-                      width: `${uploadPct}%`,
-                      transition: 'width 0.3s ease',
+                      width: '60%',
+                      animation: 'vc-spin 1.5s ease-in-out infinite alternate',
                     }} />
                   </div>
                 )}

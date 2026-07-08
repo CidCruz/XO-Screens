@@ -126,7 +126,7 @@ function SettingsWidget({ onClose, onCornerDown }: SettingsWidgetProps) {
                 { label: 'Mode',      value: 'Desktop Overlay' },
                 { label: 'Provider',  value: 'Fireworks AI' },
                 { label: 'Chat',      value: 'DeepSeek V4 Pro' },
-                { label: 'Captions',  value: 'Kimi K2 P6 (Vision)' },
+                { label: 'Captions',  value: 'Qwen3 Plus (Vision)' },
                 { label: 'Platform',  value: xo.platform ?? 'electron' },
               ].map(row => (
                 <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
