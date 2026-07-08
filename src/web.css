@@ -93,7 +93,6 @@ body {
 .web-content {
   flex: 1;
   width: 100%;
-  height: 100%;
   overflow: hidden;
   position: relative;
   z-index: 1;
@@ -194,10 +193,16 @@ body {
 .web-content {
   flex: 1;
   display: flex;
-  height: 100%;
+  /* Leave room for the fixed bottom island: 38px btn + 12px padding + 24px gap ≈ 82px */
+  height: calc(100dvh - 82px);
+  max-height: calc(100dvh - 82px);
   overflow: hidden;
   position: relative;
   z-index: 1;
+}
+
+.web-panel-main {
+  padding-bottom: 0;
 }
 
 /* ── Nav items ───────────────────────────────────────────────────────────── */
@@ -259,11 +264,22 @@ body {
   display: flex;
   flex-direction: column;
   height: 100%;
+  width: 100%;
   overflow: hidden;
-  background: rgba(0,0,0,0.15);
+  background: transparent;
 }
 
-/* ── Panel header ────────────────────────────────────────────────────────── */
+/* ── Bento Chat Layout ───────────────────────────────────────────────────── */
+.xo-bento-chat {
+  display: flex;
+  flex-direction: row;
+  width: 100%;
+  height: 100%;
+  gap: 10px;
+  padding: 12px;
+  overflow: hidden;
+  box-sizing: border-box;
+}
 .web-panel-header {
   display: flex;
   align-items: center;
@@ -299,20 +315,23 @@ body {
 
 /* ── Chat messages ───────────────────────────────────────────────────────── */
 .web-msg-user {
-  background: linear-gradient(135deg, rgba(235,177,89,0.18), rgba(238,111,83,0.12));
-  border: 1px solid rgba(238,111,83,0.25);
+  background: linear-gradient(135deg, rgba(235,177,89,0.2), rgba(238,111,83,0.14));
+  border: 1px solid rgba(238,111,83,0.28);
   color: #fff;
   border-radius: 18px 18px 4px 18px;
-  padding: 10px 14px;
-  font-size: 13px; line-height: 1.65;
+  padding: 11px 16px;
+  font-size: 13px; line-height: 1.7;
   max-width: 78%; word-break: break-word;
-  box-shadow: 0 2px 12px rgba(238,111,83,0.12);
+  box-shadow: 0 2px 16px rgba(238,111,83,0.12);
 }
 .web-msg-ai {
-  color: rgba(255,255,255,0.78);
-  font-size: 13px; line-height: 1.75;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.07);
+  color: rgba(255,255,255,0.82);
+  font-size: 13px; line-height: 1.8;
   max-width: 88%; word-break: break-word;
-  padding: 2px 0;
+  padding: 11px 16px;
+  border-radius: 4px 18px 18px 18px;
 }
 
 /* ── Notes list item ─────────────────────────────────────────────────────── */
@@ -370,6 +389,104 @@ body {
 
 /* ── Chat history row hover ──────────────────────────────────────────────── */
 .chat-history-row:hover .chat-history-delete { opacity: 1 !important; }
+
+/* ── Bento Chat Layout ───────────────────────────────────────────────────── */
+.xo-bento-chat {
+  display: flex;
+  height: 100%;
+  gap: 10px;
+  padding: 12px 12px 12px 12px;
+  overflow: hidden;
+}
+
+/* Left column — fixed width, two stacked cards */
+.xo-bento-col--left {
+  width: 256px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow: hidden;
+}
+
+/* Right column — fills remaining space, two stacked cards */
+.xo-bento-col--right {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* Base bento card */
+.xo-bento-card {
+  position: relative;
+  border-radius: 20px;
+  border: 1px solid rgba(255,255,255,0.07);
+  background: rgba(255,255,255,0.03);
+  backdrop-filter: blur(16px) saturate(150%);
+  -webkit-backdrop-filter: blur(16px) saturate(150%);
+  overflow: hidden;
+  transition: border-color 0.2s;
+}
+.xo-bento-card:hover {
+  border-color: rgba(255,255,255,0.11);
+}
+
+/* Brand card — amber tint, fixed height */
+.xo-bento-card--brand {
+  padding: 18px 16px;
+  flex-shrink: 0;
+  background: rgba(235,177,89,0.04);
+  border-color: rgba(235,177,89,0.12);
+}
+.xo-bento-card--brand:hover {
+  border-color: rgba(235,177,89,0.2);
+}
+
+/* Sessions card — fills remaining left space */
+.xo-bento-card--sessions {
+  flex: 1;
+  padding: 14px 12px 12px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.xo-sessions-list {
+  flex: 1;
+  overflow-y: auto;
+}
+
+/* Messages card — fills most of right column */
+.xo-bento-card--messages {
+  flex: 1;
+  padding: 20px 20px 16px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  gap: 0;
+}
+
+/* Input card — fixed height at bottom of right column */
+.xo-bento-card--input {
+  flex-shrink: 0;
+  padding: 14px 16px 14px;
+  background: rgba(255,255,255,0.03);
+  border-color: rgba(255,255,255,0.08);
+}
+.xo-bento-card--input:focus-within {
+  border-color: rgba(235,177,89,0.28);
+  background: rgba(235,177,89,0.03);
+}
+
+.xo-input-field {
+  min-height: 22px;
+}
+
+/* Session row */
+.xo-session-row { user-select: none; }
 
 /* ── Home panel — hero redesign ──────────────────────────────────────────── */
 .xo-home {
@@ -495,6 +612,10 @@ body {
     rgba(235,177,89,0.04) 100%);
   background-size: 200% auto;
   animation: shimmer 1.6s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 
 /* ── Spinner ─────────────────────────────────────────────────────────────── */
