@@ -1,3 +1,11 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.env
+*.egg-info/
+dist/
+
 # Logs
 logs
 *.log

@@ -4,11 +4,9 @@
 # Build (linux/amd64 — required by judging VM):
 #   docker buildx build --platform linux/amd64 -t xo-screens-track2:latest .
 #
-# Run locally:
+# Run locally (see README.md for full instructions):
 #   docker run --rm \
 #     -e FIREWORKS_API_KEY=your_key \
-#     -e FIREWORKS_BASE_URL=https://api.fireworks.ai/inference/v1 \
-#     -e ALLOWED_MODELS=accounts/fireworks/models/qwen3p7-plus \
 #     -v $(pwd)/test/input:/input:ro \
 #     -v $(pwd)/test/output:/output \
 #     xo-screens-track2:latest
@@ -35,9 +33,5 @@ RUN mkdir -p /input /output && \
     chown agent:agent /input /output /app
 
 USER agent
-
-# Healthcheck — ensures container is alive (not required by spec but good practice)
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=1 \
-    CMD python -c "import requests; print('ok')" || exit 1
 
 CMD ["python", "-u", "agent.py"]

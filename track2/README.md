@@ -2,21 +2,21 @@
 
 **XO-Screens | AMD Developer Hackathon: ACT II**
 
-Generates video captions in 4 styles using **Fireworks AI** (Gemma 4 31B IT running on AMD hardware).
+Watches a video clip and generates captions in 4 styles using Fireworks AI vision models.
 
 ---
 
 ## How it works
 
 1. Reads `/input/tasks.json` — list of video URLs + requested styles
-2. Downloads each video to a temp directory
-3. Extracts **12 evenly-spaced JPEG frames** with `ffmpeg` / `ffprobe`
-4. **First pass** — calls Fireworks AI to produce a detailed video description from the frames
-5. **Second pass** — generates captions in all 4 styles in parallel (ThreadPoolExecutor)
-6. Writes `/output/results.json` — one entry per task with captions for every style
-7. Exits with code `0`
-
-Model selection is read from the `ALLOWED_MODELS` environment variable at runtime — no model IDs are hardcoded in the image. When `ALLOWED_MODELS` is set, the agent selects the most capable available vision model (prefers `kimi` > `gemma` > `llava` > first entry).
+2. Downloads each video (up to 500 MB) to a temp directory
+3. Extracts **8 evenly-spaced JPEG frames** with a single `ffmpeg` invocation
+4. **First pass** — sends all frames to a vision model to produce a detailed description
+5. Deletes frames and video from disk immediately after description to free space
+6. **Second pass** — generates captions for all requested styles in parallel (ThreadPoolExecutor)
+7. Every requested style is guaranteed an entry in the output — no silent drops
+8. Writes `/output/results.json` — one entry per task with captions for every requested style
+9. Exits with code `0`
 
 ---
 
@@ -31,6 +31,19 @@ Model selection is read from the `ALLOWED_MODELS` environment variable at runtim
 
 ---
 
+## Environment variables
+
+| Variable | Required | Description |
+|---|---|---|
+| `FIREWORKS_API_KEY` | **Yes** | Your Fireworks AI API key — use your own credentials for Track 2 |
+| `FIREWORKS_BASE_URL` | No | Override the Fireworks base URL (default: `https://api.fireworks.ai/inference/v1`) |
+| `VISION_MODEL` | No | Override the vision model (default: `qwen2p5-vl-72b-instruct`) |
+| `TEXT_MODEL` | No | Override the text model (default: `llama4-scout-instruct-basic`) |
+
+> **Note:** Track 2 has no `ALLOWED_MODELS` restriction — you may use any model, API, or framework with your own credentials inside the container.
+
+---
+
 ## Build
 
 ```bash
@@ -38,31 +51,34 @@ Model selection is read from the `ALLOWED_MODELS` environment variable at runtim
 docker buildx build --platform linux/amd64 -t xo-screens-track2:latest .
 ```
 
-> **Apple Silicon (M1/M2/M3):** the `--platform linux/amd64` flag is mandatory.  
-> **Intel/AMD machines:** this flag is fine to keep, it's a no-op on native amd64.
+> **Apple Silicon (M1/M2/M3):** the `--platform linux/amd64` flag is mandatory.
+> **Intel/AMD machines:** the flag is harmless to keep.
 
 ---
 
 ## Run locally
 
 ```bash
-# Create test directories
-mkdir -p test/input test/output
-
-# Copy the provided sample input
+# Copy sample input
 cp sample_input.json test/input/tasks.json
 
-# Run — injecting the three env vars the harness will provide
+# Run — only FIREWORKS_API_KEY is required
 docker run --rm \
   -e FIREWORKS_API_KEY=your_fireworks_api_key \
-  -e FIREWORKS_BASE_URL=https://api.fireworks.ai/inference/v1 \
-  -e ALLOWED_MODELS=accounts/fireworks/models/gemma-4-31b-it \
-  -v "$(pwd)/test/input:/input" \
+  -v "$(pwd)/test/input:/input:ro" \
   -v "$(pwd)/test/output:/output" \
   xo-screens-track2:latest
 
 # Inspect results
 cat test/output/results.json
+```
+
+For local development outside Docker, copy `.env.example` to `.env` and fill in your key, then run:
+
+```bash
+pip install -r requirements.txt
+# Set FIREWORKS_API_KEY in your shell or .env, then:
+python agent.py
 ```
 
 ---
@@ -113,22 +129,20 @@ docker push ghcr.io/yourgithubuser/xo-screens-track2:latest
 
 ---
 
-## Environment variables
-
-| Variable | Required | Description |
-|---|---|---|
-| `FIREWORKS_API_KEY` | **Yes** | Injected by harness — use this key, not your own |
-| `FIREWORKS_BASE_URL` | **Yes** | All API calls route through this URL — required for proxy recording |
-| `ALLOWED_MODELS` | **Yes** | Comma-separated list of permitted model IDs — agent selects best available |
-
-> **Important:** All API calls go through `FIREWORKS_BASE_URL`. Calls that bypass it score zero tokens. Model IDs are read from `ALLOWED_MODELS` at runtime — nothing is hardcoded.
-
----
-
 ## Example clips (from the spec)
 
 | Clip | URL | Content |
 |---|---|---|
-| v1 | [link](https://storage.googleapis.com/amd-hackathon-clips/1860079-uhd_2560_1440_25fps.mp4) | Urban autumn boulevard |
-| v2 | [link](https://storage.googleapis.com/amd-hackathon-clips/13825391-uhd_3840_2160_30fps.mp4) | Orange kitten in garden |
-| v3 | [link](https://storage.googleapis.com/amd-hackathon-clips/3044693-uhd_3840_2160_24fps.mp4) | Office worker at desktop |
+| v1 | [link](https://storage.googleapis.com/amd-hackathon-clips/1860079-uhd_2560_1440_25fps.mp4) | Urban autumn boulevard with golden trees and city traffic |
+| v2 | [link](https://storage.googleapis.com/amd-hackathon-clips/13825391-uhd_3840_2160_30fps.mp4) | Orange kitten among green foliage in a garden |
+| v3 | [link](https://storage.googleapis.com/amd-hackathon-clips/3044693-uhd_3840_2160_24fps.mp4) | Office worker at a desktop computer in a modern open-plan office |
+
+---
+
+## Scoring
+
+Each caption is scored by LLM-Judge on:
+1. **Caption accuracy** (0–1): how faithfully the caption reflects the video content
+2. **Style match** (0–1): how well the caption matches the requested tone
+
+Final score = weighted average across all clips and all requested styles.
