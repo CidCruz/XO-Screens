@@ -158,38 +158,37 @@ const TONE_SYSTEM_PROMPTS: Record<CaptionTone, string> = {
     'You are a stand-up comedian captioning videos for a general audience. Keep it punny and light-hearted, no jargon — but you MUST accurately describe what is actually shown in the video. /no_think',
 }
 
-const CAPTION_USER_PROMPT = (videoDescription: string) => `Here is a detailed description of the video you must caption:
-
+const CAPTION_USER_PROMPT = (videoDescription: string) => `Video description:
 ${videoDescription}
 
-Your caption MUST be grounded in this description — do not invent content that is not described above.
+Write captions and a summary for this video in your assigned tone. Base everything strictly on the description above.
 
-Respond ONLY with this JSON (no markdown, no extra text):
-{"captions": "CAPTION_TEXT", "summary": "SUMMARY_TEXT"}
+Output a single raw JSON object with exactly two keys:
+- "captions": 2-3 sentences describing the video
+- "summary": one paragraph summarising the video
 
-Replace CAPTION_TEXT with 2-3 sentences about the video in your assigned tone.
-Replace SUMMARY_TEXT with a paragraph summarising the video in your assigned tone.
-Be specific about the actual content described above.`
+No markdown, no code fences, no explanation. Start your response with { and end with }. /no_think`
 
 function parseToneResult(raw: string): ToneResult {
-  const clean = raw
+  // Strip think blocks and fences, then grab the outermost { ... } (greedy — handles values with braces)
+  const stripped = raw
+    .replace(/<think>[\s\S]*?<\/think>/gi, '')
     .replace(/^```json\s*/i, '')
     .replace(/^```\s*/i, '')
     .replace(/```\s*$/g, '')
     .trim()
 
+  // Greedy match: from first { to last }
+  const jsonMatch = stripped.match(/\{[\s\S]*\}/)
+  const clean = jsonMatch ? jsonMatch[0].trim() : stripped
+
   let parsed: { captions?: unknown; summary?: unknown } = {}
   try {
     parsed = JSON.parse(clean)
-  } catch {
-    const match = clean.match(/\{[\s\S]*\}/)
-    if (match) {
-      try { parsed = JSON.parse(match[0]) } catch { /* fall through */ }
-    }
-  }
+  } catch { /* fall through — parsed stays {} */ }
 
   const isPlaceholder = (s: unknown) =>
-    typeof s !== 'string' || s.trim().length < 5 || s.trim() === '...' ||
+    typeof s !== 'string' || s.trim().length < 5 ||
     s.trim() === 'CAPTION_TEXT' || s.trim() === 'SUMMARY_TEXT'
 
   return {
@@ -254,7 +253,7 @@ export async function processVideoURL(
   const results = {} as CaptionResults
   const tones = Object.keys(TONE_SYSTEM_PROMPTS) as CaptionTone[]
 
-  // Caption pass: text only — NO frames re-sent
+  // Caption pass: text only — use CHAT model (no vision needed, avoids reasoning bleed)
   await Promise.all(tones.map(async tone => {
     onProgress?.(tone)
     let lastErr: unknown
@@ -264,7 +263,7 @@ export async function processVideoURL(
           { role: 'system', content: TONE_SYSTEM_PROMPTS[tone] },
           { role: 'user', content: CAPTION_USER_PROMPT(videoDescription) },
         ]
-        const choice = await callFW(msgs, model, { temperature: 0.7, maxTokens: 1024 })
+        const choice = await callFW(msgs, GEMMA_MODELS.E4B, { temperature: 0.7, maxTokens: 1024 })
         results[tone] = parseToneResult(choice.message.content ?? '')
         return
       } catch (err) {
@@ -382,7 +381,7 @@ export async function processVideoFile(
   const results = {} as CaptionResults
   const tones = Object.keys(TONE_SYSTEM_PROMPTS) as CaptionTone[]
 
-  // Caption pass: text only — NO frames re-sent
+  // Caption pass: text only — use CHAT model (no vision needed, avoids reasoning bleed)
   await Promise.all(tones.map(async tone => {
     onProgress?.(tone)
     let lastErr: unknown
@@ -392,7 +391,7 @@ export async function processVideoFile(
           { role: 'system', content: TONE_SYSTEM_PROMPTS[tone] },
           { role: 'user', content: CAPTION_USER_PROMPT(videoDescription) },
         ]
-        const choice = await callFW(msgs, model, { temperature: 0.7, maxTokens: 1024 })
+        const choice = await callFW(msgs, GEMMA_MODELS.E4B, { temperature: 0.7, maxTokens: 1024 })
         results[tone] = parseToneResult(choice.message.content ?? '')
         return
       } catch (err) {
