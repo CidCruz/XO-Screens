@@ -4,7 +4,7 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 body {
-  background: #050507;
+  background: #0a0704;
   overflow: hidden;
   font-family: 'Inter', system-ui, sans-serif;
   color: #fff;
@@ -21,14 +21,17 @@ body {
 
 /* ── Design tokens ───────────────────────────────────────────────────────── */
 :root {
-  --accent-violet: rgba(139, 92, 246, 1);
-  --accent-indigo: rgba(99, 102, 241, 1);
-  --accent-emerald: rgba(52, 211, 153, 1);
-  --surface-0: #050507;
-  --surface-1: rgba(255,255,255,0.03);
-  --surface-2: rgba(255,255,255,0.06);
-  --border: rgba(255,255,255,0.07);
-  --border-bright: rgba(255,255,255,0.12);
+  --fire-amber: #EBB159;
+  --fire-ember: #EE6F53;
+  --fire-mid: #EC9056;
+  --accent-violet: #EBB159;
+  --accent-indigo: #EE6F53;
+  --accent-emerald: #EBB159;
+  --surface-0: #0a0704;
+  --surface-1: rgba(235,177,89,0.04);
+  --surface-2: rgba(235,177,89,0.08);
+  --border: rgba(235,177,89,0.1);
+  --border-bright: rgba(235,177,89,0.2);
   --text-primary: #fff;
   --text-secondary: rgba(255,255,255,0.5);
   --text-muted: rgba(255,255,255,0.25);
@@ -63,8 +66,8 @@ body {
   100% { transform: translate(0, 0) scale(1); }
 }
 @keyframes pulse-dot {
-  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(52,211,153,0.4); }
-  50%       { opacity: 0.7; box-shadow: 0 0 0 4px rgba(52,211,153,0); }
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(235,177,89,0.5); }
+  50%       { opacity: 0.7; box-shadow: 0 0 0 4px rgba(235,177,89,0); }
 }
 @keyframes shimmer {
   from { background-position: -200% center; }
@@ -109,7 +112,7 @@ body {
 .web-bg-glow-1 {
   position: fixed;
   width: 700px; height: 700px; border-radius: 50%;
-  background: radial-gradient(circle at 40% 40%, rgba(99,102,241,0.11) 0%, rgba(139,92,246,0.06) 40%, transparent 70%);
+  background: radial-gradient(circle at 40% 40%, rgba(238,111,83,0.13) 0%, rgba(235,177,89,0.07) 40%, transparent 70%);
   top: -280px; right: -180px;
   pointer-events: none; z-index: 0;
   animation: aurora 18s ease-in-out infinite;
@@ -118,7 +121,7 @@ body {
 .web-bg-glow-2 {
   position: fixed;
   width: 600px; height: 600px; border-radius: 50%;
-  background: radial-gradient(circle at 60% 60%, rgba(52,211,153,0.07) 0%, transparent 65%);
+  background: radial-gradient(circle at 60% 60%, rgba(235,177,89,0.08) 0%, transparent 65%);
   bottom: -200px; left: 100px;
   pointer-events: none; z-index: 0;
   animation: aurora2 22s ease-in-out infinite;
@@ -141,11 +144,11 @@ body {
   gap: 4px;
   padding: 6px 8px;
   border-radius: 999px;
-  background: rgba(10,10,14,0.75);
+  background: rgba(12,7,3,0.82);
   backdrop-filter: blur(24px) saturate(180%);
   -webkit-backdrop-filter: blur(24px) saturate(180%);
-  border: 1px solid rgba(255,255,255,0.1);
-  box-shadow: 0 8px 40px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.04) inset;
+  border: 1px solid rgba(235,177,89,0.18);
+  box-shadow: 0 8px 40px rgba(0,0,0,0.6), 0 0 0 1px rgba(235,177,89,0.06) inset, 0 0 24px rgba(238,111,83,0.08);
 }
 
 .web-island-btn {
@@ -166,14 +169,14 @@ body {
   transform: scale(1.08);
 }
 .web-island-btn.active {
-  background: rgba(255,255,255,0.12);
-  color: #fff;
-  box-shadow: 0 0 0 1px rgba(255,255,255,0.15);
+  background: rgba(235,177,89,0.15);
+  color: #EBB159;
+  box-shadow: 0 0 0 1px rgba(235,177,89,0.3), 0 0 10px rgba(238,111,83,0.2);
 }
 
 .web-island-divider {
   width: 1px; height: 20px;
-  background: rgba(255,255,255,0.1);
+  background: rgba(235,177,89,0.15);
   flex-shrink: 0;
   margin: 0 2px;
 }
@@ -216,8 +219,8 @@ body {
   transform: scale(1.06);
 }
 .web-nav-item.active {
-  background: rgba(255,255,255,0.09);
-  color: #fff;
+  background: rgba(235,177,89,0.1);
+  color: #EBB159;
   box-shadow: 0 0 0 1px var(--border-bright);
 }
 .web-nav-item.active::before {
@@ -226,8 +229,8 @@ body {
   transform: translateY(-50%);
   width: 3px; height: 18px;
   border-radius: 0 3px 3px 0;
-  background: linear-gradient(180deg, var(--accent-violet), var(--accent-indigo));
-  box-shadow: 0 0 8px rgba(139,92,246,0.6);
+  background: linear-gradient(180deg, var(--fire-amber), var(--fire-ember));
+  box-shadow: 0 0 8px rgba(238,111,83,0.6);
 }
 
 /* ── Tooltip ─────────────────────────────────────────────────────────────── */
@@ -280,7 +283,7 @@ body {
 /* ── Status dot ──────────────────────────────────────────────────────────── */
 .status-dot {
   width: 6px; height: 6px; border-radius: 50%;
-  background: var(--accent-emerald);
+  background: var(--fire-amber);
   animation: pulse-dot 2.5s ease-in-out infinite;
 }
 
@@ -296,14 +299,14 @@ body {
 
 /* ── Chat messages ───────────────────────────────────────────────────────── */
 .web-msg-user {
-  background: linear-gradient(135deg, rgba(99,102,241,0.18), rgba(139,92,246,0.12));
-  border: 1px solid rgba(139,92,246,0.2);
+  background: linear-gradient(135deg, rgba(235,177,89,0.18), rgba(238,111,83,0.12));
+  border: 1px solid rgba(238,111,83,0.25);
   color: #fff;
   border-radius: 18px 18px 4px 18px;
   padding: 10px 14px;
   font-size: 13px; line-height: 1.65;
   max-width: 78%; word-break: break-word;
-  box-shadow: 0 2px 12px rgba(99,102,241,0.1);
+  box-shadow: 0 2px 12px rgba(238,111,83,0.12);
 }
 .web-msg-ai {
   color: rgba(255,255,255,0.78);
@@ -387,7 +390,7 @@ body {
   content: '';
   position: absolute;
   width: 500px; height: 500px; border-radius: 50%;
-  background: radial-gradient(circle, rgba(99,102,241,0.08) 0%, transparent 65%);
+  background: radial-gradient(circle, rgba(235,177,89,0.09) 0%, rgba(238,111,83,0.04) 50%, transparent 70%);
   top: 50%; left: 50%;
   transform: translate(-50%, -60%);
   pointer-events: none;
@@ -399,11 +402,12 @@ body {
   font-weight: 800;
   letter-spacing: -0.05em;
   line-height: 0.95;
-  background: linear-gradient(135deg, #fff 0%, rgba(255,255,255,0.45) 100%);
+  background: linear-gradient(135deg, #EBB159 0%, #EE6F53 60%, rgba(238,111,83,0.7) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
   margin-bottom: 20px;
+  filter: drop-shadow(0 0 32px rgba(238,111,83,0.35));
 }
 
 .xo-hero-sub {
@@ -486,9 +490,9 @@ body {
 /* ── Shimmer loading ─────────────────────────────────────────────────────── */
 .xo-shimmer {
   background: linear-gradient(90deg,
-    rgba(255,255,255,0.04) 0%,
-    rgba(255,255,255,0.09) 50%,
-    rgba(255,255,255,0.04) 100%);
+    rgba(235,177,89,0.04) 0%,
+    rgba(238,111,83,0.1) 50%,
+    rgba(235,177,89,0.04) 100%);
   background-size: 200% auto;
   animation: shimmer 1.6s linear infinite;
 }

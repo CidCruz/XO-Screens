@@ -82,8 +82,8 @@ function Sidebar({ activeId, onSelect }: SidebarProps) {
       }}>
         <span style={{
           fontFamily: '"Syne", sans-serif',
-          color: '#fff', fontWeight: 800, fontSize: 13, letterSpacing: '-0.04em',
-          textShadow: '0 0 12px rgba(255,255,255,0.6), 0 0 24px rgba(139,92,246,0.4)',
+          color: '#EBB159', fontWeight: 800, fontSize: 13, letterSpacing: '-0.04em',
+          textShadow: '0 0 12px rgba(235,177,89,0.7), 0 0 24px rgba(238,111,83,0.5)',
         }}>XO</span>
       </div>
 
@@ -122,10 +122,10 @@ function HomePanel({ onNavigate }: { onNavigate: (id: string) => void }) {
       title: 'General-Purpose AI Agent',
       desc: '8-category agent: factual knowledge, math, sentiment, summarisation, NER, code debug, logic, and code generation — all via Fireworks AI.',
       chips: ['Factual', 'Math', 'Code', 'Logic', 'NER'],
-      color: 'rgba(99,102,241,0.9)',
-      glow: 'rgba(99,102,241,0.07)',
-      border: 'rgba(99,102,241,0.2)',
-      iconBg: 'rgba(99,102,241,0.1)',
+      color: 'rgba(235,177,89,0.95)',
+      glow: 'rgba(235,177,89,0.07)',
+      border: 'rgba(235,177,89,0.22)',
+      iconBg: 'rgba(235,177,89,0.1)',
       navId: 'chat',
       icon: (
         <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -140,10 +140,10 @@ function HomePanel({ onNavigate }: { onNavigate: (id: string) => void }) {
       title: 'Video Captioning Agent',
       desc: 'Watch a video clip and generate captions in 4 styles: Formal, Sarcastic, Humorous Tech, and Humorous Non-Tech.',
       chips: ['Formal', 'Sarcastic', 'Humorous Tech', 'Non-Tech'],
-      color: 'rgba(139,92,246,0.9)',
-      glow: 'rgba(139,92,246,0.07)',
-      border: 'rgba(139,92,246,0.2)',
-      iconBg: 'rgba(139,92,246,0.1)',
+      color: 'rgba(236,144,86,0.95)',
+      glow: 'rgba(236,144,86,0.07)',
+      border: 'rgba(236,144,86,0.22)',
+      iconBg: 'rgba(236,144,86,0.1)',
       navId: 'video',
       icon: (
         <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -158,10 +158,10 @@ function HomePanel({ onNavigate }: { onNavigate: (id: string) => void }) {
       title: 'XO Screens — Unicorn',
       desc: 'Full AI productivity workspace: chat assistant, smart notes, video summarizer, and usage tracking — all powered by AMD compute.',
       chips: ['Chat', 'Notes', 'Video', 'AMD'],
-      color: 'rgba(52,211,153,0.9)',
-      glow: 'rgba(52,211,153,0.06)',
-      border: 'rgba(52,211,153,0.18)',
-      iconBg: 'rgba(52,211,153,0.09)',
+      color: 'rgba(238,111,83,0.95)',
+      glow: 'rgba(238,111,83,0.07)',
+      border: 'rgba(238,111,83,0.22)',
+      iconBg: 'rgba(238,111,83,0.1)',
       navId: 'chat',
       icon: (
         <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -177,7 +177,7 @@ function HomePanel({ onNavigate }: { onNavigate: (id: string) => void }) {
       {/* Badge */}
       <div style={{ marginBottom: 18, animation: 'fadeIn 0.5s ease both' }}>
         <span className="web-hero-badge">
-          <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#34d399', display: 'inline-block', boxShadow: '0 0 6px rgba(52,211,153,0.8)' }} />
+          <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#EBB159', display: 'inline-block', boxShadow: '0 0 6px rgba(235,177,89,0.8)' }} />
           AMD Developer Hackathon · ACT II
         </span>
       </div>
@@ -276,9 +276,9 @@ function HomePanel({ onNavigate }: { onNavigate: (id: string) => void }) {
       {/* Footer */}
       <div style={{ marginTop: 28, display: 'flex', alignItems: 'center', gap: 16, animation: 'fadeIn 0.5s 0.35s ease both' }}>
         {[
-          { label: 'Fireworks AI', dot: 'rgba(139,92,246,0.8)' },
-          { label: 'AMD Compute', dot: 'rgba(239,68,68,0.7)' },
-          { label: 'DeepSeek V4', dot: 'rgba(52,211,153,0.8)' },
+          { label: 'Fireworks AI', dot: 'rgba(235,177,89,0.85)' },
+          { label: 'AMD Compute', dot: 'rgba(238,111,83,0.85)' },
+          { label: 'DeepSeek V4', dot: 'rgba(236,144,86,0.85)' },
         ].map(f => (
           <div key={f.label} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
             <span style={{ width: 4, height: 4, borderRadius: '50%', background: f.dot, display: 'inline-block' }} />
@@ -330,7 +330,7 @@ function SettingsPanel() {
                   borderRadius: 10, padding: '10px 38px 10px 14px',
                   color: '#fff', fontSize: 12, fontFamily: 'monospace', outline: 'none',
                 }}
-                onFocus={e => { e.currentTarget.style.borderColor = 'rgba(139,92,246,0.5)' }}
+                onFocus={e => { e.currentTarget.style.borderColor = 'rgba(235,177,89,0.5)' }}
                 onBlur={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)' }}
               />
               <button onClick={() => setShow(v => !v)} style={{
@@ -347,7 +347,7 @@ function SettingsPanel() {
             </div>
             <button onClick={handleSave} style={{
               padding: '10px', borderRadius: 10, border: 'none', cursor: 'pointer',
-              background: saved ? 'rgba(16,185,129,0.2)' : 'rgba(139,92,246,0.6)',
+              background: saved ? 'rgba(16,185,129,0.2)' : 'linear-gradient(135deg, #EBB159, #EE6F53)',
               color: saved ? 'rgba(16,185,129,0.9)' : '#fff',
               fontSize: 12, fontWeight: 600, fontFamily: 'inherit', transition: 'all 0.2s',
             }}>
@@ -356,7 +356,7 @@ function SettingsPanel() {
             <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.25)', lineHeight: 1.6 }}>
               Get your key at{' '}
               <a href="https://fireworks.ai" target="_blank" rel="noreferrer"
-                style={{ color: 'rgba(139,92,246,0.7)', textDecoration: 'none' }}>fireworks.ai</a>
+                style={{ color: 'rgba(235,177,89,0.8)', textDecoration: 'none' }}>fireworks.ai</a>
               . Stored locally in your browser only.
             </div>
           </div>
@@ -402,21 +402,21 @@ const WEB_CAP_GROUPS = [
   {
     id: 'notes_read', label: 'Read Notes',
     description: 'List all notes and read their contents.',
-    color: 'rgba(52,211,153,0.9)',
+    color: 'rgba(235,177,89,0.9)',
     tools: ['list_notes', 'get_note'],
     icon: <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>,
   },
   {
     id: 'notes_write', label: 'Write Notes',
     description: 'Create, edit, delete, and focus notes.',
-    color: 'rgba(167,139,250,0.9)',
+    color: 'rgba(236,144,86,0.9)',
     tools: ['create_note', 'update_note', 'delete_note', 'focus_note'],
     icon: <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>,
   },
   {
     id: 'caption_history', label: 'Caption History',
     description: 'Read the video captions history.',
-    color: 'rgba(245,158,11,0.9)',
+    color: 'rgba(238,111,83,0.9)',
     tools: ['get_caption_history'],
     icon: <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.723v6.554a1 1 0 01-1.447.894L15 14M4 8a2 2 0 012-2h9a2 2 0 012 2v8a2 2 0 01-2 2H6a2 2 0 01-2-2V8z" /></svg>,
   },
@@ -655,8 +655,8 @@ function WebChatPanel({ activeNote, appControl }: WebChatPanelProps) {
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={{
                 fontFamily: '"Syne", sans-serif',
-                color: '#fff', fontWeight: 800, fontSize: 15, letterSpacing: '-0.04em',
-                textShadow: '0 0 14px rgba(255,255,255,0.7), 0 0 28px rgba(139,92,246,0.3)',
+                color: '#EBB159', fontWeight: 800, fontSize: 15, letterSpacing: '-0.04em',
+                textShadow: '0 0 14px rgba(235,177,89,0.7), 0 0 28px rgba(238,111,83,0.4)',
               }}>XO</span>
               <span className="web-panel-subtitle" style={{ maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {activeSession?.title ?? 'Assistant'}
@@ -667,13 +667,13 @@ function WebChatPanel({ activeNote, appControl }: WebChatPanelProps) {
                 <div title={`Note context: "${activeNote.title || 'Untitled'}"`} style={{
                   display: 'flex', alignItems: 'center', gap: 5,
                   padding: '3px 9px', borderRadius: 8,
-                  background: 'rgba(139,92,246,0.12)', border: '1px solid rgba(139,92,246,0.25)',
+                  background: 'rgba(235,177,89,0.1)', border: '1px solid rgba(235,177,89,0.25)',
                   maxWidth: 160, overflow: 'hidden',
                 }}>
-                  <svg width="9" height="9" fill="none" stroke="rgba(139,92,246,0.9)" viewBox="0 0 24 24">
+                  <svg width="9" height="9" fill="none" stroke="rgba(235,177,89,0.9)" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                   </svg>
-                  <span style={{ fontSize: 10, color: 'rgba(139,92,246,0.9)', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <span style={{ fontSize: 10, color: 'rgba(235,177,89,0.9)', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {activeNote.title || 'Untitled'}
                   </span>
                 </div>
@@ -1231,7 +1231,7 @@ function WebVideoPanel() {
       }}>
         {/* Header */}
         <div className="web-panel-header" style={{ flexShrink: 0 }}>
-          <span style={{ fontFamily: '"Syne", sans-serif', color: '#fff', fontWeight: 800, fontSize: 15, letterSpacing: '-0.04em', textShadow: '0 0 14px rgba(255,255,255,0.7), 0 0 28px rgba(139,92,246,0.3)' }}>XO</span>
+          <span style={{ fontFamily: '"Syne", sans-serif', color: '#EBB159', fontWeight: 800, fontSize: 15, letterSpacing: '-0.04em', textShadow: '0 0 14px rgba(235,177,89,0.7), 0 0 28px rgba(238,111,83,0.4)' }}>XO</span>
           <span className="web-panel-subtitle">Video Summarizer</span>
           <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6 }}>
             {/* Input mode toggle */}
@@ -1312,7 +1312,7 @@ function WebVideoPanel() {
                 borderRadius: 12, padding: '11px 14px', color: '#fff', fontSize: 12,
                 fontFamily: 'inherit', outline: 'none',
               }}
-              onFocus={e => { e.currentTarget.style.borderColor = 'rgba(139,92,246,0.5)' }}
+              onFocus={e => { e.currentTarget.style.borderColor = 'rgba(235,177,89,0.5)' }}
               onBlur={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)' }}
             />
           )}
@@ -1322,14 +1322,14 @@ function WebVideoPanel() {
         <div style={{ padding: '0 18px', flexShrink: 0, display: 'flex', gap: 8 }}>
           <button onClick={handleProcess} disabled={!canProcess} style={{
             flex: 1, padding: '10px 16px', borderRadius: 12, border: 'none',
-            background: canProcess ? 'rgba(139,92,246,0.75)' : 'rgba(255,255,255,0.07)',
+            background: canProcess ? 'linear-gradient(135deg, #EBB159, #EE6F53)' : 'rgba(255,255,255,0.07)',
             color: canProcess ? '#fff' : 'rgba(255,255,255,0.3)',
             fontSize: 12, fontWeight: 600, fontFamily: 'inherit', cursor: canProcess ? 'pointer' : 'not-allowed',
             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
-            transition: 'all 0.15s', boxShadow: canProcess ? '0 0 20px rgba(139,92,246,0.2)' : 'none',
+            transition: 'all 0.15s', boxShadow: canProcess ? '0 0 20px rgba(238,111,83,0.3)' : 'none',
           }}
-            onMouseEnter={e => { if (canProcess) (e.currentTarget as HTMLButtonElement).style.background = 'rgba(139,92,246,0.9)' }}
-            onMouseLeave={e => { if (canProcess) (e.currentTarget as HTMLButtonElement).style.background = 'rgba(139,92,246,0.75)' }}
+            onMouseEnter={e => { if (canProcess) (e.currentTarget as HTMLButtonElement).style.background = 'linear-gradient(135deg, #f0bc6a, #f07a60)' }}
+            onMouseLeave={e => { if (canProcess) (e.currentTarget as HTMLButtonElement).style.background = 'linear-gradient(135deg, #EBB159, #EE6F53)' }}
           >
             {status === 'processing'
               ? <><VSpinner /> {processingTone ? `Processing "${VIDEO_TONES.find(t => t.id === processingTone)?.label}"…` : 'Processing…'}</>
@@ -1544,7 +1544,7 @@ function WebVideoPanel() {
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                         <span style={{ color: 'rgba(255,255,255,0.25)', fontSize: 10 }}>{dateStr} · {timeStr}</span>
-                        <span style={{ color: 'rgba(139,92,246,0.7)', fontSize: 10, fontWeight: 500, background: 'rgba(139,92,246,0.1)', borderRadius: 4, padding: '0px 4px' }}>
+                        <span style={{ color: 'rgba(235,177,89,0.8)', fontSize: 10, fontWeight: 500, background: 'rgba(235,177,89,0.1)', borderRadius: 4, padding: '0px 4px' }}>
                           {toneCount}t
                         </span>
                         {/* Tone dots */}
@@ -1559,11 +1559,11 @@ function WebVideoPanel() {
                     {/* Actions */}
                     <button onClick={() => handleLoadFromHistory(entry)} title="Load" style={{
                       padding: '4px 9px', borderRadius: 7, border: 'none', flexShrink: 0,
-                      background: 'rgba(139,92,246,0.2)', color: 'rgba(139,92,246,0.9)',
+                      background: 'rgba(235,177,89,0.15)', color: 'rgba(235,177,89,0.9)',
                       fontSize: 10, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer', transition: 'all 0.15s',
                     }}
-                      onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(139,92,246,0.35)' }}
-                      onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(139,92,246,0.2)' }}
+                      onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(235,177,89,0.28)' }}
+                      onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(235,177,89,0.15)' }}
                     >Load</button>
                     <button onClick={() => handleDeleteHistory(entry.id)} title="Delete" style={{
                       width: 24, height: 24, borderRadius: 7, border: 'none', flexShrink: 0,
@@ -1652,10 +1652,10 @@ function UsageTrackingPanel() {
   const totalTones = captionHistory.reduce((a, e) => a + Object.keys(e.results).length, 0)
 
   const stats = [
-    { label: 'Chat Sessions',       value: sessions.length,    color: 'rgba(99,102,241,0.9)'  },
-    { label: 'Messages Sent',        value: totalMessages,      color: 'rgba(52,211,153,0.9)'  },
-    { label: 'Videos Summarized',   value: captionHistory.length, color: 'rgba(139,92,246,0.9)' },
-    { label: 'Summaries Generated', value: totalTones,            color: 'rgba(245,158,11,0.9)'  },
+    { label: 'Chat Sessions',       value: sessions.length,    color: '#EBB159'  },
+    { label: 'Messages Sent',        value: totalMessages,      color: '#EC9056'  },
+    { label: 'Videos Summarized',   value: captionHistory.length, color: '#EE6F53' },
+    { label: 'Summaries Generated', value: totalTones,            color: '#EBB159'  },
   ]
 
   const modelInfo = [
@@ -1696,8 +1696,8 @@ function UsageTrackingPanel() {
 
         {/* Provider */}
         <div style={{ marginTop: 24, padding: '12px 14px', borderRadius: 12, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#34d399', boxShadow: '0 0 6px rgba(52,211,153,0.6)', flexShrink: 0 }} />
-          <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>All inference via <span style={{ color: 'rgba(255,255,255,0.7)', fontWeight: 600 }}>Fireworks AI</span> · AMD hardware</span>
+          <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#EBB159', boxShadow: '0 0 6px rgba(235,177,89,0.6)', flexShrink: 0 }} />
+          <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>All inference via <span style={{ color: '#EBB159', fontWeight: 600 }}>Fireworks AI</span> · AMD hardware</span>
         </div>
       </div>
     </div>
