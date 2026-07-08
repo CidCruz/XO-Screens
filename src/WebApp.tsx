@@ -1,4 +1,4 @@
-﻿import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import type { AppItem, Note, AppControl } from './types'
 import { APP_TOOLS, makeExecutor } from './appBridge'
 import { sendToGeminiWithTools, sendToGeminiWithSystem } from './gemini'
@@ -1342,13 +1342,9 @@ function WebVideoPanel() {
   const [errorMsg, setErrorMsg] = useState('')
   const [results, setResults] = useState<CaptionResults | null>(null)
   const [activeTone, setActiveTone] = useState<CaptionTone>('formal')
-  const [activeTab] = useState<'summary'>('summary')
   const [savedToNotes, setSavedToNotes] = useState(false)
   const [currentLabel, setCurrentLabel] = useState('')
   const [history, setHistory] = useState<CaptionHistoryEntry[]>(() => loadCaptionHistory())
-  const [showHistory, setShowHistory] = useState(false)
-  const [historyHeight, setHistoryHeight] = useState(220)
-  const dragRef = useRef<{ startY: number; startH: number } | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   function handleFile(file: File) {
@@ -1375,7 +1371,7 @@ function WebVideoPanel() {
       } else { throw new Error('No video source provided.') }
       setResults(res); setStatus('done'); setProcessingTone(null)
       setUploadPhase(null); setCurrentLabel(label)
-      const updated = addCaptionHistoryEntry({ label, results: res })
+      const updated = addCaptionHistoryEntry({ label, results: res as unknown as Record<string, never> })
       setHistory(updated)
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : 'Something went wrong.')
@@ -1384,16 +1380,11 @@ function WebVideoPanel() {
   }
 
   function handleLoadFromHistory(entry: CaptionHistoryEntry) {
-    setResults(entry.results as CaptionResults)
+    setResults(entry.results as unknown as CaptionResults)
     setCurrentLabel(entry.label)
     setStatus('done')
     setActiveTone('formal')
     setSavedToNotes(false)
-    setShowHistory(false)
-  }
-
-  function handleDeleteHistory(id: string) {
-    setHistory(deleteCaptionHistoryEntry(id))
   }
 
   function handleClearHistory() {
@@ -1408,9 +1399,7 @@ function WebVideoPanel() {
     const ts = new Date().toLocaleString()
     const newNotes: Note[] = VIDEO_TONES.map(t => {
       const r = results[t.id]
-      const content =
-        `[Video] ${label}\n[Generated] ${ts}\n\n` +
-        `-- Summary --\n${r.summary}`
+      const content = `[Video] ${label}\n[Generated] ${ts}\n\n-- Summary --\n${r.summary}`
       const now = Date.now()
       return { id: now.toString() + Math.random().toString(36).slice(2), title: `[${t.label}] ${label}`, content, color: TONE_NOTE_COLORS[t.id], createdAt: now, updatedAt: now }
     })
@@ -1424,428 +1413,374 @@ function WebVideoPanel() {
   const activeResult = results?.[activeTone]
 
   return (
-    <div className="web-panel-main" style={{ flexDirection: 'row', padding: 0, position: 'relative' }}>
+    <div className="xo-bento-chat" style={{ padding: 0 }}>
       <style>{`@keyframes vs-spin { to { transform: rotate(360deg); } }`}</style>
 
-      {/* â”€â”€ Left: input + controls â”€â”€ */}
-      <div style={{
-        width: 380, flexShrink: 0, display: 'flex', flexDirection: 'column',
-        borderRight: '1px solid rgba(255,255,255,0.06)', background: 'rgba(0,0,0,0.2)',
-        overflow: 'hidden',
-      }}>
-        {/* Header */}
-        <div className="web-panel-header" style={{ flexShrink: 0 }}>
-          <span style={{ fontFamily: '"Syne", sans-serif', color: '#EBB159', fontWeight: 800, fontSize: 15, letterSpacing: '-0.04em', textShadow: '0 0 14px rgba(235,177,89,0.7), 0 0 28px rgba(238,111,83,0.4)' }}>XO</span>
-          <span className="web-panel-subtitle">Video Summarizer</span>
-          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6 }}>
-            {/* Input mode toggle */}
-            <div style={{ display: 'flex', gap: 3, background: 'rgba(255,255,255,0.05)', borderRadius: 10, padding: 3 }}>
-              {(['file', 'url'] as const).map(m => (
-                <button key={m} onClick={() => { setInputMode(m); setResults(null); setStatus('idle'); setSavedToNotes(false) }}
-                  style={{
-                    padding: '3px 10px', borderRadius: 7, border: 'none', cursor: 'pointer',
-                    fontSize: 10, fontWeight: 500, fontFamily: 'inherit',
-                    background: inputMode === m ? 'rgba(255,255,255,0.1)' : 'transparent',
-                    color: inputMode === m ? '#fff' : 'rgba(255,255,255,0.35)', transition: 'all 0.15s',
-                  }}>
-                  {m === 'file' ? 'Upload' : 'URL'}
-                </button>
-              ))}
+      {/* LEFT COLUMN */}
+      <div className="xo-bento-col xo-bento-col--left">
+
+        {/* Card 1 — Brand */}
+        <div className="xo-bento-card xo-bento-card--brand" style={{ background:'rgba(238,111,83,0.05)', borderColor:'rgba(238,111,83,0.18)' }}>
+          <div style={{ position:'absolute', inset:0, borderRadius:'inherit', overflow:'hidden', pointerEvents:'none' }}>
+            <div style={{ position:'absolute', width:200, height:200, borderRadius:'50%', background:'radial-gradient(circle, rgba(238,111,83,0.22) 0%, transparent 65%)', top:-70, right:-50, filter:'blur(22px)' }} />
+            <div style={{ position:'absolute', width:120, height:120, borderRadius:'50%', background:'radial-gradient(circle, rgba(235,177,89,0.1) 0%, transparent 70%)', bottom:-30, left:-20, filter:'blur(16px)' }} />
+          </div>
+          <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:18, position:'relative' }}>
+            <div style={{ width:46, height:46, borderRadius:15, flexShrink:0, background:'linear-gradient(145deg, rgba(238,111,83,0.28), rgba(235,177,89,0.14))', border:'1px solid rgba(238,111,83,0.35)', display:'flex', alignItems:'center', justifyContent:'center', boxShadow:'0 0 24px rgba(238,111,83,0.2), inset 0 1px 0 rgba(255,255,255,0.12)' }}>
+              <svg width="18" height="18" fill="none" stroke="rgba(238,111,83,0.95)" viewBox="0 0 24 24" style={{ filter:'drop-shadow(0 0 6px rgba(238,111,83,0.7))' }}>
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M15 10l4.553-2.276A1 1 0 0121 8.723v6.554a1 1 0 01-1.447.894L15 14M4 8a2 2 0 012-2h9a2 2 0 012 2v8a2 2 0 01-2 2H6a2 2 0 01-2-2V8z" />
+              </svg>
             </div>
+            <div>
+              <div style={{ fontSize:15, fontWeight:700, color:'#fff', letterSpacing:'-0.02em', lineHeight:1.2 }}>Video Summarizer</div>
+              <div style={{ display:'flex', alignItems:'center', gap:6, marginTop:3 }}>
+                <div style={{ width:7, height:7, borderRadius:'50%', background:'rgba(238,111,83,0.85)', flexShrink:0 }} />
+                <span style={{ fontSize:11, color:'rgba(255,255,255,0.32)', fontWeight:500 }}>4 caption styles · AI-powered</span>
+              </div>
+            </div>
+          </div>
+          {/* Mode toggle */}
+          <div style={{ position:'relative', display:'flex', gap:4, background:'rgba(255,255,255,0.06)', borderRadius:12, padding:4 }}>
+            {(['file', 'url'] as const).map(m => (
+              <button key={m} onClick={() => { setInputMode(m); setResults(null); setStatus('idle'); setSavedToNotes(false) }}
+                style={{ flex:1, padding:'7px 0', borderRadius:9, border:'none', cursor:'pointer', fontSize:11, fontWeight:600, fontFamily:'inherit', background: inputMode === m ? 'rgba(238,111,83,0.75)' : 'transparent', color: inputMode === m ? '#fff' : 'rgba(255,255,255,0.35)', transition:'all 0.2s', display:'flex', alignItems:'center', justifyContent:'center', gap:6, boxShadow: inputMode === m ? '0 2px 12px rgba(238,111,83,0.3)' : 'none' }}>
+                {m === 'file'
+                  ? <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                  : <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>}
+                {m === 'file' ? 'Upload File' : 'Paste URL'}
+              </button>
+            ))}
           </div>
         </div>
 
-        {/* Drop zone / URL input */}
-        <div style={{ padding: '16px 18px', flexShrink: 0 }}>
+        {/* Card 2 — Drop zone / URL input */}
+        <div className="xo-bento-card" style={{ padding:'18px 18px 16px', flexShrink:0 }}>
           {inputMode === 'file' ? (
             <div
               onClick={() => fileInputRef.current?.click()}
               onDragOver={e => { e.preventDefault(); setDragOver(true) }}
               onDragLeave={() => setDragOver(false)}
               onDrop={e => { e.preventDefault(); setDragOver(false); const f = e.dataTransfer.files?.[0]; if (f) handleFile(f) }}
-              style={{
-                border: `1.5px dashed ${dragOver ? 'rgba(139,92,246,0.7)' : 'rgba(255,255,255,0.1)'}`,
-                borderRadius: 14, padding: '20px 16px',
-                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
-                cursor: 'pointer', transition: 'all 0.15s',
-                background: dragOver ? 'rgba(139,92,246,0.07)' : 'rgba(255,255,255,0.02)',
-              }}
+              style={{ border:`1.5px dashed ${dragOver ? 'rgba(238,111,83,0.7)' : 'rgba(255,255,255,0.1)'}`, borderRadius:14, padding:'22px 16px', display:'flex', flexDirection:'column', alignItems:'center', gap:8, cursor:'pointer', transition:'all 0.15s', background: dragOver ? 'rgba(238,111,83,0.06)' : 'rgba(255,255,255,0.02)' }}
             >
-              <svg width="28" height="28" fill="none" stroke="rgba(255,255,255,0.25)" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 10l4.553-2.276A1 1 0 0121 8.723v6.554a1 1 0 01-1.447.894L15 14M4 8a2 2 0 012-2h9a2 2 0 012 2v8a2 2 0 01-2 2H6a2 2 0 01-2-2V8z" />
-              </svg>
+              <div style={{ width:48, height:48, borderRadius:14, background: dragOver ? 'rgba(238,111,83,0.15)' : 'rgba(255,255,255,0.05)', border:`1px solid ${dragOver ? 'rgba(238,111,83,0.4)' : 'rgba(255,255,255,0.08)'}`, display:'flex', alignItems:'center', justifyContent:'center', transition:'all 0.15s', marginBottom:4 }}>
+                <svg width="22" height="22" fill="none" stroke={dragOver ? 'rgba(238,111,83,0.9)' : 'rgba(255,255,255,0.3)'} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 10l4.553-2.276A1 1 0 0121 8.723v6.554a1 1 0 01-1.447.894L15 14M4 8a2 2 0 012-2h9a2 2 0 012 2v8a2 2 0 01-2 2H6a2 2 0 01-2-2V8z" />
+                </svg>
+              </div>
               {videoFile ? (
-                <div style={{ textAlign: 'center' }}>
-                  <div style={{ color: '#fff', fontSize: 12, fontWeight: 600 }}>{videoFile.name}</div>
-                  <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: 11, marginTop: 3 }}>
+                <div style={{ textAlign:'center' }}>
+                  <div style={{ color:'#fff', fontSize:13, fontWeight:600, marginBottom:3 }}>{videoFile.name}</div>
+                  <div style={{ color:'rgba(255,255,255,0.3)', fontSize:11 }}>
                     {(videoFile.size / (1024 * 1024)).toFixed(1)} MB
                     {' · '}
                     <span style={{ color: videoFile.size > 75 * 1024 * 1024 ? 'rgba(245,158,11,0.8)' : 'rgba(52,211,153,0.7)' }}>
                       {videoFile.size > 75 * 1024 * 1024 ? 'Files API upload' : 'Inline (fast)'}
                     </span>
-                    {' · click to change'}
+                    {' · '}
+                    <span style={{ color:'rgba(238,111,83,0.7)' }}>click to change</span>
                   </div>
                 </div>
               ) : (
                 <>
-                  <div style={{ color: 'rgba(255,255,255,0.45)', fontSize: 12, fontWeight: 500 }}>Drop a video or click to upload</div>
-                  {/* File type badges */}
-                  <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', justifyContent: 'center', marginTop: 2 }}>
-                    {['MP4', 'WEBM', 'MOV', 'AVI', 'MKV'].map(ext => (
-                      <span key={ext} style={{
-                        fontSize: 9, fontWeight: 700, letterSpacing: '0.06em',
-                        padding: '2px 6px', borderRadius: 5,
-                        background: 'rgba(255,255,255,0.06)',
-                        border: '1px solid rgba(255,255,255,0.1)',
-                        color: 'rgba(255,255,255,0.35)',
-                      }}>{ext}</span>
+                  <div style={{ color:'rgba(255,255,255,0.55)', fontSize:12, fontWeight:600 }}>Drop a video or click to upload</div>
+                  <div style={{ display:'flex', gap:4, flexWrap:'wrap', justifyContent:'center', marginTop:2 }}>
+                    {['MP4','WEBM','MOV','AVI','MKV'].map(ext => (
+                      <span key={ext} style={{ fontSize:9, fontWeight:700, letterSpacing:'0.06em', padding:'2px 7px', borderRadius:5, background:'rgba(255,255,255,0.06)', border:'1px solid rgba(255,255,255,0.1)', color:'rgba(255,255,255,0.35)' }}>{ext}</span>
                     ))}
                   </div>
-
                 </>
               )}
-              <input ref={fileInputRef} type="file" accept="video/*" onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f) }} style={{ display: 'none' }} />
+              <input ref={fileInputRef} type="file" accept="video/*" onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f) }} style={{ display:'none' }} />
             </div>
           ) : (
-            <input type="url" value={videoURL}
-              onChange={e => { setVideoURL(e.target.value); setResults(null); setStatus('idle'); setSavedToNotes(false) }}
-              placeholder="Direct video URL only (e.g. .mp4, .webm)"
-              style={{
-                width: '100%', boxSizing: 'border-box',
-                background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
-                borderRadius: 12, padding: '11px 14px', color: '#fff', fontSize: 12,
-                fontFamily: 'inherit', outline: 'none',
-              }}
-              onFocus={e => { e.currentTarget.style.borderColor = 'rgba(235,177,89,0.5)' }}
-              onBlur={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)' }}
-            />
+            <div>
+              <div style={{ fontSize:11, fontWeight:600, color:'rgba(255,255,255,0.3)', marginBottom:8, letterSpacing:'0.04em' }}>Video URL</div>
+              <input type="url" value={videoURL}
+                onChange={e => { setVideoURL(e.target.value); setResults(null); setStatus('idle'); setSavedToNotes(false) }}
+                placeholder="https://example.com/video.mp4"
+                style={{ width:'100%', boxSizing:'border-box', background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:12, padding:'11px 14px', color:'#fff', fontSize:12, fontFamily:'inherit', outline:'none', transition:'border 0.15s' }}
+                onFocus={e => { e.currentTarget.style.borderColor = 'rgba(238,111,83,0.5)' }}
+                onBlur={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)' }}
+              />
+              <div style={{ fontSize:11, color:'rgba(255,255,255,0.22)', marginTop:8, lineHeight:1.5 }}>Direct video file URL only (must end in .mp4, .webm, etc.)</div>
+            </div>
           )}
         </div>
 
-        {/* Process button */}
-        <div style={{ padding: '0 18px', flexShrink: 0, display: 'flex', gap: 8 }}>
+        {/* Card 3 — Generate button + status */}
+        <div className="xo-bento-card" style={{ padding:'16px 18px', flexShrink:0 }}>
           <button onClick={handleProcess} disabled={!canProcess} style={{
-            flex: 1, padding: '10px 16px', borderRadius: 12, border: 'none',
+            width:'100%', padding:'11px 16px', borderRadius:12, border:'none',
             background: canProcess ? 'linear-gradient(135deg, #EBB159, #EE6F53)' : 'rgba(255,255,255,0.07)',
             color: canProcess ? '#fff' : 'rgba(255,255,255,0.3)',
-            fontSize: 12, fontWeight: 600, fontFamily: 'inherit', cursor: canProcess ? 'pointer' : 'not-allowed',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
-            transition: 'all 0.15s', boxShadow: canProcess ? '0 0 20px rgba(238,111,83,0.3)' : 'none',
+            fontSize:13, fontWeight:700, fontFamily:'inherit', cursor: canProcess ? 'pointer' : 'not-allowed',
+            display:'flex', alignItems:'center', justifyContent:'center', gap:8,
+            transition:'all 0.18s', boxShadow: canProcess ? '0 4px 24px rgba(238,111,83,0.35), inset 0 1px 0 rgba(255,255,255,0.15)' : 'none',
           }}
-            onMouseEnter={e => { if (canProcess) (e.currentTarget as HTMLButtonElement).style.background = 'linear-gradient(135deg, #f0bc6a, #f07a60)' }}
-            onMouseLeave={e => { if (canProcess) (e.currentTarget as HTMLButtonElement).style.background = 'linear-gradient(135deg, #EBB159, #EE6F53)' }}
+            onMouseEnter={e => { if (canProcess) { (e.currentTarget as HTMLButtonElement).style.transform='translateY(-1px)'; (e.currentTarget as HTMLButtonElement).style.boxShadow='0 8px 32px rgba(238,111,83,0.45)' } }}
+            onMouseLeave={e => { if (canProcess) { (e.currentTarget as HTMLButtonElement).style.transform=''; (e.currentTarget as HTMLButtonElement).style.boxShadow='0 4px 24px rgba(238,111,83,0.35), inset 0 1px 0 rgba(255,255,255,0.15)' } }}
           >
             {status === 'processing'
-              ? <><VSpinner /> {processingTone ? `Processing "${VIDEO_TONES.find(t => t.id === processingTone)?.label}"…` : 'Processing…'}</>
-              : <>{status === 'done' ? 'Re-summarize' : 'Generate Video Summary'}</>
+              ? <><VSpinner />{processingTone ? `Generating "${VIDEO_TONES.find(t => t.id === processingTone)?.label}"…` : 'Processing…'}</>
+              : <>
+                  <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                  {status === 'done' ? 'Re-generate Captions' : 'Generate Video Captions'}
+                </>
             }
           </button>
-        </div>
 
-        {/* Error */}
-        {status === 'error' && (
-          <div style={{ margin: '12px 18px 0', padding: '10px 14px', borderRadius: 12, background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.22)', color: 'rgba(239,68,68,0.85)', fontSize: 12 }}>
-            âš  {errorMsg}
-          </div>
-        )}
-
-        {/* Progress tracker */}
-        {status === 'processing' && (
-          <div style={{ margin: '12px 18px 0', display: 'flex', flexDirection: 'column', gap: 6 }}>
-
-            {/* Upload progress bar "” only shown for large files using Files API */}
-            {uploadPhase && (
-              <div style={{
-                padding: '8px 12px', borderRadius: 10,
-                background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)',
-                display: 'flex', flexDirection: 'column', gap: 6,
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                  <VSpinner />
-                  <span style={{ fontSize: 11, color: 'rgba(245,158,11,0.9)', fontWeight: 500 }}>
-                    {uploadPhase === 'uploading'
-                      ? `Uploading to Files API… ${uploadPct}%`
-                      : 'Fireworks AI is processing your video…'}
-                  </span>
-                </div>
-                {uploadPhase === 'uploading' && (
-                  <div style={{ height: 3, borderRadius: 99, background: 'rgba(255,255,255,0.07)', overflow: 'hidden' }}>
-                    <div style={{
-                      height: '100%', borderRadius: 99,
-                      background: 'rgba(245,158,11,0.7)',
-                      width: `${uploadPct}%`,
-                      transition: 'width 0.3s ease',
-                    }} />
-                  </div>
-                )}
-              </div>
-            )}
-
-            {VIDEO_TONES.map((t, i) => {
-              const curIdx = VIDEO_TONES.findIndex(x => x.id === processingTone)
-              const isDone = curIdx > i
-              const isCur  = t.id === processingTone
-              return (
-                <div key={t.id} style={{
-                  display: 'flex', alignItems: 'center', gap: 10,
-                  padding: '8px 12px', borderRadius: 10,
-                  background: isCur ? t.accent : isDone ? 'rgba(16,185,129,0.07)' : 'rgba(255,255,255,0.03)',
-                  border: `1px solid ${isCur ? t.border : isDone ? 'rgba(16,185,129,0.2)' : 'rgba(255,255,255,0.06)'}`,
-                  transition: 'all 0.2s',
-                }}>
-                  <span style={{ display: 'flex', color: isCur ? '#fff' : isDone ? 'rgba(16,185,129,0.8)' : 'rgba(255,255,255,0.25)' }}>{t.icon}</span>
-                  <span style={{ fontSize: 12, color: isCur ? '#fff' : isDone ? 'rgba(16,185,129,0.8)' : 'rgba(255,255,255,0.3)', flex: 1 }}>{t.label}</span>
-                  {isCur ? <VSpinner /> : isDone ? <span style={{ color: 'rgba(16,185,129,0.8)', fontSize: 13 }}>âœ“</span> : <span style={{ color: 'rgba(255,255,255,0.15)', fontSize: 12 }}>â—‹</span>}
-                </div>
-              )
-            })}
-          </div>
-        )}
-
-        {/* Save to notes button */}
-        {status === 'done' && (
-          <div style={{ padding: '12px 18px 0', flexShrink: 0 }}>
-            {!savedToNotes ? (
-              <button onClick={saveAllToNotes} style={{
-                width: '100%', padding: '10px 16px', borderRadius: 12,
-                border: '1px solid rgba(16,185,129,0.3)', background: 'rgba(16,185,129,0.1)',
-                color: 'rgba(16,185,129,0.9)', fontSize: 12, fontWeight: 600, fontFamily: 'inherit',
-                cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
-                transition: 'all 0.15s',
-              }}
-                onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(16,185,129,0.18)' }}
-                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(16,185,129,0.1)' }}
-              >
-                <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                </svg>
-                Save all tones to Notes
-              </button>
-            ) : (
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '10px', color: 'rgba(16,185,129,0.8)', fontSize: 12, fontWeight: 500 }}>
-                <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
-                </svg>
-                Saved to Notes
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* â”€â”€ History section (second row, VS Code-style) â”€â”€ */}
-        {/* Divider / section header "” always visible, click to toggle */}
-        <button onClick={() => setShowHistory(v => !v)} style={{
-          marginTop: 'auto', flexShrink: 0,
-          display: 'flex', alignItems: 'center', gap: 6,
-          width: '100%', padding: '8px 14px',
-          borderTop: '1px solid rgba(255,255,255,0.07)',
-          background: 'rgba(255,255,255,0.02)',
-          border: 'none', borderTopColor: 'rgba(255,255,255,0.07)',
-          borderTopStyle: 'solid', borderTopWidth: 1,
-          cursor: 'pointer', transition: 'background 0.15s',
-          textAlign: 'left',
-        }}
-          onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.05)' }}
-          onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.02)' }}
-        >
-          {/* Chevron "” rotates when open */}
-          <svg width="10" height="10" fill="none" stroke="rgba(255,255,255,0.4)" viewBox="0 0 24 24"
-            style={{ transition: 'transform 0.2s', transform: showHistory ? 'rotate(90deg)' : 'rotate(0deg)', flexShrink: 0 }}>
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
-          </svg>
-          <span style={{ fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.45)', letterSpacing: '0.07em', textTransform: 'uppercase', flex: 1 }}>
-            History
-          </span>
-          {history.length > 0 && (
-            <span style={{
-              fontSize: 10, fontWeight: 600, color: 'rgba(255,255,255,0.3)',
-              background: 'rgba(255,255,255,0.07)', borderRadius: 5, padding: '1px 6px',
-            }}>{history.length}</span>
+          {/* Error */}
+          {status === 'error' && (
+            <div style={{ marginTop:10, padding:'10px 14px', borderRadius:12, background:'rgba(239,68,68,0.1)', border:'1px solid rgba(239,68,68,0.22)', color:'rgba(239,68,68,0.9)', fontSize:12, display:'flex', alignItems:'flex-start', gap:8 }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink:0, marginTop:1 }}>
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17" strokeWidth={2.5}/>
+              </svg>
+              {errorMsg}
+            </div>
           )}
-        </button>
 
-        {/* Collapsible history list */}
-        <div style={{
-          height: showHistory ? historyHeight : 0,
-          flexShrink: 0,
-          overflow: 'hidden',
-          transition: dragRef.current ? 'none' : 'height 0.25s cubic-bezier(0.4,0,0.2,1)',
-          borderTop: showHistory ? '1px solid rgba(255,255,255,0.05)' : 'none',
-        }}>
-          {/* Drag handle */}
-          <div
-            onMouseDown={e => {
-              dragRef.current = { startY: e.clientY, startH: historyHeight }
-              const onMove = (ev: MouseEvent) => {
-                if (!dragRef.current) return
-                const delta = dragRef.current.startY - ev.clientY
-                setHistoryHeight(Math.max(80, Math.min(500, dragRef.current.startH + delta)))
-              }
-              const onUp = () => {
-                dragRef.current = null
-                window.removeEventListener('mousemove', onMove)
-                window.removeEventListener('mouseup', onUp)
-              }
-              window.addEventListener('mousemove', onMove)
-              window.addEventListener('mouseup', onUp)
-            }}
-            style={{
-              height: 6, cursor: 'ns-resize', flexShrink: 0,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              background: 'rgba(255,255,255,0.02)',
-              borderBottom: '1px solid rgba(255,255,255,0.05)',
-            }}
-          >
-            <div style={{ width: 28, height: 2, borderRadius: 99, background: 'rgba(255,255,255,0.15)' }} />
-          </div>
-          <div style={{ height: historyHeight - 6, display: 'flex', flexDirection: 'column' }}>
-            {/* Clear all row */}
-            {history.length > 0 && (
-              <div style={{ padding: '7px 14px 4px', flexShrink: 0, display: 'flex', justifyContent: 'flex-end' }}>
-                <button onClick={handleClearHistory} style={{
-                  padding: '2px 9px', borderRadius: 6, border: '1px solid rgba(239,68,68,0.22)',
-                  background: 'rgba(239,68,68,0.07)', color: 'rgba(239,68,68,0.65)',
-                  fontSize: 10, fontWeight: 500, fontFamily: 'inherit', cursor: 'pointer', transition: 'all 0.15s',
-                }}
-                  onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(239,68,68,0.16)' }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(239,68,68,0.07)' }}
-                >Clear all</button>
-              </div>
-            )}
-
-            {/* Entry list */}
-            <div className="web-scroll" style={{ flex: 1, overflowY: 'auto', padding: '4px 10px 10px', display: 'flex', flexDirection: 'column', gap: 5 }}>
-              {history.length === 0 ? (
-                <div style={{
-                  flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center',
-                  justifyContent: 'center', gap: 8, color: 'rgba(255,255,255,0.18)', paddingTop: 24,
-                }}>
-                  <svg width="22" height="22" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.3}>
-                    <circle cx="12" cy="12" r="10" />
-                    <polyline points="12 6 12 12 16 14" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                  <span style={{ fontSize: 11 }}>No history yet</span>
-                </div>
-              ) : history.map(entry => {
-                const date = new Date(entry.createdAt)
-                const dateStr = date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
-                const timeStr = date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
-                const toneCount = Object.keys(entry.results).length
-                return (
-                  <div key={entry.id} style={{
-                    background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)',
-                    borderRadius: 10, padding: '8px 10px',
-                    display: 'flex', alignItems: 'center', gap: 8,
-                    transition: 'background 0.15s',
-                  }}
-                    onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.background = 'rgba(255,255,255,0.07)' }}
-                    onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.background = 'rgba(255,255,255,0.04)' }}
-                  >
-                    {/* Info */}
-                    <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3 }}>
-                      <div style={{ color: '#fff', fontSize: 11, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={entry.label}>
-                        {entry.label}
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                        <span style={{ color: 'rgba(255,255,255,0.25)', fontSize: 10 }}>{dateStr} · {timeStr}</span>
-                        <span style={{ color: 'rgba(235,177,89,0.8)', fontSize: 10, fontWeight: 500, background: 'rgba(235,177,89,0.1)', borderRadius: 4, padding: '0px 4px' }}>
-                          {toneCount}t
-                        </span>
-                        {/* Tone dots */}
-                        <div style={{ display: 'flex', gap: 3 }}>
-                          {VIDEO_TONES.filter(t => entry.results[t.id]).map(t => (
-                            <div key={t.id} title={t.label} style={{ width: 5, height: 5, borderRadius: 99, background: t.dot, opacity: 0.75 }} />
-                          ))}
-                        </div>
-                      </div>
+          {/* Processing progress */}
+          {status === 'processing' && (
+            <div style={{ marginTop:12, display:'flex', flexDirection:'column', gap:6 }}>
+              {uploadPhase && (
+                <div style={{ padding:'8px 12px', borderRadius:10, background:'rgba(245,158,11,0.08)', border:'1px solid rgba(245,158,11,0.2)', display:'flex', flexDirection:'column', gap:5 }}>
+                  <div style={{ display:'flex', alignItems:'center', gap:7 }}>
+                    <VSpinner />
+                    <span style={{ fontSize:11, color:'rgba(245,158,11,0.9)', fontWeight:500 }}>
+                      {uploadPhase === 'uploading' ? `Uploading… ${uploadPct}%` : 'Fireworks AI is processing your video…'}
+                    </span>
+                  </div>
+                  {uploadPhase === 'uploading' && (
+                    <div style={{ height:3, borderRadius:99, background:'rgba(255,255,255,0.07)', overflow:'hidden' }}>
+                      <div style={{ height:'100%', borderRadius:99, background:'rgba(245,158,11,0.7)', width:`${uploadPct}%`, transition:'width 0.3s ease' }} />
                     </div>
-
-                    {/* Actions */}
-                    <button onClick={() => handleLoadFromHistory(entry)} title="Load" style={{
-                      padding: '4px 9px', borderRadius: 7, border: 'none', flexShrink: 0,
-                      background: 'rgba(235,177,89,0.15)', color: 'rgba(235,177,89,0.9)',
-                      fontSize: 10, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer', transition: 'all 0.15s',
-                    }}
-                      onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(235,177,89,0.28)' }}
-                      onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(235,177,89,0.15)' }}
-                    >Load</button>
-                    <button onClick={() => handleDeleteHistory(entry.id)} title="Delete" style={{
-                      width: 24, height: 24, borderRadius: 7, border: 'none', flexShrink: 0,
-                      background: 'transparent', color: 'rgba(255,255,255,0.2)',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      cursor: 'pointer', transition: 'all 0.15s',
-                    }}
-                      onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = '#f87171'; (e.currentTarget as HTMLButtonElement).style.background = 'rgba(239,68,68,0.12)' }}
-                      onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = 'rgba(255,255,255,0.2)'; (e.currentTarget as HTMLButtonElement).style.background = 'transparent' }}
-                    >
-                      <svg width="11" height="11" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
-                    </button>
+                  )}
+                </div>
+              )}
+              {VIDEO_TONES.map((t, i) => {
+                const curIdx = VIDEO_TONES.findIndex(x => x.id === processingTone)
+                const isDone = curIdx > i
+                const isCur = t.id === processingTone
+                return (
+                  <div key={t.id} style={{ display:'flex', alignItems:'center', gap:8, padding:'8px 12px', borderRadius:10, background: isCur ? t.accent : isDone ? 'rgba(16,185,129,0.07)' : 'rgba(255,255,255,0.03)', border:`1px solid ${isCur ? t.border : isDone ? 'rgba(16,185,129,0.2)' : 'rgba(255,255,255,0.06)'}`, transition:'all 0.2s' }}>
+                    <span style={{ display:'flex', color: isCur ? '#fff' : isDone ? 'rgba(16,185,129,0.8)' : 'rgba(255,255,255,0.25)' }}>{t.icon}</span>
+                    <span style={{ fontSize:12, color: isCur ? '#fff' : isDone ? 'rgba(16,185,129,0.8)' : 'rgba(255,255,255,0.3)', flex:1 }}>{t.label}</span>
+                    {isCur ? <VSpinner /> : isDone ? <svg width="13" height="13" fill="none" stroke="rgba(16,185,129,0.8)" viewBox="0 0 24 24"><polyline strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} points="20 6 9 17 4 12"/></svg> : <div style={{ width:8, height:8, borderRadius:'50%', background:'rgba(255,255,255,0.1)', border:'1px solid rgba(255,255,255,0.15)' }} />}
                   </div>
                 )
               })}
             </div>
-          </div>
-        </div>
-      </div>
+          )}
 
-      {/* â”€â”€ Right: results viewer â”€â”€ */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
-        {/* Header / tone tabs */}
-        <div className="web-panel-header" style={{ gap: 6, flexWrap: 'wrap' }}>
-          {status === 'done' && results ? (
-            <>
-              {VIDEO_TONES.map(t => (
-                <button key={t.id} onClick={() => setActiveTone(t.id)} style={{
-                  display: 'flex', alignItems: 'center', gap: 5,
-                  padding: '5px 12px', borderRadius: 99, border: 'none', cursor: 'pointer',
-                  fontSize: 11, fontWeight: activeTone === t.id ? 600 : 400, fontFamily: 'inherit',
-                  background: activeTone === t.id ? t.accent : 'rgba(255,255,255,0.04)',
-                  color: activeTone === t.id ? '#fff' : 'rgba(255,255,255,0.4)',
-                  boxShadow: activeTone === t.id ? `0 0 0 1px ${t.border}` : 'none',
-                  transition: 'all 0.15s',
-                }}>
-                  <span style={{ display: 'flex' }}>{t.icon}</span>{t.label}
+          {/* Save to notes */}
+          {status === 'done' && (
+            <div style={{ marginTop:10 }}>
+              {!savedToNotes ? (
+                <button onClick={saveAllToNotes} style={{ width:'100%', padding:'9px 16px', borderRadius:10, border:'1px solid rgba(16,185,129,0.3)', background:'rgba(16,185,129,0.09)', color:'rgba(16,185,129,0.9)', fontSize:12, fontWeight:600, fontFamily:'inherit', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:6, transition:'all 0.15s' }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(16,185,129,0.18)' }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(16,185,129,0.09)' }}
+                >
+                  <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                  Save all tones to Notes
                 </button>
-              ))}
-
-            </>
-          ) : (
-            <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 12 }}>
-              {status === 'processing' ? 'Generating…' : 'Results will appear here'}
-            </span>
+              ) : (
+                <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:6, padding:'9px', color:'rgba(16,185,129,0.8)', fontSize:12, fontWeight:500 }}>
+                  <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7"/></svg>
+                  Saved to Notes
+                </div>
+              )}
+            </div>
           )}
         </div>
 
-        {/* Content */}
-        <div className="web-scroll" style={{ flex: 1, padding: '20px 24px', overflowY: 'auto' }}>
-          {status === 'done' && results && activeResult ? (
-            <div style={{
-              background: activeToneData.accent, border: `1px solid ${activeToneData.border}`,
-              borderRadius: 16, padding: '20px 22px', maxWidth: 680,
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
-                <span style={{ display: 'flex', color: activeToneData.dot }}>{activeToneData.icon}</span>
-                <span style={{ color: '#fff', fontWeight: 600, fontSize: 14 }}>{activeToneData.label} Summary</span>
+        {/* Card 4 — History */}
+        <div className="xo-bento-card xo-bento-card--sessions">
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:12, flexShrink:0 }}>
+            <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+              <span style={{ fontSize:11, fontWeight:700, color:'rgba(255,255,255,0.4)', letterSpacing:'0.09em', textTransform:'uppercase' }}>History</span>
+              <span style={{ fontSize:10, fontWeight:700, color:'rgba(255,255,255,0.35)', background:'rgba(255,255,255,0.07)', borderRadius:6, padding:'1px 7px', border:'1px solid rgba(255,255,255,0.06)' }}>{history.length}</span>
+            </div>
+            {history.length > 0 && (
+              <button onClick={handleClearHistory} style={{ padding:'3px 10px', borderRadius:7, border:'1px solid rgba(239,68,68,0.22)', background:'rgba(239,68,68,0.07)', color:'rgba(239,68,68,0.65)', fontSize:10, fontWeight:500, fontFamily:'inherit', cursor:'pointer', transition:'all 0.15s' }}
+                onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(239,68,68,0.16)' }}
+                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(239,68,68,0.07)' }}
+              >Clear all</button>
+            )}
+          </div>
+          <div className="web-scroll xo-sessions-list">
+            {history.length === 0 ? (
+              <div style={{ padding:'28px 8px', textAlign:'center', color:'rgba(255,255,255,0.18)', fontSize:12, lineHeight:1.6 }}>
+                No history yet.<br/>Generated captions will appear here.
               </div>
-              <p style={{ color: 'rgba(255,255,255,0.75)', fontSize: 13, lineHeight: 1.8, margin: 0, whiteSpace: 'pre-wrap' }}>
-                {activeResult.summary}
-              </p>
-            </div>
-          ) : status !== 'processing' ? (
-            <div className="web-empty-state">
-              <svg width="40" height="40" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ opacity: 0.2 }}>
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 10l4.553-2.276A1 1 0 0121 8.723v6.554a1 1 0 01-1.447.894L15 14M4 8a2 2 0 012-2h9a2 2 0 012 2v8a2 2 0 01-2 2H6a2 2 0 01-2-2V8z" />
-              </svg>
-              <div>Upload a video or paste a URL,<br/>then hit Generate.</div>
-            </div>
-          ) : null}
+            ) : history.map(entry => {
+              const date = new Date(entry.createdAt)
+              const dateStr = date.toLocaleDateString(undefined, { month:'short', day:'numeric' })
+              const timeStr = date.toLocaleTimeString(undefined, { hour:'2-digit', minute:'2-digit' })
+              return (
+                <div key={entry.id} style={{ padding:'10px 12px', borderRadius:12, marginBottom:4, background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.06)', display:'flex', alignItems:'center', gap:10, transition:'background 0.15s' }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.background = 'rgba(255,255,255,0.06)' }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.background = 'rgba(255,255,255,0.03)' }}
+                >
+                  <div style={{ width:32, height:32, borderRadius:10, flexShrink:0, background:'rgba(238,111,83,0.12)', border:'1px solid rgba(238,111,83,0.2)', display:'flex', alignItems:'center', justifyContent:'center' }}>
+                    <svg width="14" height="14" fill="none" stroke="rgba(238,111,83,0.9)" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M15 10l4.553-2.276A1 1 0 0121 8.723v6.554a1 1 0 01-1.447.894L15 14M4 8a2 2 0 012-2h9a2 2 0 012 2v8a2 2 0 01-2 2H6a2 2 0 01-2-2V8z"/>
+                    </svg>
+                  </div>
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{ color:'#fff', fontSize:11, fontWeight:600, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', marginBottom:3 }} title={entry.label}>{entry.label}</div>
+                    <div style={{ display:'flex', gap:5, alignItems:'center', flexWrap:'wrap' }}>
+                      <span style={{ color:'rgba(255,255,255,0.25)', fontSize:10 }}>{dateStr} · {timeStr}</span>
+                      <div style={{ display:'flex', gap:3 }}>
+                        {VIDEO_TONES.filter(t => entry.results[t.id]).map(t => (
+                          <div key={t.id} title={t.label} style={{ width:5, height:5, borderRadius:99, background:t.dot, opacity:0.8 }} />
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                  <button onClick={() => handleLoadFromHistory(entry)} style={{ padding:'4px 10px', borderRadius:7, border:'none', background:'rgba(238,111,83,0.18)', color:'rgba(238,111,83,0.9)', fontSize:10, fontWeight:600, fontFamily:'inherit', cursor:'pointer', transition:'all 0.15s', flexShrink:0 }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(238,111,83,0.32)' }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(238,111,83,0.18)' }}
+                  >Load</button>
+                  <button onClick={() => setHistory(deleteCaptionHistoryEntry(entry.id))} style={{ width:26, height:26, borderRadius:7, border:'none', background:'transparent', color:'rgba(255,255,255,0.2)', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', transition:'all 0.15s', flexShrink:0 }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color='#f87171'; (e.currentTarget as HTMLButtonElement).style.background='rgba(239,68,68,0.12)' }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color='rgba(255,255,255,0.2)'; (e.currentTarget as HTMLButtonElement).style.background='transparent' }}
+                  >
+                    <svg width="11" height="11" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                  </button>
+                </div>
+              )
+            })}
+          </div>
         </div>
-      </div>
+
+      </div>{/* end left col */}
+
+      {/* RIGHT COLUMN */}
+      <div className="xo-bento-col xo-bento-col--right">
+
+        {/* Card 5 — Tone selector (when done) or empty state */}
+        {status === 'done' && results ? (
+          <>
+            {/* Tone tab bar */}
+            <div className="xo-bento-card" style={{ padding:'14px 18px', flexShrink:0 }}>
+              <div style={{ fontSize:10, fontWeight:700, color:'rgba(255,255,255,0.3)', letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:10 }}>Caption Style</div>
+              <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+                {VIDEO_TONES.map(t => (
+                  <button key={t.id} onClick={() => setActiveTone(t.id)} style={{
+                    display:'flex', alignItems:'center', gap:6, padding:'7px 14px', borderRadius:99, border:'none', cursor:'pointer',
+                    fontSize:12, fontWeight: activeTone === t.id ? 700 : 400, fontFamily:'inherit',
+                    background: activeTone === t.id ? t.accent : 'rgba(255,255,255,0.04)',
+                    color: activeTone === t.id ? '#fff' : 'rgba(255,255,255,0.4)',
+                    boxShadow: activeTone === t.id ? `0 0 0 1.5px ${t.border}, 0 4px 16px ${t.accent}` : 'none',
+                    transition:'all 0.18s',
+                  }}
+                    onMouseEnter={e => { if (activeTone !== t.id) (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.08)' }}
+                    onMouseLeave={e => { if (activeTone !== t.id) (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.04)' }}
+                  >
+                    <span style={{ display:'flex', color: activeTone === t.id ? t.dot : 'inherit' }}>{t.icon}</span>
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Result card */}
+            <div className="xo-bento-card xo-bento-card--messages" style={{ padding:'24px 26px' }}>
+              <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:18, flexShrink:0 }}>
+                <div style={{ width:36, height:36, borderRadius:11, background:activeToneData.accent, border:`1px solid ${activeToneData.border}`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                  <span style={{ display:'flex', color:activeToneData.dot }}>{activeToneData.icon}</span>
+                </div>
+                <div>
+                  <div style={{ fontSize:14, fontWeight:700, color:'#fff', letterSpacing:'-0.01em' }}>{activeToneData.label} Caption</div>
+                  {currentLabel && <div style={{ fontSize:11, color:'rgba(255,255,255,0.3)', marginTop:2, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:380 }} title={currentLabel}>{currentLabel}</div>}
+                </div>
+                {/* Copy button */}
+                <button
+                  onClick={() => { if (activeResult?.summary) navigator.clipboard.writeText(activeResult.summary) }}
+                  title="Copy to clipboard"
+                  style={{ marginLeft:'auto', width:32, height:32, borderRadius:9, border:'1px solid rgba(255,255,255,0.08)', background:'rgba(255,255,255,0.04)', color:'rgba(255,255,255,0.35)', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', transition:'all 0.15s', flexShrink:0 }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background='rgba(255,255,255,0.1)'; (e.currentTarget as HTMLButtonElement).style.color='#fff' }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background='rgba(255,255,255,0.04)'; (e.currentTarget as HTMLButtonElement).style.color='rgba(255,255,255,0.35)' }}
+                >
+                  <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"/>
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+                  </svg>
+                </button>
+              </div>
+              <div className="web-scroll" style={{ flex:1, overflowY:'auto' }}>
+                <div style={{ padding:'20px 22px', borderRadius:16, background:activeToneData.accent, border:`1px solid ${activeToneData.border}` }}>
+                  <p style={{ color:'rgba(255,255,255,0.82)', fontSize:14, lineHeight:1.85, margin:0, whiteSpace:'pre-wrap', wordBreak:'break-word' }}>
+                    {activeResult?.summary || 'No summary generated.'}
+                  </p>
+                </div>
+                {/* All-tones compact view */}
+                <div style={{ marginTop:16, display:'flex', flexDirection:'column', gap:8 }}>
+                  <div style={{ fontSize:10, fontWeight:700, color:'rgba(255,255,255,0.25)', letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:4 }}>Other Styles</div>
+                  {VIDEO_TONES.filter(t => t.id !== activeTone).map(t => {
+                    const r = results[t.id]
+                    return r ? (
+                      <button key={t.id} onClick={() => setActiveTone(t.id)} style={{ textAlign:'left', padding:'12px 14px', borderRadius:12, border:`1px solid ${t.border}`, background:t.accent, cursor:'pointer', transition:'all 0.15s', display:'flex', alignItems:'flex-start', gap:10 }}
+                        onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.opacity='0.85' }}
+                        onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.opacity='1' }}
+                      >
+                        <span style={{ display:'flex', color:t.dot, flexShrink:0, marginTop:1 }}>{t.icon}</span>
+                        <div style={{ flex:1, minWidth:0 }}>
+                          <div style={{ fontSize:11, fontWeight:700, color:'rgba(255,255,255,0.6)', marginBottom:4 }}>{t.label}</div>
+                          <div style={{ fontSize:12, color:'rgba(255,255,255,0.45)', lineHeight:1.6, overflow:'hidden', display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical' as const }}>
+                            {r.summary}
+                          </div>
+                        </div>
+                        <svg width="12" height="12" fill="none" stroke="rgba(255,255,255,0.2)" viewBox="0 0 24 24" style={{ flexShrink:0, marginTop:2 }}>
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7"/>
+                        </svg>
+                      </button>
+                    ) : null
+                  })}
+                </div>
+              </div>
+            </div>
+          </>
+        ) : (
+          /* Empty state */
+          <div className="xo-bento-card xo-bento-card--messages" style={{ alignItems:'center', justifyContent:'center' }}>
+            <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:20, animation:'fadeIn 0.5s ease', padding:'40px 24px', textAlign:'center' }}>
+              <div style={{ width:72, height:72, borderRadius:22, background:'linear-gradient(145deg, rgba(238,111,83,0.18), rgba(235,177,89,0.09))', border:'1px solid rgba(238,111,83,0.22)', display:'flex', alignItems:'center', justifyContent:'center', boxShadow:'0 0 40px rgba(238,111,83,0.15), inset 0 1px 0 rgba(255,255,255,0.08)' }}>
+                <svg width="30" height="30" fill="none" stroke="rgba(238,111,83,0.8)" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 10l4.553-2.276A1 1 0 0121 8.723v6.554a1 1 0 01-1.447.894L15 14M4 8a2 2 0 012-2h9a2 2 0 012 2v8a2 2 0 01-2 2H6a2 2 0 01-2-2V8z"/>
+                </svg>
+              </div>
+              <div>
+                <div style={{ fontSize:18, fontWeight:700, color:'#fff', marginBottom:10, letterSpacing:'-0.02em' }}>
+                  {status === 'processing' ? 'Generating captions…' : 'Ready to summarize'}
+                </div>
+                <div style={{ fontSize:13, color:'rgba(255,255,255,0.3)', lineHeight:1.75, maxWidth:320 }}>
+                  {status === 'processing'
+                    ? 'Your video is being analyzed. Results will appear here for each caption style.'
+                    : 'Upload a video file or paste a direct URL, then click Generate Video Captions.'}
+                </div>
+              </div>
+              {status !== 'processing' && (
+                <div style={{ display:'flex', gap:8, flexWrap:'wrap', justifyContent:'center' }}>
+                  {VIDEO_TONES.map(t => (
+                    <div key={t.id} style={{ display:'flex', alignItems:'center', gap:5, padding:'5px 12px', borderRadius:99, border:`1px solid ${t.border}`, background:t.accent }}>
+                      <span style={{ display:'flex', color:t.dot }}>{t.icon}</span>
+                      <span style={{ fontSize:11, color:'rgba(255,255,255,0.5)', fontWeight:500 }}>{t.label}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+      </div>{/* end right col */}
+
     </div>
   )
 }
+
 
 /* â”€â”€ Usage Tracking panel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
