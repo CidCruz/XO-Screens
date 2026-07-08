@@ -74,150 +74,217 @@ interface SidebarProps {
 
 function Sidebar({ activeId, onSelect }: SidebarProps) {
   return (
-    <aside className="web-sidebar">
-      {/* Logo */}
+    <nav className="web-island">
+      {/* Logo pill */}
       <div style={{
-        marginBottom: 28, display: 'flex', alignItems: 'center', justifyContent: 'center',
-        flexDirection: 'column', gap: 2,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        width: 38, height: 38, flexShrink: 0,
       }}>
         <span style={{
-          color: '#fff', fontWeight: 900, fontSize: 16, letterSpacing: '-0.03em',
-          textShadow: '0 0 14px rgba(255,255,255,0.9), 0 0 30px rgba(255,255,255,0.4)',
-          fontFamily: '"Montserrat", sans-serif',
+          fontFamily: '"Syne", sans-serif',
+          color: '#fff', fontWeight: 800, fontSize: 13, letterSpacing: '-0.04em',
+          textShadow: '0 0 12px rgba(255,255,255,0.6), 0 0 24px rgba(139,92,246,0.4)',
         }}>XO</span>
       </div>
 
-      {/* Nav */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: 1, width: '100%', alignItems: 'center' }}>
-        {APPS.map(app => (
-          <div key={app.id} style={{ position: 'relative' }}>
-            <button
-              className={`web-nav-item${activeId === app.id ? ' active' : ''}`}
-              onClick={() => onSelect(app.id)}
-              title={app.label}
-            >
-              <NavIcon id={app.id} />
-              <span className="web-tooltip">{app.label}</span>
-            </button>
-          </div>
-        ))}
-      </div>
+      <div className="web-island-divider" />
 
-      {/* Bottom: status dot */}
-      <div style={{ marginTop: 'auto', paddingBottom: 4, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
-        <div style={{
-          width: 6, height: 6, borderRadius: '50%', background: '#34d399',
-          boxShadow: '0 0 6px rgba(52,211,153,0.6)',
-        }} />
+      {/* Nav buttons */}
+      {APPS.map((app, i) => (
+        <div key={app.id} style={{ display: 'contents' }}>
+          <button
+            className={`web-island-btn${activeId === app.id ? ' active' : ''}`}
+            onClick={() => onSelect(app.id)}
+          >
+            <NavIcon id={app.id} />
+            <span className="web-tooltip">{app.label}</span>
+          </button>
+          {i === 0 && <div className="web-island-divider" />}
+        </div>
+      ))}
+
+      <div className="web-island-divider" />
+
+      {/* Status dot */}
+      <div style={{ width: 38, height: 38, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div className="status-dot" />
       </div>
-    </aside>
+    </nav>
   )
 }
 
 /* ── Home / welcome panel ─────────────────────────────────────────────────── */
 function HomePanel({ onNavigate }: { onNavigate: (id: string) => void }) {
-  const cards = [
+  const tracks = [
     {
-      id: 'chat',
+      num: '01',
+      label: 'Track 1',
+      title: 'General-Purpose AI Agent',
+      desc: '8-category agent: factual knowledge, math, sentiment, summarisation, NER, code debug, logic, and code generation — all via Fireworks AI.',
+      chips: ['Factual', 'Math', 'Code', 'Logic', 'NER'],
+      color: 'rgba(99,102,241,0.9)',
+      glow: 'rgba(99,102,241,0.07)',
+      border: 'rgba(99,102,241,0.2)',
+      iconBg: 'rgba(99,102,241,0.1)',
+      navId: 'chat',
       icon: (
-        <svg width="22" height="22" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
-            d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-4 4v-4z" />
+            d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
         </svg>
       ),
-      title: 'AI Assistant',
-      desc: 'Chat with XO — powered by Fireworks AI.',
-      accent: 'rgba(99,102,241,0.15)',
-      border: 'rgba(99,102,241,0.25)',
-      dot: 'rgba(99,102,241,0.9)',
     },
     {
-      id: 'notes',
+      num: '02',
+      label: 'Track 2',
+      title: 'Video Captioning Agent',
+      desc: 'Watch a video clip and generate captions in 4 styles: Formal, Sarcastic, Humorous Tech, and Humorous Non-Tech.',
+      chips: ['Formal', 'Sarcastic', 'Humorous Tech', 'Non-Tech'],
+      color: 'rgba(139,92,246,0.9)',
+      glow: 'rgba(139,92,246,0.07)',
+      border: 'rgba(139,92,246,0.2)',
+      iconBg: 'rgba(139,92,246,0.1)',
+      navId: 'video',
       icon: (
-        <svg width="22" height="22" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
-            d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-        </svg>
-      ),
-      title: 'Quick Notes',
-      desc: 'Capture ideas instantly with color-coded notes.',
-      accent: 'rgba(52,211,153,0.12)',
-      border: 'rgba(52,211,153,0.22)',
-      dot: 'rgba(52,211,153,0.9)',
-    },
-    {
-      id: 'video',
-      icon: (
-        <svg width="22" height="22" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
             d="M15 10l4.553-2.276A1 1 0 0121 8.723v6.554a1 1 0 01-1.447.894L15 14M4 8a2 2 0 012-2h9a2 2 0 012 2v8a2 2 0 01-2 2H6a2 2 0 01-2-2V8z" />
         </svg>
       ),
-      title: 'Video Summarizer',
-      desc: 'Upload a video or paste a URL — get summaries in 4 tones.',
-      accent: 'rgba(139,92,246,0.12)',
-      border: 'rgba(139,92,246,0.22)',
-      dot: 'rgba(139,92,246,0.9)',
+    },
+    {
+      num: '03',
+      label: 'Track 3',
+      title: 'XO Screens — Unicorn',
+      desc: 'Full AI productivity workspace: chat assistant, smart notes, video summarizer, and usage tracking — all powered by AMD compute.',
+      chips: ['Chat', 'Notes', 'Video', 'AMD'],
+      color: 'rgba(52,211,153,0.9)',
+      glow: 'rgba(52,211,153,0.06)',
+      border: 'rgba(52,211,153,0.18)',
+      iconBg: 'rgba(52,211,153,0.09)',
+      navId: 'chat',
+      icon: (
+        <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
+            d="M13 10V3L4 14h7v7l9-11h-7z" />
+        </svg>
+      ),
     },
   ]
 
   return (
-    <div className="web-panel-main" style={{ justifyContent: 'center', alignItems: 'center' }}>
-      <div style={{ maxWidth: 480, width: '100%', padding: '0 32px', animation: 'fadeIn 0.4s ease both' }}>
-        {/* Hero */}
-        <div style={{ marginBottom: 40 }}>
-          <div style={{ marginBottom: 16 }}>
-            <span className="web-hero-badge">
-              <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#34d399', display: 'inline-block' }} />
-              Web App
-            </span>
-          </div>
-          <h1 style={{
-            fontSize: 42, fontWeight: 900, letterSpacing: '-0.04em', lineHeight: 1.1,
-            fontFamily: '"Montserrat", sans-serif',
-            background: 'linear-gradient(135deg, #fff 0%, rgba(255,255,255,0.55) 100%)',
-            WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
-            marginBottom: 14,
-          }}>XO Screens.</h1>
-          <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: 14, lineHeight: 1.7, maxWidth: 360 }}>
-            Your AI-powered productivity workspace. Chat, take notes, and stay in flow — right in your browser.
-          </p>
-        </div>
+    <div className="xo-home" style={{ overflowY: 'auto', alignItems: 'center' }}>
+      {/* Badge */}
+      <div style={{ marginBottom: 18, animation: 'fadeIn 0.5s ease both' }}>
+        <span className="web-hero-badge">
+          <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#34d399', display: 'inline-block', boxShadow: '0 0 6px rgba(52,211,153,0.8)' }} />
+          AMD Developer Hackathon · ACT II
+        </span>
+      </div>
 
-        {/* Cards */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {cards.map(c => (
-            <button
-              key={c.id}
-              onClick={() => onNavigate(c.id)}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 16,
-                padding: '16px 18px', borderRadius: 16, cursor: 'pointer',
-                background: c.accent, border: `1px solid ${c.border}`,
-                transition: 'all 0.2s', textAlign: 'left',
-              }}
-              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(-1px)'; (e.currentTarget as HTMLButtonElement).style.boxShadow = `0 8px 32px ${c.accent}` }}
-              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.transform = ''; (e.currentTarget as HTMLButtonElement).style.boxShadow = '' }}
-            >
-              <div style={{
-                width: 44, height: 44, borderRadius: 12, flexShrink: 0,
-                background: 'rgba(255,255,255,0.06)', border: `1px solid ${c.border}`,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                color: c.dot,
-              }}>
-                {c.icon}
+      {/* Title */}
+      <h1 className="xo-hero-title" style={{ textAlign: 'center', animation: 'fadeIn 0.5s 0.05s ease both' }}>
+        XO Screens.
+      </h1>
+
+      {/* Subtitle */}
+      <p className="xo-hero-sub" style={{ animation: 'fadeIn 0.5s 0.1s ease both' }}>
+        Competing across all three tracks. One platform, three submissions.
+      </p>
+
+      {/* Track cards */}
+      <div style={{
+        display: 'flex', flexDirection: 'column', gap: 10,
+        width: '100%', maxWidth: 600,
+        animation: 'fadeIn 0.5s 0.15s ease both',
+      }}>
+        {tracks.map((t, i) => (
+          <button
+            key={t.num}
+            onClick={() => onNavigate(t.navId)}
+            style={{
+              display: 'flex', alignItems: 'flex-start', gap: 16,
+              padding: '16px 18px', borderRadius: 16, cursor: 'pointer',
+              background: t.glow, border: `1px solid ${t.border}`,
+              transition: 'all 0.2s cubic-bezier(0.16,1,0.3,1)', textAlign: 'left',
+              animation: `fadeIn 0.4s ${0.1 + i * 0.07}s ease both`,
+            }}
+            onMouseEnter={e => {
+              const el = e.currentTarget as HTMLButtonElement
+              el.style.transform = 'translateY(-2px)'
+              el.style.boxShadow = `0 16px 48px ${t.glow}, 0 0 0 1px ${t.border}`
+            }}
+            onMouseLeave={e => {
+              const el = e.currentTarget as HTMLButtonElement
+              el.style.transform = ''
+              el.style.boxShadow = ''
+            }}
+          >
+            {/* Track number */}
+            <div style={{
+              fontFamily: '"Syne", sans-serif',
+              fontSize: 11, fontWeight: 800, color: t.color,
+              letterSpacing: '0.06em', flexShrink: 0, paddingTop: 2,
+              opacity: 0.7,
+            }}>{t.num}</div>
+
+            {/* Icon */}
+            <div style={{
+              width: 38, height: 38, borderRadius: 11, flexShrink: 0,
+              background: t.iconBg, border: `1px solid ${t.border}`,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              color: t.color,
+            }}>
+              {t.icon}
+            </div>
+
+            {/* Content */}
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                <span style={{
+                  fontSize: 9, fontWeight: 700, letterSpacing: '0.08em',
+                  textTransform: 'uppercase', color: t.color,
+                  background: t.iconBg, border: `1px solid ${t.border}`,
+                  padding: '2px 7px', borderRadius: 5,
+                }}>{t.label}</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: '#fff', letterSpacing: '-0.01em' }}>{t.title}</span>
               </div>
-              <div>
-                <div style={{ fontSize: 14, fontWeight: 600, color: '#fff', marginBottom: 3 }}>{c.title}</div>
-                <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', lineHeight: 1.5 }}>{c.desc}</div>
+              <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.38)', lineHeight: 1.6, margin: '0 0 10px' }}>{t.desc}</p>
+              {/* Chips */}
+              <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+                {t.chips.map(chip => (
+                  <span key={chip} style={{
+                    fontSize: 9, fontWeight: 600, letterSpacing: '0.05em',
+                    padding: '2px 8px', borderRadius: 5,
+                    background: 'rgba(255,255,255,0.05)',
+                    border: '1px solid rgba(255,255,255,0.09)',
+                    color: 'rgba(255,255,255,0.35)',
+                  }}>{chip}</span>
+                ))}
               </div>
-              <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"
-                style={{ marginLeft: 'auto', color: 'rgba(255,255,255,0.2)', flexShrink: 0 }}>
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-              </svg>
-            </button>
-          ))}
-        </div>
+            </div>
+
+            {/* Arrow */}
+            <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+              style={{ color: 'rgba(255,255,255,0.18)', flexShrink: 0, marginTop: 12 }}>
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+          </button>
+        ))}
+      </div>
+
+      {/* Footer */}
+      <div style={{ marginTop: 28, display: 'flex', alignItems: 'center', gap: 16, animation: 'fadeIn 0.5s 0.35s ease both' }}>
+        {[
+          { label: 'Fireworks AI', dot: 'rgba(139,92,246,0.8)' },
+          { label: 'AMD Compute', dot: 'rgba(239,68,68,0.7)' },
+          { label: 'DeepSeek V4', dot: 'rgba(52,211,153,0.8)' },
+        ].map(f => (
+          <div key={f.label} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+            <span style={{ width: 4, height: 4, borderRadius: '50%', background: f.dot, display: 'inline-block' }} />
+            <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.22)', fontWeight: 500, letterSpacing: '0.04em' }}>{f.label}</span>
+          </div>
+        ))}
       </div>
     </div>
   )
@@ -587,8 +654,9 @@ function WebChatPanel({ activeNote, appControl }: WebChatPanelProps) {
           <div className="web-panel-header">
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={{
-                color: '#fff', fontWeight: 900, fontSize: 15, letterSpacing: '-0.03em',
-                textShadow: '0 0 12px rgba(255,255,255,0.8), 0 0 24px rgba(255,255,255,0.4)',
+                fontFamily: '"Syne", sans-serif',
+                color: '#fff', fontWeight: 800, fontSize: 15, letterSpacing: '-0.04em',
+                textShadow: '0 0 14px rgba(255,255,255,0.7), 0 0 28px rgba(139,92,246,0.3)',
               }}>XO</span>
               <span className="web-panel-subtitle" style={{ maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {activeSession?.title ?? 'Assistant'}
@@ -1163,7 +1231,7 @@ function WebVideoPanel() {
       }}>
         {/* Header */}
         <div className="web-panel-header" style={{ flexShrink: 0 }}>
-          <span style={{ color: '#fff', fontWeight: 900, fontSize: 15, letterSpacing: '-0.03em', textShadow: '0 0 12px rgba(255,255,255,0.8)' }}>XO</span>
+          <span style={{ fontFamily: '"Syne", sans-serif', color: '#fff', fontWeight: 800, fontSize: 15, letterSpacing: '-0.04em', textShadow: '0 0 14px rgba(255,255,255,0.7), 0 0 28px rgba(139,92,246,0.3)' }}>XO</span>
           <span className="web-panel-subtitle">Video Summarizer</span>
           <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6 }}>
             {/* Input mode toggle */}
@@ -1605,8 +1673,8 @@ function UsageTrackingPanel() {
         {/* Stats grid */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 32 }}>
           {stats.map(s => (
-            <div key={s.label} style={{ padding: '16px 18px', borderRadius: 14, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
-              <div style={{ fontSize: 28, fontWeight: 800, letterSpacing: '-0.04em', color: s.color, marginBottom: 4, fontFamily: '"Montserrat", sans-serif' }}>{s.value}</div>
+            <div key={s.label} className="xo-stat-card">
+              <div style={{ fontSize: 30, fontWeight: 800, letterSpacing: '-0.04em', color: s.color, marginBottom: 4, fontFamily: '"Syne", sans-serif' }}>{s.value}</div>
               <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)' }}>{s.label}</div>
             </div>
           ))}
@@ -1706,10 +1774,10 @@ export default function WebApp() {
     <div className="web-shell">
       <div className="web-bg-glow-1" />
       <div className="web-bg-glow-2" />
-      <Sidebar activeId={activeId} onSelect={setActiveId} />
       <main className="web-content">
         {renderContent()}
       </main>
+      <Sidebar activeId={activeId} onSelect={setActiveId} />
     </div>
   )
 }
