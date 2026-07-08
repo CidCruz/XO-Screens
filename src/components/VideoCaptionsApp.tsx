@@ -331,7 +331,7 @@ export default function VideoCaptionsApp({ onClose: _onClose, onCornerDown }: Pr
 
   // View state
   const [activeTone, setActiveTone] = useState<CaptionTone>('formal')
-  const [activeTab, setActiveTab] = useState<'captions' | 'summary'>('summary')
+  const [activeTab, setActiveTab] = useState<'summary'>('summary')
   const [savedToNotes, setSavedToNotes] = useState(false)
   const [closestCorner, setClosestCorner] = useState<number | null>(null)
 
@@ -446,8 +446,7 @@ export default function VideoCaptionsApp({ onClose: _onClose, onCornerDown }: Pr
       const r = results[t.id]
       const content =
         `[Video] ${videoLabel}\n[Generated] ${timestamp}\n\n` +
-        `-- Summary --\n${r.summary}\n\n` +
-        `-- Transcription --\n${results.transcription || '(No speech detected)'}`
+        `-- Summary --\n${r.summary}`
       return makeNote(`[${t.label}] ${videoLabel}`, content, TONE_NOTE_COLORS[t.id])
     })
 
@@ -532,7 +531,7 @@ export default function VideoCaptionsApp({ onClose: _onClose, onCornerDown }: Pr
           flexShrink: 0,
         }}>
           <span style={{ color: '#fff', fontWeight: 900, fontSize: 13, letterSpacing: '-0.03em', textShadow: '0 0 10px rgba(255,255,255,0.8)', flexShrink: 0 }}>XO</span>
-          <span style={{ color: 'rgba(255,255,255,0.18)', fontSize: 11, flexShrink: 0 }}>Video Captions</span>
+          <span style={{ color: 'rgba(255,255,255,0.18)', fontSize: 11, flexShrink: 0 }}>Video Summarizer</span>
           <div style={{ flex: 1 }} />
           {/* History button */}
           <button data-no-drag onClick={() => setShowHistory(true)}
@@ -673,7 +672,7 @@ export default function VideoCaptionsApp({ onClose: _onClose, onCornerDown }: Pr
                 <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                 </svg>
-                {status === 'done' ? 'Re-process' : 'Generate Captions & Summary'}
+                {status === 'done' ? 'Re-summarize' : 'Generate Video Summary'}
               </>
             )}
           </button>
@@ -800,24 +799,6 @@ export default function VideoCaptionsApp({ onClose: _onClose, onCornerDown }: Pr
               ))}
             </div>
 
-            {/* Transcription / Summary tab bar */}
-            <div style={{
-              display: 'flex', gap: 2, padding: '0 16px 10px',
-              flexShrink: 0,
-            }}>
-              {(['summary', 'captions'] as const).map(tab => (
-                <button key={tab} data-no-drag onClick={() => setActiveTab(tab)}
-                  style={{
-                    padding: '5px 14px', borderRadius: 8, border: 'none', cursor: 'pointer',
-                    fontSize: 11, fontWeight: activeTab === tab ? 600 : 400, fontFamily: 'inherit',
-                    background: activeTab === tab ? 'rgba(255,255,255,0.1)' : 'transparent',
-                    color: activeTab === tab ? '#fff' : 'rgba(255,255,255,0.35)',
-                    transition: 'all 0.15s',
-                  }}
-                >{tab === 'captions' ? 'Transcription' : 'Summary'}</button>
-              ))}
-            </div>
-
             {/* Content area */}
             <div
               className="vc-scroll"
@@ -826,39 +807,22 @@ export default function VideoCaptionsApp({ onClose: _onClose, onCornerDown }: Pr
                 minHeight: 0, maxHeight: 260,
               }}
             >
-              {activeTab === 'summary' ? (
-                <div style={{
-                  background: activeToneData.color,
-                  border: `1px solid ${activeToneData.dotColor.replace('0.9', '0.2')}`,
-                  borderRadius: 14, padding: '14px 16px',
+              <div style={{
+                background: activeToneData.color,
+                border: `1px solid ${activeToneData.dotColor.replace('0.9', '0.2')}`,
+                borderRadius: 14, padding: '14px 16px',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 10 }}>
+                  <span style={{ color: activeToneData.dotColor, display: 'flex', alignItems: 'center' }}>{TONE_ICONS[activeToneData.id]}</span>
+                  <span style={{ color: '#fff', fontWeight: 600, fontSize: 12 }}>{activeToneData.label} Summary</span>
+                </div>
+                <p style={{
+                  color: 'rgba(255,255,255,0.78)', fontSize: 12, lineHeight: 1.75,
+                  margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word',
                 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 10 }}>
-                    <span style={{ color: activeToneData.dotColor, display: 'flex', alignItems: 'center' }}>{TONE_ICONS[activeToneData.id]}</span>
-                    <span style={{ color: '#fff', fontWeight: 600, fontSize: 12 }}>{activeToneData.label} Summary</span>
-                  </div>
-                  <p style={{
-                    color: 'rgba(255,255,255,0.78)', fontSize: 12, lineHeight: 1.75,
-                    margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word',
-                  }}>
-                    {activeResult?.summary || 'No summary generated.'}
-                  </p>
-                </div>
-              ) : (
-                <div style={{ padding: '4px 0' }}>
-                  {results?.transcription ? (
-                    <p style={{
-                      color: 'rgba(255,255,255,0.78)', fontSize: 12, lineHeight: 1.75,
-                      margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word',
-                    }}>
-                      {results.transcription}
-                    </p>
-                  ) : (
-                    <div style={{ color: 'rgba(255,255,255,0.25)', fontSize: 12, padding: '12px 0', fontStyle: 'italic' }}>
-                      No speech detected.
-                    </div>
-                  )}
-                </div>
-              )}
+                  {activeResult?.summary || 'No summary generated.'}
+                </p>
+              </div>
             </div>
           </div>
         )}

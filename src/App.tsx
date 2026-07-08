@@ -11,7 +11,7 @@ import { loadCaptionHistory } from './captionHistory'
 const APPS: AppItem[] = [
   { id: 'chat',     label: 'Assistant'       },
   { id: 'notes',    label: 'Notes'           },
-  { id: 'video',    label: 'Video Captions'  },
+  { id: 'video',    label: 'Video Summarizer'  },
   { id: 'usage',    label: 'Usage Tracking'  },
   { id: 'settings', label: 'Settings'        },
 ]

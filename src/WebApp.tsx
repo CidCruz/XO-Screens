@@ -9,7 +9,7 @@ const APPS: AppItem[] = [
   { id: 'home',     label: 'Home'            },
   { id: 'chat',     label: 'Assistant'       },
   { id: 'notes',    label: 'Notes'           },
-  { id: 'video',    label: 'Video Captions'  },
+  { id: 'video',    label: 'Video Summarizer'  },
   { id: 'usage',    label: 'Usage Tracking'  },
   { id: 'settings', label: 'Settings'        },
 ]
@@ -153,8 +153,8 @@ function HomePanel({ onNavigate }: { onNavigate: (id: string) => void }) {
             d="M15 10l4.553-2.276A1 1 0 0121 8.723v6.554a1 1 0 01-1.447.894L15 14M4 8a2 2 0 012-2h9a2 2 0 012 2v8a2 2 0 01-2 2H6a2 2 0 01-2-2V8z" />
         </svg>
       ),
-      title: 'Video Captions',
-      desc: 'Upload a video or paste a URL — get captions & summaries in 4 tones.',
+      title: 'Video Summarizer',
+      desc: 'Upload a video or paste a URL — get summaries in 4 tones.',
       accent: 'rgba(139,92,246,0.12)',
       border: 'rgba(139,92,246,0.22)',
       dot: 'rgba(139,92,246,0.9)',
@@ -1164,7 +1164,7 @@ function WebVideoPanel() {
         {/* Header */}
         <div className="web-panel-header" style={{ flexShrink: 0 }}>
           <span style={{ color: '#fff', fontWeight: 900, fontSize: 15, letterSpacing: '-0.03em', textShadow: '0 0 12px rgba(255,255,255,0.8)' }}>XO</span>
-          <span className="web-panel-subtitle">Video Captions</span>
+          <span className="web-panel-subtitle">Video Summarizer</span>
           <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6 }}>
             {/* Input mode toggle */}
             <div style={{ display: 'flex', gap: 3, background: 'rgba(255,255,255,0.05)', borderRadius: 10, padding: 3 }}>
@@ -1265,7 +1265,7 @@ function WebVideoPanel() {
           >
             {status === 'processing'
               ? <><VSpinner /> {processingTone ? `Processing "${VIDEO_TONES.find(t => t.id === processingTone)?.label}"…` : 'Processing…'}</>
-              : <>{status === 'done' ? 'Re-process' : 'Generate Captions & Summary'}</>
+              : <>{status === 'done' ? 'Re-summarize' : 'Generate Video Summary'}</>
             }
           </button>
         </div>
@@ -1593,14 +1593,14 @@ function UsageTrackingPanel() {
   const stats = [
     { label: 'Chat Sessions',       value: sessions.length,    color: 'rgba(99,102,241,0.9)'  },
     { label: 'Messages Sent',        value: totalMessages,      color: 'rgba(52,211,153,0.9)'  },
-    { label: 'Videos Captioned',     value: captionHistory.length, color: 'rgba(139,92,246,0.9)' },
-    { label: 'Captions Generated',   value: totalTones,         color: 'rgba(245,158,11,0.9)'  },
+    { label: 'Videos Summarized',   value: captionHistory.length, color: 'rgba(139,92,246,0.9)' },
+    { label: 'Summaries Generated', value: totalTones,            color: 'rgba(245,158,11,0.9)'  },
   ]
 
   const modelInfo = [
     { model: 'Gemma 4 E4B',    role: 'Chat (simple messages)',          badge: 'Fast'     },
     { model: 'Gemma 4 26B',    role: 'Chat with tools (notes/widgets)', badge: 'Balanced' },
-    { model: 'Gemma 4 31B IT', role: 'Video captions & summaries',      badge: 'Powerful' },
+    { model: 'Gemma 4 31B IT', role: 'Video summaries',      badge: 'Powerful' },
   ]
 
   return (
