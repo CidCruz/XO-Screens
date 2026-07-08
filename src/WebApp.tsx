@@ -126,7 +126,7 @@ function HomePanel({ onNavigate }: { onNavigate: (id: string) => void }) {
         </svg>
       ),
       title: 'AI Assistant',
-      desc: 'Chat with XO — powered by Fireworks AI (Gemma 4).',
+      desc: 'Chat with XO — powered by Fireworks AI.',
       accent: 'rgba(99,102,241,0.15)',
       border: 'rgba(99,102,241,0.25)',
       dot: 'rgba(99,102,241,0.9)',
