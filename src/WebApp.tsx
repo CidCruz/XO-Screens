@@ -938,31 +938,26 @@ function WebChatPanel({ activeNote, appControl }: WebChatPanelProps) {
   )
 }
 
-/* â”€â”€ Web-native notes wrapper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+
+/* -- Web Notes Panel -------------------------------------------------------- */
 function WebNotesPanel({ onNoteChange }: { onNoteChange?: (note: Note | null) => void }) {
   return (
-    <div className="web-panel-main" style={{ position: 'relative' }}>
-      <div style={{
-        position: 'absolute', inset: 0,
-        display: 'flex', flexDirection: 'column', overflow: 'hidden',
-      }}>
-        <WebNotesInner onNoteChange={onNoteChange} />
-      </div>
+    <div className="web-panel-main">
+      <WebNotesInner onNoteChange={onNoteChange} />
     </div>
   )
 }
 
-// Inline notes re-implementation styled for the web layout
 import { useState as useStateN, useRef as useRefN, useEffect as useEffectN, useCallback as useCallbackN } from 'react'
 
 const STORAGE_KEY = 'xo-notes'
 const NOTE_COLORS = [
-  { bg: 'rgba(255,255,255,0.0)',  dot: 'rgba(255,255,255,0.3)' },
-  { bg: 'rgba(139,92,246,0.14)',  dot: 'rgba(139,92,246,0.9)' },
-  { bg: 'rgba(59,130,246,0.14)',  dot: 'rgba(59,130,246,0.9)'  },
-  { bg: 'rgba(16,185,129,0.14)',  dot: 'rgba(16,185,129,0.9)'  },
-  { bg: 'rgba(245,158,11,0.14)',  dot: 'rgba(245,158,11,0.9)'  },
-  { bg: 'rgba(239,68,68,0.14)',   dot: 'rgba(239,68,68,0.9)'   },
+  { bg: 'rgba(255,255,255,0.0)',  dot: 'rgba(255,255,255,0.45)' },
+  { bg: 'rgba(235,177,89,0.12)',  dot: 'rgba(235,177,89,0.9)'   },
+  { bg: 'rgba(238,111,83,0.12)',  dot: 'rgba(238,111,83,0.9)'   },
+  { bg: 'rgba(139,92,246,0.12)',  dot: 'rgba(139,92,246,0.9)'   },
+  { bg: 'rgba(59,130,246,0.12)',  dot: 'rgba(59,130,246,0.9)'   },
+  { bg: 'rgba(16,185,129,0.12)',  dot: 'rgba(16,185,129,0.9)'   },
 ]
 
 function colorFromBg(bg: string) {
@@ -993,7 +988,6 @@ function WebNotesInner({ onNoteChange }: { onNoteChange?: (note: Note | null) =>
 
   useEffectN(() => { saveNotesLocal(notes) }, [notes])
 
-  // Refresh when another panel (e.g. Video Captions) writes new notes to localStorage
   useEffectN(() => {
     function handleNotesUpdated() {
       const fresh = loadNotes()
@@ -1004,7 +998,6 @@ function WebNotesInner({ onNoteChange }: { onNoteChange?: (note: Note | null) =>
     return () => window.removeEventListener('xo-notes-updated', handleNotesUpdated)
   }, [])
 
-  // Focus a specific note when AI calls focus_note tool
   useEffectN(() => {
     function handleFocusNote(e: Event) {
       const id = (e as CustomEvent<{ id: string }>).detail?.id
@@ -1017,11 +1010,16 @@ function WebNotesInner({ onNoteChange }: { onNoteChange?: (note: Note | null) =>
   const activeNote = notes.find(n => n.id === activeId) ?? notes[0]
   const activeColor = activeNote ? colorFromBg(activeNote.color) : NOTE_COLORS[0]
   const wordCount = activeNote ? activeNote.content.trim().split(/\s+/).filter(Boolean).length : 0
+  const charCount = activeNote ? activeNote.content.length : 0
 
-  // Keep parent informed of the active note (for chat context)
-  useEffectN(() => {
-    onNoteChange?.(activeNote ?? null)
-  }, [activeNote, onNoteChange])
+  // Pinned notes always sort to top
+  const sortedNotes = [...notes].sort((a, b) => {
+    if (a.pinned && !b.pinned) return -1
+    if (!a.pinned && b.pinned) return 1
+    return b.updatedAt - a.updatedAt
+  })
+
+  useEffectN(() => { onNoteChange?.(activeNote ?? null) }, [activeNote, onNoteChange])
 
   const updateNote = useCallbackN((id: string, patch: Partial<Note>) => {
     setNotes(prev => prev.map(n => n.id === id ? { ...n, ...patch, updatedAt: Date.now() } : n))
@@ -1046,147 +1044,245 @@ function WebNotesInner({ onNoteChange }: { onNoteChange?: (note: Note | null) =>
   }
 
   return (
-    <div style={{ display: 'flex', height: '100%', overflow: 'hidden' }}>
-      {/* Sidebar list */}
-      <div className="web-scroll" style={{
-        width: 220, flexShrink: 0,
-        borderRight: '1px solid rgba(255,255,255,0.05)',
-        background: 'rgba(0,0,0,0.2)',
-        display: 'flex', flexDirection: 'column',
-      }}>
-        {/* Header */}
-        <div style={{
-          padding: '18px 16px 12px', borderBottom: '1px solid rgba(255,255,255,0.05)',
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0,
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 13, fontWeight: 600, color: '#fff' }}>Notes</span>
-            <span style={{
-              fontSize: 10, fontWeight: 600, color: 'rgba(255,255,255,0.3)',
-              background: 'rgba(255,255,255,0.07)', borderRadius: 6, padding: '1px 6px',
-            }}>{notes.length}</span>
+    <div className="xo-bento-chat">
+
+      {/* LEFT COLUMN */}
+      <div className="xo-bento-col xo-bento-col--left">
+
+        {/* Card 1 - Notes brand header */}
+        <div className="xo-bento-card xo-bento-card--brand">
+          {/* glow */}
+          <div style={{ position:'absolute', inset:0, borderRadius:'inherit', overflow:'hidden', pointerEvents:'none' }}>
+            <div style={{ position:'absolute', width:200, height:200, borderRadius:'50%', background:'radial-gradient(circle, rgba(235,177,89,0.2) 0%, transparent 65%)', top:-70, right:-50, filter:'blur(22px)' }} />
           </div>
-          <button
-            onClick={addNote}
-            style={{
-              width: 28, height: 28, borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)',
-              background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.5)', cursor: 'pointer',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s',
-            }}
-            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.1)'; (e.currentTarget as HTMLButtonElement).style.color = '#fff' }}
-            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.05)'; (e.currentTarget as HTMLButtonElement).style.color = 'rgba(255,255,255,0.5)' }}
-            title="New note"
-          >
-            <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-          </button>
-        </div>
-
-        {/* Note list */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '8px', display: 'flex', flexDirection: 'column', gap: 3 }}>
-          {notes.map(n => {
-            const nc = colorFromBg(n.color)
-            const isActive = n.id === activeId
-            return (
-              <button key={n.id}
-                onClick={() => { setActiveId(n.id); setConfirmDeleteId(null) }}
-                className={`web-notes-list-item${isActive ? ' active' : ''}`}
-                style={{ border: isActive ? `1px solid ${nc.dot.replace('0.9','0.25')}` : '1px solid transparent', background: isActive ? nc.bg || 'rgba(255,255,255,0.05)' : 'transparent' }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-                  <span style={{ width: 5, height: 5, borderRadius: '50%', background: nc.dot, flexShrink: 0 }} />
-                  <span style={{ fontSize: 12, fontWeight: isActive ? 600 : 400, color: isActive ? '#fff' : 'rgba(255,255,255,0.55)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {n.title || 'Untitled'}
-                  </span>
-                </div>
-                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.25)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingLeft: 11 }}>
-                  {n.content ? n.content.slice(0, 32) : 'Empty'}
-                </div>
-              </button>
-            )
-          })}
-        </div>
-      </div>
-
-      {/* Editor */}
-      {activeNote && (
-        <div style={{
-          flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden',
-          background: activeColor.bg, transition: 'background 0.3s',
-        }}>
-          {/* Editor toolbar */}
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: 8, padding: '14px 20px',
-            borderBottom: '1px solid rgba(255,255,255,0.06)', flexShrink: 0,
-          }}>
-            {/* Color swatches */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-              {NOTE_COLORS.map(c => (
-                <button key={c.bg} onClick={() => updateNote(activeNote.id, { color: c.bg })}
-                  style={{
-                    width: 10, height: 10, borderRadius: '50%', padding: 0, cursor: 'pointer',
-                    border: activeNote.color === c.bg ? `2px solid ${c.dot}` : '2px solid transparent',
-                    background: c.dot, transform: activeNote.color === c.bg ? 'scale(1.3)' : 'scale(1)',
-                    transition: 'transform 0.15s, border 0.15s',
-                  }}
-                />
-              ))}
+          <div style={{ display:'flex', alignItems:'center', gap:12, position:'relative' }}>
+            <div style={{
+              width:46, height:46, borderRadius:15, flexShrink:0,
+              background:'linear-gradient(145deg, rgba(235,177,89,0.25), rgba(238,111,83,0.12))',
+              border:'1px solid rgba(235,177,89,0.32)',
+              display:'flex', alignItems:'center', justifyContent:'center',
+              boxShadow:'0 0 22px rgba(235,177,89,0.18), inset 0 1px 0 rgba(255,255,255,0.1)',
+            }}>
+              <svg width="18" height="18" fill="none" stroke="#EBB159" viewBox="0 0 24 24" style={{ filter:'drop-shadow(0 0 6px rgba(235,177,89,0.7))' }}>
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
+                  d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+              </svg>
             </div>
-            <div style={{ flex: 1 }} />
-            {/* Delete */}
-            {confirmDeleteId === activeNote.id ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>Delete?</span>
-                <button onClick={() => deleteNote(activeNote.id)}
-                  style={{ fontSize: 11, fontWeight: 600, color: '#f87171', background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.25)', borderRadius: 6, padding: '3px 10px', cursor: 'pointer' }}>Yes</button>
-                <button onClick={() => setConfirmDeleteId(null)}
-                  style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 6, padding: '3px 10px', cursor: 'pointer' }}>No</button>
+            <div>
+              <div style={{ fontSize:15, fontWeight:700, color:'#fff', letterSpacing:'-0.02em' }}>Notes</div>
+              <div style={{ display:'flex', alignItems:'center', gap:6, marginTop:3 }}>
+                <div className="status-dot" />
+                <span style={{ fontSize:11, color:'rgba(255,255,255,0.32)', fontWeight:500 }}>{notes.length} note{notes.length !== 1 ? 's' : ''}</span>
               </div>
-            ) : (
-              <button onClick={() => setConfirmDeleteId(activeNote.id)}
-                style={{ width: 28, height: 28, borderRadius: 8, border: 'none', background: 'transparent', color: 'rgba(255,255,255,0.25)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s' }}
-                onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = '#f87171'; (e.currentTarget as HTMLButtonElement).style.background = 'rgba(239,68,68,0.1)' }}
-                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = 'rgba(255,255,255,0.25)'; (e.currentTarget as HTMLButtonElement).style.background = 'transparent' }}
-              >
-                <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                </svg>
-              </button>
-            )}
-          </div>
-
-          {/* Title */}
-          <input ref={titleRef} value={activeNote.title}
-            onChange={e => updateNote(activeNote.id, { title: e.target.value })}
-            placeholder="Title"
-            style={{
-              flexShrink: 0, background: 'transparent', border: 'none', outline: 'none',
-              color: '#fff', fontSize: 17, fontWeight: 700, letterSpacing: '-0.02em',
-              padding: '18px 20px 8px', fontFamily: 'inherit', width: '100%',
-            }}
-          />
-          <div style={{ height: 1, margin: '0 20px', background: 'rgba(255,255,255,0.05)', flexShrink: 0 }} />
-
-          {/* Body */}
-          <textarea value={activeNote.content}
-            onChange={e => updateNote(activeNote.id, { content: e.target.value })}
-            placeholder="Start writing…"
-            className="web-scroll"
-            style={{
-              flex: 1, background: 'transparent', border: 'none', outline: 'none', resize: 'none',
-              color: 'rgba(255,255,255,0.7)', fontSize: 13, lineHeight: 1.8,
-              padding: '12px 20px 8px', fontFamily: 'inherit',
-            }}
-          />
-
-          {/* Footer */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 20px 14px', flexShrink: 0 }}>
-            <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.2)' }}>{wordCount} {wordCount === 1 ? 'word' : 'words'}</span>
-            <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.2)' }}>{timeAgo(activeNote.updatedAt)}</span>
+            </div>
+            <button
+              onClick={addNote}
+              style={{
+                marginLeft:'auto', height:30, padding:'0 14px', borderRadius:9,
+                border:'1px solid rgba(235,177,89,0.22)',
+                background:'rgba(235,177,89,0.09)', color:'#EBB159',
+                cursor:'pointer', display:'flex', alignItems:'center', gap:5,
+                fontSize:11, fontWeight:700, transition:'all 0.15s',
+                boxShadow:'0 0 12px rgba(235,177,89,0.08)',
+              }}
+              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background='rgba(235,177,89,0.18)'; (e.currentTarget as HTMLButtonElement).style.boxShadow='0 0 20px rgba(235,177,89,0.18)' }}
+              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background='rgba(235,177,89,0.09)'; (e.currentTarget as HTMLButtonElement).style.boxShadow='0 0 12px rgba(235,177,89,0.08)' }}
+            >
+              <svg width="9" height="9" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 4v16m8-8H4" />
+              </svg>
+              New
+            </button>
           </div>
         </div>
-      )}
+
+        {/* Card 2 - Notes list */}
+        <div className="xo-bento-card xo-bento-card--sessions">
+          <div style={{ fontSize:10, fontWeight:700, color:'rgba(255,255,255,0.25)', letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:10, flexShrink:0 }}>All Notes</div>
+          <div className="web-scroll xo-sessions-list">
+            {sortedNotes.map(n => {
+              const nc = colorFromBg(n.color)
+              const isActive = n.id === activeId
+              return (
+                <div key={n.id} style={{ position:'relative' }}>
+                  {confirmDeleteId === n.id ? (
+                    <div style={{ padding:'10px 12px', borderRadius:12, marginBottom:4, background:'rgba(239,68,68,0.07)', border:'1px solid rgba(239,68,68,0.2)', display:'flex', alignItems:'center', gap:8 }}>
+                      <span style={{ fontSize:11, color:'rgba(255,255,255,0.4)', flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>Delete?</span>
+                      <button onClick={() => deleteNote(n.id)} style={{ fontSize:11, fontWeight:700, color:'#f87171', background:'rgba(239,68,68,0.16)', border:'1px solid rgba(239,68,68,0.28)', borderRadius:6, padding:'3px 10px', cursor:'pointer' }}>Yes</button>
+                      <button onClick={() => setConfirmDeleteId(null)} style={{ fontSize:11, color:'rgba(255,255,255,0.35)', background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:6, padding:'3px 10px', cursor:'pointer' }}>No</button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => { setActiveId(n.id); setConfirmDeleteId(null) }}
+                      className="xo-note-row"
+                      style={{
+                        width:'100%', textAlign:'left', display:'block',
+                        padding:'10px 10px 10px 12px', borderRadius:12, marginBottom:4, cursor:'pointer',
+                        background: isActive ? (n.color !== 'rgba(255,255,255,0.0)' ? n.color : 'rgba(235,177,89,0.08)') : 'transparent',
+                        border: isActive ? `1px solid ${nc.dot.replace('0.9','0.28')}` : '1px solid transparent',
+                        transition:'all 0.15s',
+                        boxShadow: isActive ? `0 0 18px ${nc.dot.replace('0.9','0.08')}` : 'none',
+                      }}
+                      onMouseEnter={e => { if (!isActive) (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.04)' }}
+                      onMouseLeave={e => { if (!isActive) (e.currentTarget as HTMLButtonElement).style.background = 'transparent' }}
+                    >
+                      <div style={{ display:'flex', alignItems:'stretch', gap:7 }}>
+                        {/* Color dot */}
+                        <span style={{
+                          width:7, height:7, borderRadius:'50%', flexShrink:0, marginTop:5,
+                          background: nc.dot,
+                          boxShadow: isActive ? `0 0 6px ${nc.dot.replace('0.9','0.7')}` : 'none',
+                        }} />
+                        {/* Main content */}
+                        <div style={{ flex:1, minWidth:0 }}>
+                          <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                            <span style={{ fontSize:12, fontWeight: isActive ? 600 : 400, color: isActive ? '#fff' : 'rgba(255,255,255,0.5)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', flex:1 }}>
+                              {n.title || 'Untitled'}
+                            </span>
+                          </div>
+                          <div style={{ fontSize:11, color:'rgba(255,255,255,0.25)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', marginTop:4 }}>
+                            {n.content ? n.content.slice(0, 38) : 'Empty note'}
+                          </div>
+                          <div style={{ fontSize:10, color:'rgba(255,255,255,0.18)', marginTop:3 }}>{timeAgo(n.updatedAt)}</div>
+                        </div>
+                        {/* Actions column — pin always visible if pinned, trash only on hover */}
+                        <div style={{ display:'flex', flexDirection:'column', gap:2, flexShrink:0 }}>
+                          {/* Pin */}
+                          <span
+                            onClick={e => { e.stopPropagation(); updateNote(n.id, { pinned: !n.pinned }) }}
+                            className="xo-note-actions"
+                            style={{
+                              width:24, height:24, borderRadius:7,
+                              display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer',
+                              color: n.pinned ? '#fff' : 'rgba(255,255,255,0.3)',
+                              background: n.pinned ? 'rgba(235,177,89,0.18)' : 'transparent',
+                              opacity: n.pinned ? 1 : 0,
+                              transition:'all 0.2s',
+                            }}
+                            onMouseEnter={e => { (e.currentTarget as HTMLSpanElement).style.background='rgba(235,177,89,0.25)'; (e.currentTarget as HTMLSpanElement).style.color='#fff' }}
+                            onMouseLeave={e => { (e.currentTarget as HTMLSpanElement).style.background= n.pinned ? 'rgba(235,177,89,0.18)' : 'transparent'; (e.currentTarget as HTMLSpanElement).style.color= n.pinned ? '#fff' : 'rgba(255,255,255,0.3)' }}
+                          >
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                              style={{ transform: n.pinned ? 'rotate(-30deg)' : 'rotate(0deg)', transition:'transform 0.2s' }}
+                            >
+                              <path d="M12 17v5"/>
+                              <path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/>
+                            </svg>
+                          </span>
+                          {/* Trash — only on hover */}
+                          <span
+                            onClick={e => { e.stopPropagation(); setConfirmDeleteId(n.id) }}
+                            className="xo-note-trash"
+                            style={{
+                              width:24, height:24, borderRadius:7,
+                              display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer',
+                              color:'rgba(255,255,255,0.3)', background:'transparent',
+                              opacity: 0,
+                              transition:'all 0.15s',
+                            }}
+                            onMouseEnter={e => { (e.currentTarget as HTMLSpanElement).style.color='#f87171'; (e.currentTarget as HTMLSpanElement).style.background='rgba(239,68,68,0.12)' }}
+                            onMouseLeave={e => { (e.currentTarget as HTMLSpanElement).style.color='rgba(255,255,255,0.3)'; (e.currentTarget as HTMLSpanElement).style.background='transparent' }}
+                          >
+                            <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                          </span>
+                        </div>
+                      </div>
+                    </button>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+
+      </div>{/* end left col */}
+
+      {/* RIGHT COLUMN - Editor */}
+      <div className="xo-bento-col xo-bento-col--right">
+        {activeNote ? (
+          <div className="xo-bento-card xo-notes-editor"
+            style={{
+              background: activeColor.bg !== 'rgba(255,255,255,0.0)'
+                ? `linear-gradient(160deg, ${activeColor.bg} 0%, rgba(14,10,6,0.85) 60%)`
+                : 'rgba(14,10,6,0.72)',
+              transition:'background 0.4s ease',
+            }}
+          >
+            {/* Color glow based on active note */}
+            {activeColor.bg !== 'rgba(255,255,255,0.0)' && (
+              <div style={{ position:'absolute', inset:0, borderRadius:'inherit', overflow:'hidden', pointerEvents:'none' }}>
+                <div style={{ position:'absolute', width:300, height:300, borderRadius:'50%', background:`radial-gradient(circle, ${activeColor.dot.replace('0.9','0.12')} 0%, transparent 65%)`, top:-80, right:-60, filter:'blur(30px)' }} />
+              </div>
+            )}
+
+            {/* Toolbar */}
+            <div style={{
+              display:'flex', alignItems:'center', gap:10, padding:'16px 22px 14px',
+              borderBottom:'1px solid rgba(255,255,255,0.06)', flexShrink:0, position:'relative',
+            }}>
+              {/* Color swatches */}
+              <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                {NOTE_COLORS.map(c => (
+                  <button key={c.bg} onClick={() => updateNote(activeNote.id, { color: c.bg })}
+                    style={{
+                      width:13, height:13, borderRadius:'50%', padding:0, cursor:'pointer',
+                      border: activeNote.color === c.bg ? `2px solid ${c.dot}` : '2px solid transparent',
+                      background: c.dot,
+                      transform: activeNote.color === c.bg ? 'scale(1.35)' : 'scale(1)',
+                      transition:'transform 0.15s, border 0.15s',
+                      boxShadow: activeNote.color === c.bg ? `0 0 8px ${c.dot.replace('0.9','0.6')}` : 'none',
+                    }}
+                  />
+                ))}
+              </div>
+              <div style={{ flex:1 }} />
+              {/* Stats */}
+              <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+                <span style={{ fontSize:11, color:'rgba(255,255,255,0.25)', fontWeight:500 }}>{wordCount}w · {charCount}c</span>
+                <span style={{ fontSize:11, color:'rgba(255,255,255,0.2)' }}>{timeAgo(activeNote.updatedAt)}</span>
+              </div>
+            </div>
+
+            {/* Title */}
+            <input
+              ref={titleRef}
+              value={activeNote.title}
+              onChange={e => updateNote(activeNote.id, { title: e.target.value })}
+              placeholder="Untitled"
+              style={{
+                flexShrink:0, background:'transparent', border:'none', outline:'none',
+                color:'#fff', fontSize:24, fontWeight:700, letterSpacing:'-0.03em',
+                padding:'22px 24px 10px', fontFamily:'inherit', width:'100%',
+              }}
+            />
+            {/* Subtle rule */}
+            <div style={{ margin:'0 24px 4px', height:1, background:`linear-gradient(90deg, ${activeColor.dot.replace('0.9','0.2')}, transparent)`, flexShrink:0 }} />
+
+            {/* Body */}
+            <textarea
+              value={activeNote.content}
+              onChange={e => updateNote(activeNote.id, { content: e.target.value })}
+              placeholder="Start writing..."
+              className="web-scroll xo-notes-textarea"
+              style={{
+                flex:1, background:'transparent', border:'none', outline:'none', resize:'none',
+                color:'rgba(255,255,255,0.75)', fontSize:14, lineHeight:1.85,
+                padding:'14px 24px 24px', fontFamily:'inherit',
+              }}
+            />
+          </div>
+        ) : (
+          <div className="xo-bento-card" style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', flexDirection:'column', gap:12, color:'rgba(255,255,255,0.2)' }}>
+            <svg width="28" height="28" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ opacity:0.4 }}>
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+            </svg>
+            <span style={{ fontSize:13 }}>Select a note to edit</span>
+          </div>
+        )}
+      </div>{/* end right col */}
+
     </div>
   )
 }

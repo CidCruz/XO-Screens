@@ -439,6 +439,32 @@ body {
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
 }
 
+/* ── Notes editor ────────────────────────────────────────────────────────── */
+.xo-note-row:hover .xo-note-actions { opacity: 1 !important; }
+.xo-note-row:hover .xo-note-trash   { opacity: 1 !important; }
+
+.xo-notes-editor {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-color: rgba(255,255,255,0.07);
+}
+
+.xo-notes-textarea {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(235,177,89,0.3) transparent;
+}
+.xo-notes-textarea::-webkit-scrollbar { width: 3px; }
+.xo-notes-textarea::-webkit-scrollbar-track { background: transparent; margin: 8px 0; }
+.xo-notes-textarea::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, rgba(235,177,89,0.5), rgba(238,111,83,0.3));
+  border-radius: 99px;
+}
+.xo-notes-textarea::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, rgba(235,177,89,0.8), rgba(238,111,83,0.6));
+}
+
 /* ── Home panel — hero redesign ──────────────────────────────────────────── */
 .xo-home {
   display: flex;

@@ -15,6 +15,7 @@ export interface Note {
   title: string
   content: string
   color: string
+  pinned?: boolean
   createdAt: number
   updatedAt: number
 }
