@@ -148,34 +148,38 @@ export interface ToolCallResult {
 export type CaptionTone = 'formal' | 'sarcastic' | 'humorous-tech' | 'humorous-nontech'
 
 export interface ToneResult {
-  captions: string
   summary: string
 }
 
-export type CaptionResults = Record<CaptionTone, ToneResult>
+export interface CaptionResults {
+  transcription: string
+  formal: ToneResult
+  sarcastic: ToneResult
+  'humorous-tech': ToneResult
+  'humorous-nontech': ToneResult
+}
 
 const TONE_SYSTEM_PROMPTS: Record<CaptionTone, string> = {
   formal:
-    'You are a professional video captioning assistant. Write in a clear, neutral, formal register. Be precise and factual about what is actually shown in the video. /no_think',
+    'You are a professional video summarisation assistant. Write in a clear, neutral, formal register. Be precise and factual about what is actually shown in the video. /no_think',
   sarcastic:
-    'You are a witty, sarcastic video captioning assistant. Use dry sarcasm and sardonic commentary — but you MUST accurately describe what is actually happening in the video. /no_think',
+    'You are a witty, sarcastic video summarisation assistant. Use dry sarcasm and sardonic commentary — but you MUST accurately describe what is actually happening in the video. /no_think',
   'humorous-tech':
-    'You are a tech-savvy comedian captioning videos for developers. Use programming jokes and geek humour — but you MUST accurately describe what is actually shown in the video. /no_think',
+    'You are a tech-savvy comedian summarising videos for developers. Use programming jokes and geek humour — but you MUST accurately describe what is actually shown in the video. /no_think',
   'humorous-nontech':
-    'You are a stand-up comedian captioning videos for a general audience. Keep it punny and light-hearted, no jargon — but you MUST accurately describe what is actually shown in the video. /no_think',
+    'You are a stand-up comedian summarising videos for a general audience. Keep it punny and light-hearted, no jargon — but you MUST accurately describe what is actually shown in the video. /no_think',
 }
 
-const CAPTION_USER_PROMPT = (videoDescription: string) => `Video description:
+const SUMMARY_USER_PROMPT = (videoDescription: string) => `Video description:
 ${videoDescription}
 
-Write timestamped captions and a summary for this video in your assigned tone. Base everything strictly on the description above.
+Write a one-paragraph summary of this video in your assigned tone. Base everything strictly on the description above.
 
 You MUST respond with a single raw JSON object and nothing else. No markdown, no code fences, no explanation, no thinking.
-The JSON must have exactly these two keys:
-- "captions": a string containing 4-6 timestamped lines, each formatted exactly as "0:00 – caption text here", separated by newlines.
+The JSON must have exactly one key:
 - "summary": a string containing one paragraph summarising the entire video in your assigned tone.
 
-Both "captions" and "summary" MUST be non-empty strings. Start your response with { and end with }. /no_think`
+Start your response with { and end with }. /no_think`
 
 function parseToneResult(raw: string): ToneResult | null {
   const stripped = raw
@@ -188,36 +192,124 @@ function parseToneResult(raw: string): ToneResult | null {
   const jsonMatch = stripped.match(/\{[\s\S]*\}/)
   if (!jsonMatch) return null
 
-  let parsed: { captions?: unknown; summary?: unknown } = {}
+  let parsed: { summary?: unknown } = {}
   try {
     parsed = JSON.parse(jsonMatch[0].trim())
   } catch {
-    // Salvage truncated JSON by extracting fields with regex
-    const captionsMatch = jsonMatch[0].match(/"captions"\s*:\s*"((?:[^"\\]|\\.)*)"/s)
-    const summaryMatch  = jsonMatch[0].match(/"summary"\s*:\s*"((?:[^"\\]|\\.)*)"/s)
-    if (captionsMatch) parsed.captions = captionsMatch[1].replace(/\\n/g, '\n').replace(/\\"/g, '"')
-    if (summaryMatch)  parsed.summary  = summaryMatch[1].replace(/\\n/g, '\n').replace(/\\"/g, '"')
+    const summaryMatch = jsonMatch[0].match(/"summary"\s*:\s*"((?:[^"\\]|\\.)*)"/s)
+    if (summaryMatch) parsed.summary = summaryMatch[1].replace(/\\n/g, '\n').replace(/\\"/g, '"')
   }
 
   const isValid = (s: unknown) =>
-    typeof s === 'string' && s.trim().length >= 10 &&
-    s.trim() !== 'CAPTION_TEXT' && s.trim() !== 'SUMMARY_TEXT'
+    typeof s === 'string' && s.trim().length >= 10 && s.trim() !== 'SUMMARY_TEXT'
 
   if (!isValid(parsed.summary)) return null
+  return { summary: (parsed.summary as string).trim() }
+}
 
-  return {
-    captions: isValid(parsed.captions) ? (parsed.captions as string).trim() : '',
-    summary: (parsed.summary as string).trim(),
+// ─── Audio transcription via Whisper ─────────────────────────────────────────
+
+async function extractAudioBlob(file: File): Promise<Blob> {
+  // Use Web Audio API to decode and re-encode as WAV for Whisper
+  const arrayBuffer = await file.arrayBuffer()
+  const audioCtx = new AudioContext({ sampleRate: 16000 })
+  let audioBuffer: AudioBuffer
+  try {
+    audioBuffer = await audioCtx.decodeAudioData(arrayBuffer)
+  } finally {
+    audioCtx.close()
   }
+
+  // Render to mono 16kHz PCM
+  const offlineCtx = new OfflineAudioContext(1, audioBuffer.duration * 16000, 16000)
+  const source = offlineCtx.createBufferSource()
+  source.buffer = audioBuffer
+  source.connect(offlineCtx.destination)
+  source.start()
+  const rendered = await offlineCtx.startRendering()
+
+  // Encode as WAV
+  const pcm = rendered.getChannelData(0)
+  const wavBuffer = new ArrayBuffer(44 + pcm.length * 2)
+  const view = new DataView(wavBuffer)
+  const writeStr = (offset: number, str: string) => { for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i)) }
+  writeStr(0, 'RIFF')
+  view.setUint32(4, 36 + pcm.length * 2, true)
+  writeStr(8, 'WAVE')
+  writeStr(12, 'fmt ')
+  view.setUint32(16, 16, true)
+  view.setUint16(20, 1, true)   // PCM
+  view.setUint16(22, 1, true)   // mono
+  view.setUint32(24, 16000, true)
+  view.setUint32(28, 32000, true)
+  view.setUint16(32, 2, true)
+  view.setUint16(34, 16, true)
+  writeStr(36, 'data')
+  view.setUint32(40, pcm.length * 2, true)
+  for (let i = 0; i < pcm.length; i++) {
+    view.setInt16(44 + i * 2, Math.max(-1, Math.min(1, pcm[i])) * 0x7fff, true)
+  }
+  return new Blob([wavBuffer], { type: 'audio/wav' })
+}
+
+function hasAudioTrack(file: File): Promise<boolean> {
+  return new Promise(resolve => {
+    const video = document.createElement('video')
+    video.muted = false
+    video.src = URL.createObjectURL(file)
+    video.addEventListener('loadedmetadata', () => {
+      URL.revokeObjectURL(video.src)
+      // If mozHasAudio / webkitAudioDecodedByteCount not available, assume true
+      const hasAudio = (video as unknown as Record<string, unknown>).mozHasAudio as boolean | undefined
+        ?? ((video as unknown as Record<string, unknown>).webkitAudioDecodedByteCount as number | undefined) !== 0
+        ?? true
+      resolve(hasAudio)
+    })
+    video.addEventListener('error', () => { URL.revokeObjectURL(video.src); resolve(false) })
+  })
+}
+
+export async function transcribeAudio(file: File): Promise<string> {
+  const audioHint = await hasAudioTrack(file)
+  if (!audioHint) return ''
+
+  let wavBlob: Blob
+  try {
+    wavBlob = await extractAudioBlob(file)
+  } catch {
+    return ''
+  }
+
+  // Check if audio is effectively silent (all near-zero samples)
+  const arrayBuffer = await wavBlob.arrayBuffer()
+  const pcmView = new Int16Array(arrayBuffer, 44)
+  const rms = Math.sqrt(pcmView.reduce((sum, s) => sum + s * s, 0) / pcmView.length)
+  if (rms < 50) return '' // silent
+
+  const formData = new FormData()
+  formData.append('file', wavBlob, 'audio.wav')
+  formData.append('model', 'whisper-v3')
+  formData.append('response_format', 'text')
+
+  const res = await fetch(`${BASE_URL}/audio/transcriptions`, {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${getApiKey()}` },
+    body: formData,
+  })
+
+  if (!res.ok) return ''
+  const text = (await res.text()).trim()
+  return text
 }
 
 // ─── Shared caption pass ──────────────────────────────────────────────────────
 
 async function runCaptionPass(
   videoDescription: string,
+  transcription: string,
   onProgress?: (tone: CaptionTone) => void,
 ): Promise<CaptionResults> {
-  const results = {} as CaptionResults
+  const toneResults = {} as Record<CaptionTone, ToneResult>
   const tones = Object.keys(TONE_SYSTEM_PROMPTS) as CaptionTone[]
 
   await Promise.all(tones.map(async tone => {
@@ -226,12 +318,12 @@ async function runCaptionPass(
       try {
         const msgs: FWMessage[] = [
           { role: 'system', content: TONE_SYSTEM_PROMPTS[tone] },
-          { role: 'user', content: CAPTION_USER_PROMPT(videoDescription) },
+          { role: 'user', content: SUMMARY_USER_PROMPT(videoDescription) },
         ]
         const choice = await callFW(msgs, GEMMA_MODELS.E4B, { temperature: 0.7 })
         const parsed = parseToneResult(choice.message.content ?? '')
         if (parsed) {
-          results[tone] = parsed
+          toneResults[tone] = parsed
           onProgress?.(tone)
           return
         }
@@ -241,14 +333,13 @@ async function runCaptionPass(
       }
       if (attempt < 3) await new Promise(r => setTimeout(r, 1200 * (attempt + 1)))
     }
-    results[tone] = {
-      captions: '',
+    toneResults[tone] = {
       summary: `Failed to generate summary. ${lastErr instanceof Error ? lastErr.message : String(lastErr)}`,
     }
     onProgress?.(tone)
   }))
 
-  return results
+  return { transcription, ...toneResults } as CaptionResults
 }
 
 // ─── Frame capture helpers ────────────────────────────────────────────────────
@@ -318,6 +409,7 @@ export async function processVideoURL(
   if (res.status === 400) throw new Error('Not a valid URL.')
   if (!res.ok) throw new Error(`Failed to fetch video: ${res.status}`)
   const blob = await res.blob()
+  const videoFile = new File([blob], 'video', { type: blob.type || 'video/mp4' })
   const objectUrl = URL.createObjectURL(blob)
 
   let frameDataUrls: string[]
@@ -339,18 +431,21 @@ export async function processVideoURL(
 
   if (frameDataUrls.length === 0) throw new Error('Could not extract frames from video.')
 
-  const descChoice = await callFW([
-    { role: 'system', content: DESC_SYSTEM },
-    { role: 'user', content: [
-      ...frameDataUrls.map(u => ({ type: 'image_url' as const, image_url: { url: u } })),
-      { type: 'text' as const, text: DESC_USER },
-    ]},
-  ], GEMMA_MODELS.B31, { temperature: 0.3 })
+  const [descChoice, transcription] = await Promise.all([
+    callFW([
+      { role: 'system', content: DESC_SYSTEM },
+      { role: 'user', content: [
+        ...frameDataUrls.map(u => ({ type: 'image_url' as const, image_url: { url: u } })),
+        { type: 'text' as const, text: DESC_USER },
+      ]},
+    ], GEMMA_MODELS.B31, { temperature: 0.3 }),
+    transcribeAudio(videoFile),
+  ])
 
   const videoDescription = (descChoice.message.content ?? '')
     .replace(/<think>[\s\S]*?<\/think>/gi, '').trim() || `Video from URL: ${url}`
 
-  return runCaptionPass(videoDescription, onProgress)
+  return runCaptionPass(videoDescription, transcription, onProgress)
 }
 
 export async function processVideoFile(
@@ -376,7 +471,8 @@ export async function processVideoFile(
   const videoDescription = (descChoice.message.content ?? '')
     .replace(/<think>[\s\S]*?<\/think>/gi, '').trim() || `Video file: ${file.name}`
 
-  return runCaptionPass(videoDescription, onProgress)
+  const transcription = await transcribeAudio(file)
+  return runCaptionPass(videoDescription, transcription, onProgress)
 }
 
 // ─── Chat helpers ─────────────────────────────────────────────────────────────

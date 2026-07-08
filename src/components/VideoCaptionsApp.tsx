@@ -2,6 +2,7 @@ import { useState, useRef, useCallback } from 'react'
 import type { Note, CaptionHistoryEntry } from '../types'
 import type { CaptionTone, CaptionResults } from '../gemini'
 import { processVideoFile, processVideoURL } from '../gemini'
+import type { ToneResult } from '../gemini'
 import { loadCaptionHistory, addCaptionHistoryEntry, deleteCaptionHistoryEntry, clearCaptionHistory } from '../captionHistory'
 
 // ─── Constants ──────────────────────────────────────────────────────────────
@@ -446,7 +447,7 @@ export default function VideoCaptionsApp({ onClose: _onClose, onCornerDown }: Pr
       const content =
         `[Video] ${videoLabel}\n[Generated] ${timestamp}\n\n` +
         `-- Summary --\n${r.summary}\n\n` +
-        `-- Captions --\n${r.captions || '(No timestamped captions generated)'}`
+        `-- Transcription --\n${results.transcription || '(No speech detected)'}`
       return makeNote(`[${t.label}] ${videoLabel}`, content, TONE_NOTE_COLORS[t.id])
     })
 
@@ -476,7 +477,7 @@ export default function VideoCaptionsApp({ onClose: _onClose, onCornerDown }: Pr
     (inputMode === 'file' ? !!videoFile : videoURL.trim().length > 5)
 
   const activeToneData = TONES.find(t => t.id === activeTone)!
-  const activeResult   = results?.[activeTone]
+  const activeResult   = results?.[activeTone] as ToneResult | undefined
 
   const processingLabel = doneTones.size === 0 ? 'Processing…' : `${doneTones.size} / ${TONES.length} tones done…`
 
@@ -799,7 +800,7 @@ export default function VideoCaptionsApp({ onClose: _onClose, onCornerDown }: Pr
               ))}
             </div>
 
-            {/* Captions / Summary tab bar */}
+            {/* Transcription / Summary tab bar */}
             <div style={{
               display: 'flex', gap: 2, padding: '0 16px 10px',
               flexShrink: 0,
@@ -843,33 +844,17 @@ export default function VideoCaptionsApp({ onClose: _onClose, onCornerDown }: Pr
                   </p>
                 </div>
               ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-                  {(activeResult?.captions || '').split('\n').filter(Boolean).map((line, i) => {
-                    // Lines are expected as "0:00 – text"
-                    const match = line.match(/^(\d+:\d+(?:\.\d+)?(?:\s*[–\-]\s*|\s+))(.+)$/)
-                    const timestamp = match ? match[1].trim() : null
-                    const text      = match ? match[2] : line
-                    return (
-                      <div key={i} style={{
-                        display: 'flex', gap: 10, padding: '7px 0',
-                        borderBottom: i < (activeResult?.captions || '').split('\n').filter(Boolean).length - 1
-                          ? '1px solid rgba(255,255,255,0.05)' : 'none',
-                        alignItems: 'flex-start',
-                      }}>
-                        {timestamp && (
-                          <span style={{
-                            color: activeToneData.dotColor, fontSize: 10, fontWeight: 600,
-                            fontFamily: 'monospace', flexShrink: 0, paddingTop: 1,
-                            minWidth: 38,
-                          }}>{timestamp.replace(/[–\-]/, '').trim()}</span>
-                        )}
-                        <span style={{ color: 'rgba(255,255,255,0.72)', fontSize: 12, lineHeight: 1.6 }}>{text}</span>
-                      </div>
-                    )
-                  })}
-                  {!activeResult?.captions && (
-                    <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: 12, padding: '12px 0' }}>
-                      No timestamped captions were generated.
+                <div style={{ padding: '4px 0' }}>
+                  {results?.transcription ? (
+                    <p style={{
+                      color: 'rgba(255,255,255,0.78)', fontSize: 12, lineHeight: 1.75,
+                      margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+                    }}>
+                      {results.transcription}
+                    </p>
+                  ) : (
+                    <div style={{ color: 'rgba(255,255,255,0.25)', fontSize: 12, padding: '12px 0', fontStyle: 'italic' }}>
+                      No speech detected.
                     </div>
                   )}
                 </div>

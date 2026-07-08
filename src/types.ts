@@ -29,7 +29,6 @@ export interface ChatSession {
 
 export interface CaptionToneResult {
   summary: string
-  captions: string
 }
 
 export interface CaptionHistoryEntry {
