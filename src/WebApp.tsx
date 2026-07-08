@@ -120,7 +120,7 @@ function HomePanel({ onNavigate }: { onNavigate: (id: string) => void }) {
       num: '01',
       label: 'Track 1',
       title: 'General-Purpose AI Agent',
-      desc: '8-category agent: factual knowledge, math, sentiment, summarisation, NER, code debug, logic, and code generation â€” all via Fireworks AI.',
+      desc: '8-category agent: factual knowledge, math, sentiment, summarisation, NER, code debug, logic, and code generation "” all via Fireworks AI.',
       chips: ['Factual', 'Math', 'Code', 'Logic', 'NER'],
       color: 'rgba(235,177,89,0.95)',
       glow: 'rgba(235,177,89,0.07)',
@@ -155,8 +155,8 @@ function HomePanel({ onNavigate }: { onNavigate: (id: string) => void }) {
     {
       num: '03',
       label: 'Track 3',
-      title: 'XO Screens â€” Unicorn',
-      desc: 'Full AI productivity workspace: chat assistant, smart notes, video summarizer, and usage tracking â€” all powered by AMD compute.',
+      title: 'XO Screens "” Unicorn',
+      desc: 'Full AI productivity workspace: chat assistant, smart notes, video summarizer, and usage tracking "” all powered by AMD compute.',
       chips: ['Chat', 'Notes', 'Video', 'AMD'],
       color: 'rgba(238,111,83,0.95)',
       glow: 'rgba(238,111,83,0.07)',
@@ -178,7 +178,7 @@ function HomePanel({ onNavigate }: { onNavigate: (id: string) => void }) {
       <div style={{ marginBottom: 18, animation: 'fadeIn 0.5s ease both' }}>
         <span className="web-hero-badge">
           <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#EBB159', display: 'inline-block', boxShadow: '0 0 6px rgba(235,177,89,0.8)' }} />
-          AMD Developer Hackathon Â· ACT II
+          AMD Developer Hackathon · ACT II
         </span>
       </div>
 
@@ -322,7 +322,7 @@ function SettingsPanel() {
                 value={apiKey}
                 onChange={e => { setApiKey(e.target.value); setSaved(false) }}
                 onKeyDown={e => e.key === 'Enter' && handleSave()}
-                placeholder="fw_â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
+                placeholder="fw_••••••••••••••••••••"
                 spellCheck={false}
                 style={{
                   width: '100%', boxSizing: 'border-box',
@@ -397,7 +397,7 @@ import {
   initSessions, newSession, upsertSession, saveSessions, deriveTitleFromMessage, deleteSession,
 } from './chatHistory'
 
-// Capability groups â€” mirrors overlay ChatBox exactly
+// Capability groups "” mirrors overlay ChatBox exactly
 const WEB_CAP_GROUPS = [
   {
     id: 'notes_read', label: 'Read Notes',
@@ -574,7 +574,7 @@ function WebChatPanel({ activeNote, appControl }: WebChatPanelProps) {
         {/* â•â• LEFT COLUMN â•â• */}
         <div className="xo-bento-col xo-bento-col--left">
 
-          {/* Card 1 â€” Brand / model info */}
+          {/* Card 1 "” Brand / model info */}
           <div className="xo-bento-card xo-bento-card--brand">
             {/* Ambient glow blob */}
             <div style={{
@@ -655,7 +655,7 @@ function WebChatPanel({ activeNote, appControl }: WebChatPanelProps) {
             )}
           </div>
 
-          {/* Card 2 â€” Session list */}
+          {/* Card 2 "” Session list */}
           <div className="xo-bento-card xo-bento-card--sessions">
             {/* Header */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, flexShrink: 0 }}>
@@ -725,7 +725,7 @@ function WebChatPanel({ activeNote, appControl }: WebChatPanelProps) {
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontSize: 11, fontWeight: s.id === activeId ? 600 : 400, color: s.id === activeId ? '#fff' : 'rgba(255,255,255,0.45)', marginBottom: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.title}</div>
                         <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.2)' }}>
-                          {s.messages.filter(m => m.role === 'user').length} msg Â· {timeAgoChat(s.updatedAt)}
+                          {s.messages.filter(m => m.role === 'user').length} msg · {timeAgoChat(s.updatedAt)}
                         </div>
                       </div>
                       <button onClick={e => { e.stopPropagation(); setConfirmDeleteId(s.id) }}
@@ -748,7 +748,7 @@ function WebChatPanel({ activeNote, appControl }: WebChatPanelProps) {
         {/* â•â• RIGHT COLUMN â•â• */}
         <div className="xo-bento-col xo-bento-col--right">
 
-          {/* Card 3 â€” Messages */}
+          {/* Card 3 "” Messages */}
           <div className="xo-bento-card xo-bento-card--messages">
             {/* Empty state */}
             {messages.length === 0 && !loading && (
@@ -765,7 +765,7 @@ function WebChatPanel({ activeNote, appControl }: WebChatPanelProps) {
                 <div style={{ textAlign: 'center' }}>
                   <div style={{ fontSize: 14, fontWeight: 700, color: '#fff', marginBottom: 5, letterSpacing: '-0.01em' }}>How can I help?</div>
                   <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.28)', lineHeight: 1.7, maxWidth: 260 }}>
-                    Ask me anything â€” code, analysis, notes, questions.
+                    Ask me anything "” code, analysis, notes, questions.
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', justifyContent: 'center', marginTop: 2 }}>
@@ -830,7 +830,7 @@ function WebChatPanel({ activeNote, appControl }: WebChatPanelProps) {
                     <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="rgba(235,177,89,0.75)" style={{ animation: 'spin 1s linear infinite', flexShrink: 0 }}>
                       <path strokeLinecap="round" strokeWidth={2.5} d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
                     </svg>
-                    <span style={{ fontSize: 11, color: 'rgba(235,177,89,0.75)', fontWeight: 500 }}>{activeTools[activeTools.length - 1].replace(/_/g, ' ')}â€¦</span>
+                    <span style={{ fontSize: 11, color: 'rgba(235,177,89,0.75)', fontWeight: 500 }}>{activeTools[activeTools.length - 1].replace(/_/g, ' ')}…</span>
                   </div>
                 </div>
               )}
@@ -852,7 +852,7 @@ function WebChatPanel({ activeNote, appControl }: WebChatPanelProps) {
             </div>
           </div>
 
-          {/* Card 4 â€” Input */}
+          {/* Card 4 "” Input */}
           <div className="xo-bento-card xo-bento-card--input">
             <div style={{ display: 'flex', alignItems: 'flex-end', gap: 10 }}>
               <div
@@ -860,7 +860,7 @@ function WebChatPanel({ activeNote, appControl }: WebChatPanelProps) {
                 contentEditable
                 suppressContentEditableWarning
                 className="web-chat-input xo-input-field"
-                data-placeholder="Ask anythingâ€¦"
+                data-placeholder="Ask anything…"
                 onInput={e => setInput((e.currentTarget as HTMLDivElement).innerText)}
                 onKeyDown={e => {
                   if (e.key === 'Enter' && !e.shiftKey) {
@@ -908,7 +908,7 @@ function WebChatPanel({ activeNote, appControl }: WebChatPanelProps) {
               </button>
             </div>
             <div style={{ marginTop: 9, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.16)' }}>Enter to send Â· Shift+Enter for newline</span>
+              <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.16)' }}>Enter to send · Shift+Enter for newline</span>
               {input.trim() && (
                 <span style={{ fontSize: 10, color: 'rgba(235,177,89,0.5)', fontWeight: 500 }}>
                   {input.trim().split(/\s+/).filter(Boolean).length}w
@@ -1157,7 +1157,7 @@ function WebNotesInner({ onNoteChange }: { onNoteChange?: (note: Note | null) =>
           {/* Body */}
           <textarea value={activeNote.content}
             onChange={e => updateNote(activeNote.id, { content: e.target.value })}
-            placeholder="Start writingâ€¦"
+            placeholder="Start writing…"
             className="web-scroll"
             style={{
               flex: 1, background: 'transparent', border: 'none', outline: 'none', resize: 'none',
@@ -1183,7 +1183,7 @@ import type { CaptionTone, CaptionResults } from './gemini'
 import type { CaptionHistoryEntry } from './types'
 import { loadCaptionHistory, addCaptionHistoryEntry, deleteCaptionHistoryEntry, clearCaptionHistory } from './captionHistory'
 
-// Tone definitions â€” SVG icons matching the overlay exactly
+// Tone definitions "” SVG icons matching the overlay exactly
 const VIDEO_TONES: { id: CaptionTone; label: string; icon: React.ReactElement; accent: string; border: string; dot: string }[] = [
   {
     id: 'formal', label: 'Formal', dot: 'rgba(59,130,246,0.9)', accent: 'rgba(59,130,246,0.12)', border: 'rgba(59,130,246,0.25)',
@@ -1369,11 +1369,11 @@ function WebVideoPanel() {
                   <div style={{ color: '#fff', fontSize: 12, fontWeight: 600 }}>{videoFile.name}</div>
                   <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: 11, marginTop: 3 }}>
                     {(videoFile.size / (1024 * 1024)).toFixed(1)} MB
-                    {' Â· '}
+                    {' · '}
                     <span style={{ color: videoFile.size > 75 * 1024 * 1024 ? 'rgba(245,158,11,0.8)' : 'rgba(52,211,153,0.7)' }}>
                       {videoFile.size > 75 * 1024 * 1024 ? 'Files API upload' : 'Inline (fast)'}
                     </span>
-                    {' Â· click to change'}
+                    {' · click to change'}
                   </div>
                 </div>
               ) : (
@@ -1426,7 +1426,7 @@ function WebVideoPanel() {
             onMouseLeave={e => { if (canProcess) (e.currentTarget as HTMLButtonElement).style.background = 'linear-gradient(135deg, #EBB159, #EE6F53)' }}
           >
             {status === 'processing'
-              ? <><VSpinner /> {processingTone ? `Processing "${VIDEO_TONES.find(t => t.id === processingTone)?.label}"â€¦` : 'Processingâ€¦'}</>
+              ? <><VSpinner /> {processingTone ? `Processing "${VIDEO_TONES.find(t => t.id === processingTone)?.label}"…` : 'Processing…'}</>
               : <>{status === 'done' ? 'Re-summarize' : 'Generate Video Summary'}</>
             }
           </button>
@@ -1443,7 +1443,7 @@ function WebVideoPanel() {
         {status === 'processing' && (
           <div style={{ margin: '12px 18px 0', display: 'flex', flexDirection: 'column', gap: 6 }}>
 
-            {/* Upload progress bar â€” only shown for large files using Files API */}
+            {/* Upload progress bar "” only shown for large files using Files API */}
             {uploadPhase && (
               <div style={{
                 padding: '8px 12px', borderRadius: 10,
@@ -1454,8 +1454,8 @@ function WebVideoPanel() {
                   <VSpinner />
                   <span style={{ fontSize: 11, color: 'rgba(245,158,11,0.9)', fontWeight: 500 }}>
                     {uploadPhase === 'uploading'
-                      ? `Uploading to Files APIâ€¦ ${uploadPct}%`
-                      : 'Fireworks AI is processing your videoâ€¦'}
+                      ? `Uploading to Files API… ${uploadPct}%`
+                      : 'Fireworks AI is processing your video…'}
                   </span>
                 </div>
                 {uploadPhase === 'uploading' && (
@@ -1523,7 +1523,7 @@ function WebVideoPanel() {
         )}
 
         {/* â”€â”€ History section (second row, VS Code-style) â”€â”€ */}
-        {/* Divider / section header â€” always visible, click to toggle */}
+        {/* Divider / section header "” always visible, click to toggle */}
         <button onClick={() => setShowHistory(v => !v)} style={{
           marginTop: 'auto', flexShrink: 0,
           display: 'flex', alignItems: 'center', gap: 6,
@@ -1538,7 +1538,7 @@ function WebVideoPanel() {
           onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.05)' }}
           onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.02)' }}
         >
-          {/* Chevron â€” rotates when open */}
+          {/* Chevron "” rotates when open */}
           <svg width="10" height="10" fill="none" stroke="rgba(255,255,255,0.4)" viewBox="0 0 24 24"
             style={{ transition: 'transform 0.2s', transform: showHistory ? 'rotate(90deg)' : 'rotate(0deg)', flexShrink: 0 }}>
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
@@ -1637,7 +1637,7 @@ function WebVideoPanel() {
                         {entry.label}
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                        <span style={{ color: 'rgba(255,255,255,0.25)', fontSize: 10 }}>{dateStr} Â· {timeStr}</span>
+                        <span style={{ color: 'rgba(255,255,255,0.25)', fontSize: 10 }}>{dateStr} · {timeStr}</span>
                         <span style={{ color: 'rgba(235,177,89,0.8)', fontSize: 10, fontWeight: 500, background: 'rgba(235,177,89,0.1)', borderRadius: 4, padding: '0px 4px' }}>
                           {toneCount}t
                         </span>
@@ -1703,7 +1703,7 @@ function WebVideoPanel() {
             </>
           ) : (
             <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 12 }}>
-              {status === 'processing' ? 'Generatingâ€¦' : 'Results will appear here'}
+              {status === 'processing' ? 'Generating…' : 'Results will appear here'}
             </span>
           )}
         </div>
@@ -1791,7 +1791,7 @@ function UsageTrackingPanel() {
         {/* Provider */}
         <div style={{ marginTop: 24, padding: '12px 14px', borderRadius: 12, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#EBB159', boxShadow: '0 0 6px rgba(235,177,89,0.6)', flexShrink: 0 }} />
-          <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>All inference via <span style={{ color: '#EBB159', fontWeight: 600 }}>Fireworks AI</span> Â· AMD hardware</span>
+          <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>All inference via <span style={{ color: '#EBB159', fontWeight: 600 }}>Fireworks AI</span> · AMD hardware</span>
         </div>
       </div>
     </div>
@@ -1803,7 +1803,7 @@ export default function WebApp() {
   const [activeId, setActiveId] = useState('home')
   const [activeNote, setActiveNote] = useState<Note | null>(null)
 
-  // Build a web-native AppControl â€” no Electron APIs, just localStorage + events
+  // Build a web-native AppControl "” no Electron APIs, just localStorage + events
   const appControl: AppControl = useMemo(() => {
     const NOTES_KEY = 'xo-notes'
     function loadN(): import('./types').Note[] {
@@ -1820,7 +1820,7 @@ export default function WebApp() {
     return {
       // In the web app, "open widget" = navigate to that panel
       openWidget:      (id) => setActiveId(id === 'video' ? 'video' : id === 'settings' ? 'settings' : id),
-      closeWidget:     (_id) => { /* no-op in web â€” can't hide panels */ },
+      closeWidget:     (_id) => { /* no-op in web "” can't hide panels */ },
       getOpenWidgets:  () => [activeId as import('./types').WidgetId].filter(Boolean),
       listNotes:       () => loadN(),
       getNote:         (id) => loadN().find(n => n.id === id),

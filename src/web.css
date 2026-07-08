@@ -303,15 +303,6 @@ body {
   animation: pulse-dot 2.5s ease-in-out infinite;
 }
 
-/* ── Scrollable areas ────────────────────────────────────────────────────── */
-.web-scroll {
-  overflow-y: auto;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(255,255,255,0.1) transparent;
-}
-.web-scroll::-webkit-scrollbar { width: 3px; }
-.web-scroll::-webkit-scrollbar-track { background: transparent; }
-.web-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
 
 /* ── Chat messages ───────────────────────────────────────────────────────── */
 .web-msg-user {
@@ -387,7 +378,46 @@ body {
 }
 .web-chat-input:not(:empty)::before { display: none; }
 
-/* ── Chat history row hover ──────────────────────────────────────────────── */
+/* Designful scrollbar for the input textarea */
+.web-chat-input {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(235,177,89,0.35) transparent;
+}
+.web-chat-input::-webkit-scrollbar {
+  width: 3px;
+}
+.web-chat-input::-webkit-scrollbar-track {
+  background: transparent;
+  margin: 6px 0;
+}
+.web-chat-input::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, rgba(235,177,89,0.6), rgba(238,111,83,0.4));
+  border-radius: 99px;
+  box-shadow: 0 0 6px rgba(235,177,89,0.4);
+}
+.web-chat-input::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, rgba(235,177,89,0.9), rgba(238,111,83,0.7));
+  box-shadow: 0 0 10px rgba(235,177,89,0.6);
+}
+
+/* ── Scrollable areas — amber brand scrollbars ───────────────────────────── */
+.web-scroll {
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(235,177,89,0.25) transparent;
+}
+.web-scroll::-webkit-scrollbar { width: 3px; }
+.web-scroll::-webkit-scrollbar-track {
+  background: transparent;
+  margin: 8px 0;
+}
+.web-scroll::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, rgba(235,177,89,0.5), rgba(238,111,83,0.3));
+  border-radius: 99px;
+}
+.web-scroll::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, rgba(235,177,89,0.8), rgba(238,111,83,0.6));
+}
 .chat-history-row:hover .chat-history-delete { opacity: 1 !important; }
 
 /* ── Bento Chat Layout ───────────────────────────────────────────────────── */
