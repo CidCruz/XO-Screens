@@ -1191,26 +1191,7 @@ function WebVideoPanel() {
                       }}>{ext}</span>
                     ))}
                   </div>
-                  {/* Max size indicator */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 2 }}>
-                    <span style={{
-                      fontSize: 9, fontWeight: 700, letterSpacing: '0.05em',
-                      padding: '2px 7px', borderRadius: 5,
-                      background: 'rgba(52,211,153,0.1)',
-                      border: '1px solid rgba(52,211,153,0.2)',
-                      color: 'rgba(52,211,153,0.75)',
-                    }}>≤ 75 MB</span>
-                    <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.2)' }}>Inline · Fast</span>
-                    <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.15)' }}>·</span>
-                    <span style={{
-                      fontSize: 9, fontWeight: 700, letterSpacing: '0.05em',
-                      padding: '2px 7px', borderRadius: 5,
-                      background: 'rgba(245,158,11,0.1)',
-                      border: '1px solid rgba(245,158,11,0.2)',
-                      color: 'rgba(245,158,11,0.75)',
-                    }}>Up to 2 GB</span>
-                    <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.2)' }}>Files API · Moderate</span>
-                  </div>
+
                 </>
               )}
               <input ref={fileInputRef} type="file" accept="video/*" onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f) }} style={{ display: 'none' }} />

@@ -625,16 +625,7 @@ export default function VideoCaptionsApp({ onClose: _onClose, onCornerDown }: Pr
                       }}>{ext}</span>
                     ))}
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 2 }}>
-                    <span style={{
-                      fontSize: 9, fontWeight: 600,
-                      padding: '2px 7px', borderRadius: 5,
-                      background: 'rgba(52,211,153,0.1)',
-                      border: '1px solid rgba(52,211,153,0.2)',
-                      color: 'rgba(52,211,153,0.75)',
-                    }}>6 frames extracted via canvas</span>
-                    <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.2)' }}>· no upload needed</span>
-                  </div>
+
                 </>
               )}
               <input ref={fileInputRef} type="file" accept="video/*" onChange={onFileInputChange} style={{ display: 'none' }} />
