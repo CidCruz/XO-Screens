@@ -161,11 +161,11 @@ const TONE_SYSTEM_PROMPTS: Record<CaptionTone, string> = {
 const CAPTION_USER_PROMPT = (videoDescription: string) => `Video description:
 ${videoDescription}
 
-Write captions and a summary for this video in your assigned tone. Base everything strictly on the description above.
+Write timestamped captions and a summary for this video in your assigned tone. Base everything strictly on the description above.
 
 Output a single raw JSON object with exactly two keys:
-- "captions": 2-3 sentences describing the video
-- "summary": one paragraph summarising the video
+- "captions": 4-6 timestamped lines, each formatted exactly as "0:00 – caption text here". Spread the timestamps evenly across the video duration. Each line is one moment or scene in your assigned tone.
+- "summary": one paragraph summarising the entire video in your assigned tone.
 
 No markdown, no code fences, no explanation. Start your response with { and end with }. /no_think`
 
@@ -226,7 +226,7 @@ export async function processVideoURL(
       video.src = objectUrl
       video.addEventListener('error', () => reject(new Error('Video load failed')))
       video.addEventListener('loadedmetadata', () => {
-        captureFrames(video, 6).then(resolve).catch(reject)
+        captureFrames(video, 8).then(resolve).catch(reject)
       })
     })
   } finally {
@@ -260,9 +260,8 @@ export async function processVideoURL(
   const results = {} as CaptionResults
   const tones = Object.keys(TONE_SYSTEM_PROMPTS) as CaptionTone[]
 
-  // Caption pass: text only — use CHAT model (no vision needed, avoids reasoning bleed)
+  // Caption pass: all 4 tones in parallel — onProgress called on completion of each
   await Promise.all(tones.map(async tone => {
-    onProgress?.(tone)
     let lastErr: unknown
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
@@ -272,6 +271,7 @@ export async function processVideoURL(
         ]
         const choice = await callFW(msgs, GEMMA_MODELS.E4B, { temperature: 0.7, maxTokens: 1024 })
         results[tone] = parseToneResult(choice.message.content ?? '')
+        onProgress?.(tone)
         return
       } catch (err) {
         lastErr = err
@@ -282,14 +282,12 @@ export async function processVideoURL(
       captions: '',
       summary: `⚠️ Failed after 3 attempts. ${lastErr instanceof Error ? lastErr.message : String(lastErr)}`,
     }
+    onProgress?.(tone)
   }))
 
   return results
 }
 
-/**
- * Extract N evenly-spaced frames from a video File using canvas.
- */
 async function captureFrames(video: HTMLVideoElement, nFrames: number): Promise<string[]> {
   const canvas = document.createElement('canvas')
   canvas.width = 320
@@ -355,7 +353,7 @@ export async function processVideoFile(
   onUploadProgress?.('uploading', 10)
 
   // Extract frames client-side — avoids sending the entire video as base64
-  const frameDataUrls = await extractFrames(file, 6)
+  const frameDataUrls = await extractFrames(file, 8)
   if (frameDataUrls.length === 0) throw new Error('Could not extract frames from video.')
 
   onUploadProgress?.('processing')
@@ -388,9 +386,8 @@ export async function processVideoFile(
   const results = {} as CaptionResults
   const tones = Object.keys(TONE_SYSTEM_PROMPTS) as CaptionTone[]
 
-  // Caption pass: text only — use CHAT model (no vision needed, avoids reasoning bleed)
+  // Caption pass: all 4 tones in parallel — onProgress called on completion of each
   await Promise.all(tones.map(async tone => {
-    onProgress?.(tone)
     let lastErr: unknown
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
@@ -400,6 +397,7 @@ export async function processVideoFile(
         ]
         const choice = await callFW(msgs, GEMMA_MODELS.E4B, { temperature: 0.7, maxTokens: 1024 })
         results[tone] = parseToneResult(choice.message.content ?? '')
+        onProgress?.(tone)
         return
       } catch (err) {
         lastErr = err
@@ -410,6 +408,7 @@ export async function processVideoFile(
       captions: '',
       summary: `⚠️ Failed after 3 attempts. ${lastErr instanceof Error ? lastErr.message : String(lastErr)}`,
     }
+    onProgress?.(tone)
   }))
 
   return results

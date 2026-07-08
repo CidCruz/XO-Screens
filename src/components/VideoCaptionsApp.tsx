@@ -323,9 +323,8 @@ export default function VideoCaptionsApp({ onClose: _onClose, onCornerDown }: Pr
 
   // Processing state
   const [status, setStatus] = useState<'idle' | 'processing' | 'done' | 'error'>('idle')
-  const [processingTone, setProcessingTone] = useState<CaptionTone | null>(null)
+  const [doneTones, setDoneTones] = useState<Set<CaptionTone>>(new Set())
   const [uploadPhase, setUploadPhase] = useState<'uploading' | 'processing' | null>(null)
-  const [uploadPct, setUploadPct] = useState<number>(0)
   const [errorMsg, setErrorMsg] = useState('')
   const [results, setResults] = useState<CaptionResults | null>(null)
 
@@ -377,27 +376,27 @@ export default function VideoCaptionsApp({ onClose: _onClose, onCornerDown }: Pr
     setResults(null)
     setErrorMsg('')
     setSavedToNotes(false)
+    setDoneTones(new Set())
     setUploadPhase(null)
-    setUploadPct(0)
     try {
       let res: CaptionResults
       let label: string
+      const onToneDone = (t: CaptionTone) => setDoneTones(prev => new Set(prev).add(t))
       if (inputMode === 'file' && videoFile) {
         res = await processVideoFile(
           videoFile,
-          t => setProcessingTone(t),
-          (phase, pct) => { setUploadPhase(phase); if (pct !== undefined) setUploadPct(pct) },
+          onToneDone,
+          (phase) => setUploadPhase(phase),
         )
         label = videoFile.name
       } else if (inputMode === 'url' && videoURL.trim()) {
-        res = await processVideoURL(videoURL.trim(), t => setProcessingTone(t))
+        res = await processVideoURL(videoURL.trim(), onToneDone)
         label = videoURL.trim()
       } else {
         throw new Error('No video source provided.')
       }
       setResults(res)
       setStatus('done')
-      setProcessingTone(null)
       setUploadPhase(null)
       setCurrentLabel(label)
       const updated = addCaptionHistoryEntry({ label, results: res })
@@ -405,7 +404,6 @@ export default function VideoCaptionsApp({ onClose: _onClose, onCornerDown }: Pr
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : 'Something went wrong.')
       setStatus('error')
-      setProcessingTone(null)
       setUploadPhase(null)
     }
   }
@@ -480,9 +478,7 @@ export default function VideoCaptionsApp({ onClose: _onClose, onCornerDown }: Pr
   const activeToneData = TONES.find(t => t.id === activeTone)!
   const activeResult   = results?.[activeTone]
 
-  const processingLabel = processingTone
-    ? `Processing "${TONES.find(t => t.id === processingTone)?.label}" tone…`
-    : 'Processing…'
+  const processingLabel = doneTones.size === 0 ? 'Processing…' : `${doneTones.size} / ${TONES.length} tones done…`
 
   // ── Render ───────────────────────────────────────────────────────────────
 
@@ -612,18 +608,12 @@ export default function VideoCaptionsApp({ onClose: _onClose, onCornerDown }: Pr
                 <div style={{ textAlign: 'center' }}>
                   <div style={{ color: '#fff', fontSize: 12, fontWeight: 600 }}>{videoFile.name}</div>
                   <div style={{ color: 'rgba(255,255,255,0.35)', fontSize: 10, marginTop: 2 }}>
-                    {(videoFile.size / (1024 * 1024)).toFixed(1)} MB
-                    {' · '}
-                    <span style={{ color: videoFile.size > 75 * 1024 * 1024 ? 'rgba(245,158,11,0.8)' : 'rgba(52,211,153,0.7)' }}>
-                      {videoFile.size > 75 * 1024 * 1024 ? 'Files API upload' : 'Inline (fast)'}
-                    </span>
-                    {' · click to change'}
+                    {(videoFile.size / (1024 * 1024)).toFixed(1)} MB · click to change
                   </div>
                 </div>
               ) : (
                 <>
                   <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: 12, fontWeight: 500 }}>Drop a video or click to upload</div>
-                  {/* File type badges */}
                   <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', justifyContent: 'center', marginTop: 2 }}>
                     {['MP4', 'WEBM', 'MOV', 'AVI', 'MKV'].map(ext => (
                       <span key={ext} style={{
@@ -635,25 +625,15 @@ export default function VideoCaptionsApp({ onClose: _onClose, onCornerDown }: Pr
                       }}>{ext}</span>
                     ))}
                   </div>
-                  {/* Max size indicator */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 2 }}>
                     <span style={{
-                      fontSize: 9, fontWeight: 700, letterSpacing: '0.05em',
+                      fontSize: 9, fontWeight: 600,
                       padding: '2px 7px', borderRadius: 5,
                       background: 'rgba(52,211,153,0.1)',
                       border: '1px solid rgba(52,211,153,0.2)',
                       color: 'rgba(52,211,153,0.75)',
-                    }}>≤ 75 MB</span>
-                    <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.2)' }}>Inline · Fast</span>
-                    <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.15)' }}>·</span>
-                    <span style={{
-                      fontSize: 9, fontWeight: 700, letterSpacing: '0.05em',
-                      padding: '2px 7px', borderRadius: 5,
-                      background: 'rgba(245,158,11,0.1)',
-                      border: '1px solid rgba(245,158,11,0.2)',
-                      color: 'rgba(245,158,11,0.75)',
-                    }}>Up to 2 GB</span>
-                    <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.2)' }}>Files API · Moderate</span>
+                    }}>6 frames extracted via canvas</span>
+                    <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.2)' }}>· no upload needed</span>
                   </div>
                 </>
               )}
@@ -788,28 +768,21 @@ export default function VideoCaptionsApp({ onClose: _onClose, onCornerDown }: Pr
 
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
               {TONES.map(t => {
-                const toneIndex = TONES.findIndex(x => x.id === processingTone)
-                const thisIndex = TONES.findIndex(x => x.id === t.id)
-                const isDone = toneIndex > thisIndex
-                const isCurrent = t.id === processingTone
+                const isDone = doneTones.has(t.id)
                 return (
                   <div key={t.id} style={{
                     display: 'flex', alignItems: 'center', gap: 5,
                     padding: '4px 10px', borderRadius: 99, fontSize: 10,
-                    background: isCurrent ? t.color : isDone ? 'rgba(16,185,129,0.1)' : 'rgba(255,255,255,0.04)',
-                    color: isCurrent ? '#fff' : isDone ? 'rgba(16,185,129,0.8)' : 'rgba(255,255,255,0.3)',
-                    border: `1px solid ${isCurrent ? t.dotColor.replace('0.9','0.4') : isDone ? 'rgba(16,185,129,0.25)' : 'rgba(255,255,255,0.07)'}`,
+                    background: isDone ? 'rgba(16,185,129,0.1)' : 'rgba(255,255,255,0.04)',
+                    color: isDone ? 'rgba(16,185,129,0.8)' : 'rgba(255,255,255,0.3)',
+                    border: `1px solid ${isDone ? 'rgba(16,185,129,0.25)' : 'rgba(255,255,255,0.07)'}`,
                     transition: 'all 0.2s',
                   }}>
                     {isDone ? (
                       <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
                         <polyline points="20 6 9 17 4 12" />
                       </svg>
-                    ) : isCurrent ? <Spinner /> : (
-                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round">
-                        <circle cx="12" cy="12" r="9" opacity={0.3} />
-                      </svg>
-                    )}
+                    ) : <Spinner />}
                     {t.label}
                   </div>
                 )

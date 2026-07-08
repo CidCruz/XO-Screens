@@ -8,31 +8,36 @@
 #   docker run --rm \
 #     -e FIREWORKS_API_KEY=your_key \
 #     -e FIREWORKS_BASE_URL=https://api.fireworks.ai/inference/v1 \
-#     -e ALLOWED_MODELS=accounts/fireworks/models/gemma-4-31b-it \
-#     -v $(pwd)/test/input:/input \
+#     -e ALLOWED_MODELS=accounts/fireworks/models/qwen3p7-plus \
+#     -v $(pwd)/test/input:/input:ro \
 #     -v $(pwd)/test/output:/output \
 #     xo-screens-track2:latest
 
 FROM --platform=linux/amd64 python:3.11-slim
 
-# Install ffmpeg + ffprobe (ffprobe is included in the ffmpeg package)
+# Install ffmpeg (includes ffprobe) — single layer, clean apt cache
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-        ffmpeg \
-        curl \
-    && rm -rf /var/lib/apt/lists/*
+    apt-get install -y --no-install-recommends ffmpeg && \
+    rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# Install Python dependencies first (layer-cached unless requirements change)
+# Install Python deps first — cached unless requirements.txt changes
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy agent
 COPY agent.py .
 
-# Ensure I/O mount points exist
-RUN mkdir -p /input /output
+# Create I/O mount points and a non-root user for security
+RUN mkdir -p /input /output && \
+    useradd -r -u 1001 -s /sbin/nologin agent && \
+    chown agent:agent /input /output /app
 
-# Run agent on container start
+USER agent
+
+# Healthcheck — ensures container is alive (not required by spec but good practice)
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=1 \
+    CMD python -c "import requests; print('ok')" || exit 1
+
 CMD ["python", "-u", "agent.py"]

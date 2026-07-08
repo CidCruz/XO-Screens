@@ -4,267 +4,313 @@ XO-Screens | AMD Developer Hackathon: ACT II
 
 Pipeline:
   1. Read /input/tasks.json
-  2. For each video: download → extract frames with ffmpeg → encode to base64
-  3. Call Fireworks AI (Gemma 4 31B) — first pass: describe video
-  4. Second pass: generate captions in all 4 required styles (parallel)
+  2. For each video: download → extract frames (single ffmpeg pass) → base64 encode
+  3. Fireworks AI — first pass: describe video from frames
+  4. Fireworks AI — second pass: generate captions in all 4 styles (parallel, text-only)
   5. Write /output/results.json
   6. Exit 0
 """
 
 import os
+import re
 import sys
 import json
 import base64
+import hashlib
 import tempfile
 import subprocess
 import time
-import urllib.request
+import logging
 from pathlib import Path
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor, as_completed, TimeoutError as FuturesTimeout
+from urllib.parse import urlparse
 
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
+
+# ── Logging ───────────────────────────────────────────────────────────────────
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    stream=sys.stdout,
+)
+log = logging.getLogger("track2")
 
 # ── Config ────────────────────────────────────────────────────────────────────
 
-API_KEY       = os.environ.get("FIREWORKS_API_KEY", "")
-BASE_URL      = os.environ.get("FIREWORKS_BASE_URL", "https://api.fireworks.ai/inference/v1")
+API_KEY            = os.environ.get("FIREWORKS_API_KEY", "").strip()
+BASE_URL           = os.environ.get("FIREWORKS_BASE_URL", "https://api.fireworks.ai/inference/v1").rstrip("/")
 ALLOWED_MODELS_STR = os.environ.get("ALLOWED_MODELS", "")
 
 INPUT_PATH  = Path("/input/tasks.json")
 OUTPUT_PATH = Path("/output/results.json")
 
-MAX_FRAMES      = 12   # frames sampled per video (spread evenly across duration)
-FRAME_WIDTH     = 512  # resize width to keep payload small
-MAX_RETRIES     = 3
-RETRY_DELAY     = 2    # seconds between retries
-
-# Parse allowed models from environment
-ALLOWED_MODELS = [m.strip() for m in ALLOWED_MODELS_STR.split(",") if m.strip()] if ALLOWED_MODELS_STR else []
-
-# Select the best available model for video captioning
-# Prefer most capable models: look for 31b, then 26b, then any gemma model
-def select_model() -> str:
-    """Select the best vision-capable model from ALLOWED_MODELS for video captioning."""
-    if not ALLOWED_MODELS:
-        # Fallback for local dev — kimi-k2p6 is vision-capable on this account
-        return "accounts/fireworks/models/kimi-k2p6"
-
-    # Prefer vision-capable models in order of capability
-    VISION_KEYWORDS = ["kimi", "gemma", "llava", "vision", "vl", "claude", "gpt"]
-    for kw in VISION_KEYWORDS:
-        for candidate in ALLOWED_MODELS:
-            if kw in candidate.lower():
-                return candidate
-
-    # Fallback to first allowed model
-    return ALLOWED_MODELS[0]
-
-MODEL = select_model()
-
-# ── Style definitions ─────────────────────────────────────────────────────────
+MAX_FRAMES       = 8      # 8 frames is enough — diminishing returns beyond this
+FRAME_WIDTH      = 480    # px — keeps base64 payload small while retaining detail
+MAX_RETRIES      = 3
+RETRY_BACKOFF    = 2.0    # seconds — exponential: 2, 4, 8
+DOWNLOAD_TIMEOUT = 180    # seconds per video download
+API_TIMEOUT      = 90     # seconds per Fireworks API call
+TASK_TIMEOUT     = 540    # seconds per task (9 min — leaves 1 min buffer for 10-min limit)
+MAX_VIDEO_BYTES  = 2 * 1024 * 1024 * 1024  # 2 GB hard cap
 
 STYLES = ["formal", "sarcastic", "humorous_tech", "humorous_non_tech"]
+
+# ── Model selection ───────────────────────────────────────────────────────────
+
+ALLOWED_MODELS = [m.strip() for m in ALLOWED_MODELS_STR.split(",") if m.strip()]
+
+# Vision-capable model keywords in priority order
+_VISION_PRIORITY = ["kimi", "qwen", "gemma", "llava", "vision", "vl", "claude", "gpt-4o"]
+# Cheap text-only model keywords for caption pass
+_TEXT_PRIORITY   = ["deepseek", "llama", "mistral", "qwen", "gemma", "kimi", "claude"]
+
+def _pick_model(keywords: list[str]) -> str:
+    if not ALLOWED_MODELS:
+        return "accounts/fireworks/models/qwen3p7-plus"
+    for kw in keywords:
+        for m in ALLOWED_MODELS:
+            if kw in m.lower():
+                return m
+    return ALLOWED_MODELS[0]
+
+VISION_MODEL = _pick_model(_VISION_PRIORITY)
+TEXT_MODEL   = _pick_model(_TEXT_PRIORITY)
+
+# ── HTTP session (connection pooling + retry) ─────────────────────────────────
+
+def _build_session() -> requests.Session:
+    session = requests.Session()
+    retry = Retry(
+        total=3,
+        backoff_factor=1.5,
+        status_forcelist=[429, 500, 502, 503, 504],
+        allowed_methods=["GET", "POST"],
+        raise_on_status=False,
+    )
+    adapter = HTTPAdapter(max_retries=retry, pool_connections=8, pool_maxsize=16)
+    session.mount("https://", adapter)
+    session.mount("http://", adapter)
+    return session
+
+SESSION = _build_session()
+
+# ── Input validation ──────────────────────────────────────────────────────────
+
+_SAFE_ID_RE = re.compile(r"^[a-zA-Z0-9_\-]{1,64}$")
+
+def _sanitize_task_id(task_id: str) -> str:
+    """Return a filesystem-safe task ID, rejecting path traversal attempts."""
+    if not isinstance(task_id, str) or not _SAFE_ID_RE.match(task_id):
+        # Fall back to a hash of the raw value — always safe
+        return "task_" + hashlib.sha1(str(task_id).encode()).hexdigest()[:12]
+    return task_id
+
+def _validate_url(url: str) -> str:
+    """Raise ValueError if URL is not a safe http/https URL."""
+    if not isinstance(url, str):
+        raise ValueError(f"video_url must be a string, got {type(url)}")
+    parsed = urlparse(url)
+    if parsed.scheme not in ("http", "https"):
+        raise ValueError(f"Unsafe URL scheme '{parsed.scheme}' — only http/https allowed")
+    if not parsed.netloc:
+        raise ValueError("URL has no host")
+    return url
+
+# ── Style prompts ─────────────────────────────────────────────────────────────
 
 STYLE_SYSTEM_PROMPTS = {
     "formal": (
         "You are a professional video captioning assistant. "
         "Write in a clear, neutral, formal register suitable for corporate or academic use. "
-        "Be precise, objective, and factual."
+        "Be precise, objective, and factual. /no_think"
     ),
     "sarcastic": (
         "You are a witty, sarcastic video captioning assistant. "
         "Drip every caption with dry sarcasm and sardonic commentary — "
-        "but still accurately describe what is actually happening in the video."
+        "but still accurately describe what is actually happening in the video. /no_think"
     ),
     "humorous_tech": (
         "You are a tech-savvy comedian captioning videos for a developer audience. "
         "Sprinkle in programming jokes, tech buzzwords used ironically, and geek humour — "
-        "but remain accurate about the video content. "
-        "Reference things like stack overflows, merge conflicts, or deployment failures where fitting."
+        "but remain accurate about the video content. /no_think"
     ),
     "humorous_non_tech": (
         "You are a stand-up comedian captioning videos for a general audience. "
-        "Keep the humour accessible, punny, and light-hearted — absolutely no technical jargon. "
-        "Make it feel like a funny narrator at a roast."
+        "Keep the humour accessible, punny, and light-hearted — no technical jargon. "
+        "Make it feel like a funny narrator at a roast. /no_think"
     ),
 }
 
-CAPTION_PROMPT = """You are given a series of frames sampled from a video, along with a description of the video content.
+DESCRIBE_PROMPT = (
+    "You are given frames sampled evenly from a video clip (30 seconds to 2 minutes long).\n\n"
+    "Describe the video in detail:\n"
+    "- What is the setting/location?\n"
+    "- Who or what is in the video?\n"
+    "- What actions or events are happening?\n"
+    "- Is there any text visible on screen?\n"
+    "- What is the overall mood or tone?\n\n"
+    "Be thorough and specific. This description will be used to generate captions. /no_think"
+)
 
-VIDEO DESCRIPTION:
-{description}
+def _caption_user_prompt(description: str) -> str:
+    return (
+        f"Video description:\n{description}\n\n"
+        "Write a single cohesive caption (2-4 sentences) for this video in your assigned style.\n"
+        "The caption must:\n"
+        "- Accurately reflect what is happening in the video\n"
+        "- Be written entirely in your assigned tone\n"
+        "- Be engaging and complete — not cut off mid-thought\n\n"
+        "Return ONLY the caption text. No preamble, no labels, no JSON, no thinking. /no_think"
+    )
 
-Your task: write a single cohesive caption (2-4 sentences) for this video in your assigned style.
-
-The caption must:
-- Accurately reflect what is happening in the video
-- Be written entirely in your assigned style/tone
-- Be engaging and complete — not cut off mid-thought
-
-Return ONLY the caption text. No preamble, no labels, no JSON.
-"""
-
-DESCRIBE_PROMPT = """You are given a series of frames sampled evenly from a video clip (30 seconds to 2 minutes long).
-
-Describe the video in detail:
-- What is the setting/location?
-- Who or what is in the video?
-- What actions or events are happening?
-- Is there any text visible on screen?
-- What is the overall mood or tone?
-
-Be thorough and specific. This description will be used to generate captions.
-"""
-
-# ── Fireworks API call ────────────────────────────────────────────────────────
+# ── Fireworks API ─────────────────────────────────────────────────────────────
 
 def call_fireworks(
     messages: list[dict],
-    max_tokens: int = 1024,
+    *,
+    model: str,
+    max_tokens: int = 512,
+    temperature: float = 0.7,
     attempt: int = 0,
-    model: str | None = None,
-    temperature: float = 0.5,
 ) -> str:
-    """Call Fireworks AI chat completions endpoint with retry logic.
-
-    All requests are routed through FIREWORKS_BASE_URL so they are recorded
-    by the judging proxy.  The model is resolved at runtime from ALLOWED_MODELS
-    so no model ID is hardcoded in the image.
-    """
-    resolved_model = model or MODEL
+    """Call Fireworks chat completions with exponential backoff retry."""
     headers = {
         "Content-Type": "application/json",
         "Authorization": f"Bearer {API_KEY}",
     }
     payload = {
-        "model": resolved_model,
+        "model": model,
         "messages": messages,
         "temperature": temperature,
         "max_tokens": max_tokens,
     }
 
     try:
-        resp = requests.post(
+        resp = SESSION.post(
             f"{BASE_URL}/chat/completions",
             headers=headers,
             json=payload,
-            timeout=120,
+            timeout=API_TIMEOUT,
         )
+        if resp.status_code == 429 or resp.status_code >= 500:
+            raise requests.HTTPError(response=resp)
         resp.raise_for_status()
-        data = resp.json()
-        return data["choices"][0]["message"]["content"].strip()
-    except (requests.HTTPError, requests.Timeout, KeyError) as e:
+        content = resp.json()["choices"][0]["message"]["content"] or ""
+        # Strip any leaked <think>...</think> blocks
+        content = re.sub(r"<think>[\s\S]*?</think>", "", content, flags=re.IGNORECASE).strip()
+        return content
+    except (requests.HTTPError, requests.Timeout, requests.ConnectionError, KeyError) as exc:
         if attempt < MAX_RETRIES - 1:
-            time.sleep(RETRY_DELAY * (attempt + 1))
-            return call_fireworks(messages, max_tokens, attempt + 1, resolved_model, temperature)
-        raise RuntimeError(f"Fireworks API failed after {MAX_RETRIES} attempts: {e}") from e
-
+            wait = RETRY_BACKOFF * (2 ** attempt)
+            log.warning("API call failed (attempt %d/%d): %s — retrying in %.1fs",
+                        attempt + 1, MAX_RETRIES, exc, wait)
+            time.sleep(wait)
+            return call_fireworks(messages, model=model, max_tokens=max_tokens,
+                                  temperature=temperature, attempt=attempt + 1)
+        raise RuntimeError(f"Fireworks API failed after {MAX_RETRIES} attempts: {exc}") from exc
 
 # ── Video download ────────────────────────────────────────────────────────────
 
 def download_video(url: str, dest: Path) -> None:
-    """Download a video URL to a local file."""
-    print(f"  Downloading: {url}", flush=True)
-    try:
-        # Try requests first (handles redirects, headers better)
-        resp = requests.get(url, stream=True, timeout=120)
-        resp.raise_for_status()
-        with open(dest, "wb") as f:
-            for chunk in resp.iter_content(chunk_size=1024 * 1024):
-                f.write(chunk)
-    except Exception:
-        # Fallback to urllib
-        urllib.request.urlretrieve(url, dest)
-    print(f"  Downloaded: {dest.stat().st_size / 1024 / 1024:.1f} MB", flush=True)
+    """Stream-download a video to dest, enforcing a size cap."""
+    log.info("Downloading: %s", url)
+    resp = SESSION.get(url, stream=True, timeout=DOWNLOAD_TIMEOUT)
+    resp.raise_for_status()
 
+    written = 0
+    with open(dest, "wb") as fh:
+        for chunk in resp.iter_content(chunk_size=4 * 1024 * 1024):  # 4 MB chunks
+            written += len(chunk)
+            if written > MAX_VIDEO_BYTES:
+                raise RuntimeError(
+                    f"Video exceeds {MAX_VIDEO_BYTES // (1024**3)} GB size cap — aborting download"
+                )
+            fh.write(chunk)
+
+    log.info("Downloaded %.1f MB → %s", written / (1024 * 1024), dest.name)
 
 # ── Frame extraction ──────────────────────────────────────────────────────────
 
 def get_video_duration(video_path: Path) -> float:
-    """Return video duration in seconds via ffprobe, defaulting to 60s on failure."""
-    probe_cmd = [
+    """Return video duration in seconds via ffprobe."""
+    cmd = [
         "ffprobe", "-v", "quiet",
         "-print_format", "json",
         "-show_format",
-        str(video_path),
+        str(video_path),  # Path.str() is safe — no shell=True
     ]
     try:
-        probe_out = subprocess.check_output(probe_cmd, stderr=subprocess.DEVNULL, timeout=30)
-        probe_data = json.loads(probe_out)
-        return float(probe_data["format"]["duration"])
+        out = subprocess.check_output(cmd, stderr=subprocess.DEVNULL, timeout=30)
+        return float(json.loads(out)["format"]["duration"])
     except Exception:
-        return 60.0  # safe fallback
+        log.warning("ffprobe failed — defaulting duration to 60s")
+        return 60.0
 
 
 def extract_frames(video_path: Path, frames_dir: Path, n_frames: int = MAX_FRAMES) -> list[Path]:
     """
-    Extract n_frames evenly spaced JPEG frames using a single ffmpeg invocation
-    with the select filter. This is substantially faster than one call per frame.
-    Returns a sorted list of existing frame file paths.
+    Extract n_frames evenly-spaced JPEG frames using a SINGLE ffmpeg invocation
+    with the fps+select filter — much faster than N separate seeks.
     """
     frames_dir.mkdir(parents=True, exist_ok=True)
-
     duration = get_video_duration(video_path)
-    print(f"  Video duration: {duration:.1f}s, extracting {n_frames} frames", flush=True)
+    log.info("Duration: %.1fs — extracting %d frames", duration, n_frames)
 
-    # Build evenly-spaced timestamps (skip very start and very end)
-    interval = duration / (n_frames + 1)
-    timestamps = [interval * (i + 1) for i in range(n_frames)]
+    # fps filter: output exactly n_frames over the full duration
+    # select=not(mod(n,round(total_frames/n_frames))) is fragile;
+    # using fps=n_frames/duration is simpler and reliable.
+    fps_val = n_frames / duration
+    output_pattern = str(frames_dir / "frame_%03d.jpg")
 
-    # Build a select expression: select frames at those exact timestamps
-    # Using setpts + fps is simpler and more reliable than a select expression
-    # when ffmpeg version varies, so we do individual seeks but with -nostdin
-    # to avoid blocking and timeout=30 per frame.
-    frame_paths = []
-    for i, ts in enumerate(timestamps):
-        out_path = frames_dir / f"frame_{i:03d}.jpg"
-        cmd = [
-            "ffmpeg", "-y", "-nostdin",
-            "-ss", f"{ts:.3f}",
-            "-i", str(video_path),
-            "-vframes", "1",
-            "-vf", f"scale={FRAME_WIDTH}:-2",   # -2 keeps even height for codecs
-            "-q:v", "4",                         # slightly lower quality = smaller payload
-            str(out_path),
-        ]
-        try:
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                timeout=30,
-            )
-            if result.returncode == 0 and out_path.exists() and out_path.stat().st_size > 0:
-                frame_paths.append(out_path)
-        except subprocess.TimeoutExpired:
-            print(f"  Warning: frame {i} extraction timed out, skipping", flush=True)
-        except Exception as exc:
-            print(f"  Warning: frame {i} extraction failed: {exc}", flush=True)
+    cmd = [
+        "ffmpeg", "-y", "-nostdin",
+        "-i", str(video_path),
+        "-vf", f"fps={fps_val:.6f},scale={FRAME_WIDTH}:-2",
+        "-vframes", str(n_frames),
+        "-q:v", "4",
+        output_pattern,
+    ]
 
-    print(f"  Extracted {len(frame_paths)} frames", flush=True)
-    return sorted(frame_paths)
+    try:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            timeout=120,
+        )
+        if result.returncode != 0:
+            log.warning("ffmpeg exited %d: %s", result.returncode,
+                        result.stderr.decode(errors="replace")[-300:])
+    except subprocess.TimeoutExpired:
+        log.warning("ffmpeg timed out during frame extraction")
 
+    paths = sorted(frames_dir.glob("frame_*.jpg"))
+    # Filter out zero-byte files (corrupt frames)
+    paths = [p for p in paths if p.stat().st_size > 0]
+    log.info("Extracted %d valid frames", len(paths))
+    return paths
 
 # ── Frame encoding ────────────────────────────────────────────────────────────
 
 def encode_frames(frame_paths: list[Path]) -> list[dict]:
-    """Encode frame images as base64 image_url content parts."""
+    """Encode frames as base64 image_url content parts."""
     parts = []
     for fp in frame_paths:
-        with open(fp, "rb") as f:
-            b64 = base64.b64encode(f.read()).decode()
+        b64 = base64.b64encode(fp.read_bytes()).decode()
         parts.append({
             "type": "image_url",
             "image_url": {"url": f"data:image/jpeg;base64,{b64}"},
         })
     return parts
 
-
-# ── Video description (first pass) ───────────────────────────────────────────
+# ── Two-pass captioning ───────────────────────────────────────────────────────
 
 def describe_video(frame_parts: list[dict]) -> str:
-    """First pass: get a detailed description of the video from the frames."""
+    """First pass: detailed video description from frames (vision model)."""
     messages = [
-        {"role": "system", "content": "You are a video analysis assistant."},
+        {"role": "system", "content": "You are a precise video analysis assistant."},
         {
             "role": "user",
             "content": [
@@ -273,126 +319,135 @@ def describe_video(frame_parts: list[dict]) -> str:
             ],
         },
     ]
-    return call_fireworks(messages, max_tokens=1024, model=MODEL, temperature=0.3)
+    return call_fireworks(messages, model=VISION_MODEL, max_tokens=800, temperature=0.2)
 
 
-# ── Caption generation (second pass) ─────────────────────────────────────────
-
-def generate_caption(style: str, description: str, frame_parts: list[dict]) -> str:
-    """Generate a caption for one style."""
+def generate_caption(style: str, description: str) -> str:
+    """Second pass: styled caption from description only — no frames, text model."""
     messages = [
         {"role": "system", "content": STYLE_SYSTEM_PROMPTS[style]},
-        {
-            "role": "user",
-            "content": [
-                *frame_parts,
-                {
-                    "type": "text",
-                    "text": CAPTION_PROMPT.format(description=description),
-                },
-            ],
-        },
+        {"role": "user", "content": _caption_user_prompt(description)},
     ]
-    return call_fireworks(messages, max_tokens=512, model=MODEL, temperature=0.5)
-
+    return call_fireworks(messages, model=TEXT_MODEL, max_tokens=300, temperature=0.8)
 
 # ── Process one task ──────────────────────────────────────────────────────────
 
 def process_task(task: dict, tmpdir: Path) -> dict:
-    task_id   = task["task_id"]
-    video_url = task["video_url"]
+    raw_id    = task.get("task_id", "unknown")
+    video_url = _validate_url(task.get("video_url", ""))
     styles    = task.get("styles", STYLES)
+    task_id   = _sanitize_task_id(raw_id)
 
-    print(f"\n[{task_id}] Processing: {video_url}", flush=True)
+    # Validate styles — only accept known values
+    styles = [s for s in styles if s in STYLE_SYSTEM_PROMPTS]
+    if not styles:
+        styles = STYLES
 
-    # 1. Download video
+    log.info("[%s] Starting — %s", task_id, video_url)
+
+    # 1. Download
     video_path = tmpdir / f"{task_id}.mp4"
     download_video(video_url, video_path)
 
     # 2. Extract frames
-    frames_dir = tmpdir / f"{task_id}_frames"
+    frames_dir  = tmpdir / f"{task_id}_frames"
     frame_paths = extract_frames(video_path, frames_dir)
 
     if not frame_paths:
-        raise RuntimeError(f"No frames extracted from {video_url}")
+        raise RuntimeError("No frames could be extracted from the video")
 
-    # 3. Encode frames
+    # 3. Encode
     frame_parts = encode_frames(frame_paths)
 
-    # 4. First pass — describe the video
-    print(f"  [{task_id}] Describing video...", flush=True)
+    # 4. Describe (vision pass — frames sent ONCE)
+    log.info("[%s] Describing video (%d frames)...", task_id, len(frame_parts))
     description = describe_video(frame_parts)
-    print(f"  [{task_id}] Description: {description[:120]}...", flush=True)
+    log.info("[%s] Description: %s...", task_id, description[:100])
 
-    # 5. Second pass — generate all styles in parallel
-    print(f"  [{task_id}] Generating captions for styles: {styles}", flush=True)
-    captions = {}
+    # Free frame data from memory — not needed after description
+    del frame_parts
 
-    with ThreadPoolExecutor(max_workers=4) as executor:
+    # 5. Caption pass — all styles in parallel, text-only
+    log.info("[%s] Generating captions for: %s", task_id, styles)
+    captions: dict[str, str] = {}
+
+    with ThreadPoolExecutor(max_workers=min(4, len(styles))) as executor:
         futures = {
-            executor.submit(generate_caption, style, description, frame_parts): style
+            executor.submit(generate_caption, style, description): style
             for style in styles
         }
-        for future in as_completed(futures):
+        for future in as_completed(futures, timeout=TASK_TIMEOUT):
             style = futures[future]
             try:
                 captions[style] = future.result()
-                print(f"  [{task_id}] ✓ {style}", flush=True)
-            except Exception as e:
-                captions[style] = f"[Error generating {style} caption: {e}]"
-                print(f"  [{task_id}] ✗ {style}: {e}", flush=True)
+                log.info("[%s] ✓ %s", task_id, style)
+            except Exception as exc:
+                captions[style] = f"[Caption generation failed: {exc}]"
+                log.error("[%s] ✗ %s: %s", task_id, style, exc)
 
-    return {"task_id": task_id, "captions": captions}
+    # Clean up video file immediately to free disk space
+    try:
+        video_path.unlink(missing_ok=True)
+    except Exception:
+        pass
 
+    return {"task_id": raw_id, "captions": captions}
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 
-def main():
-    print("=== XO-Screens Video Captioning Agent (Track 2) ===", flush=True)
-    print(f"FIREWORKS_BASE_URL : {BASE_URL}", flush=True)
-    print(f"ALLOWED_MODELS     : {ALLOWED_MODELS if ALLOWED_MODELS else '(not set — using dev fallback)'}", flush=True)
-    print(f"Selected model     : {MODEL}", flush=True)
+def main() -> None:
+    log.info("=== XO-Screens Video Captioning Agent (Track 2) ===")
+    log.info("BASE_URL      : %s", BASE_URL)
+    log.info("VISION_MODEL  : %s", VISION_MODEL)
+    log.info("TEXT_MODEL    : %s", TEXT_MODEL)
+    log.info("ALLOWED_MODELS: %s", ALLOWED_MODELS or "(not set — using defaults)")
 
-    # Validate API key
     if not API_KEY:
-        print("ERROR: FIREWORKS_API_KEY environment variable is not set.", file=sys.stderr)
+        log.error("FIREWORKS_API_KEY is not set")
         sys.exit(1)
 
-    # Read input
     if not INPUT_PATH.exists():
-        print(f"ERROR: Input file not found: {INPUT_PATH}", file=sys.stderr)
+        log.error("Input file not found: %s", INPUT_PATH)
         sys.exit(1)
 
-    with open(INPUT_PATH) as f:
-        tasks = json.load(f)
+    try:
+        tasks = json.loads(INPUT_PATH.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError) as exc:
+        log.error("Failed to read input: %s", exc)
+        sys.exit(1)
 
-    print(f"Tasks to process: {len(tasks)}", flush=True)
+    if not isinstance(tasks, list):
+        log.error("tasks.json must be a JSON array")
+        sys.exit(1)
 
-    # Ensure output directory exists
+    log.info("Tasks to process: %d", len(tasks))
     OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
 
-    results = []
+    results: list[dict] = []
 
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp = Path(tmpdir)
         for task in tasks:
+            raw_id = task.get("task_id", "unknown")
             try:
                 result = process_task(task, tmp)
                 results.append(result)
-                print(f"[{task['task_id']}] ✓ Done", flush=True)
-            except Exception as e:
-                print(f"[{task['task_id']}] ✗ Failed: {e}", file=sys.stderr, flush=True)
-                # Still write a result entry so output is valid JSON
+                log.info("[%s] ✓ Complete", raw_id)
+            except Exception as exc:
+                log.error("[%s] ✗ Failed: %s", raw_id, exc, exc_info=True)
                 results.append({
-                    "task_id": task["task_id"],
-                    "captions": {style: f"[Error: {e}]" for style in task.get("styles", STYLES)},
+                    "task_id": raw_id,
+                    "captions": {
+                        style: f"[Error: {exc}]"
+                        for style in task.get("styles", STYLES)
+                    },
                 })
 
-    # Write output
-    with open(OUTPUT_PATH, "w") as f:
-        json.dump(results, f, indent=2)
-
-    print(f"\n=== Done. Results written to {OUTPUT_PATH} ===", flush=True)
+    OUTPUT_PATH.write_text(
+        json.dumps(results, indent=2, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    log.info("=== Done. Results written to %s ===", OUTPUT_PATH)
     sys.exit(0)
 
 
