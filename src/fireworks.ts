@@ -5,7 +5,7 @@
  *
  * Model routing strategy:
  *   CHAT   (deepseek-v4-pro)  — all text chat, tool-calling, reasoning
- *   VISION (kimi-k2p6)        — video captioning, multimodal tasks
+ *   VISION (qwen3p7-plus)     — video captioning, multimodal tasks
  *
  * GEMMA_MODELS aliases kept for backward compatibility with existing imports.
  */
@@ -74,14 +74,14 @@ async function callFW(
     attempt?: number
   },
 ): Promise<FWChoice> {
-  const { temperature = 0.7, maxTokens = 2048, tools, attempt = 0 } = options ?? {}
+  const { temperature = 0.7, maxTokens, tools, attempt = 0 } = options ?? {}
 
   const body: Record<string, unknown> = {
     model,
     messages,
     temperature,
-    max_tokens: maxTokens,
   }
+  if (maxTokens !== undefined) body.max_tokens = maxTokens
   if (tools && tools.length > 0) {
     body.tools = tools.map(t => ({ type: 'function', function: t }))
     body.tool_choice = 'auto'
@@ -163,53 +163,149 @@ ${videoDescription}
 
 Write timestamped captions and a summary for this video in your assigned tone. Base everything strictly on the description above.
 
-Output a single raw JSON object with exactly two keys:
-- "captions": 4-6 timestamped lines, each formatted exactly as "0:00 – caption text here". Spread the timestamps evenly across the video duration. Each line is one moment or scene in your assigned tone.
-- "summary": one paragraph summarising the entire video in your assigned tone.
+You MUST respond with a single raw JSON object and nothing else. No markdown, no code fences, no explanation, no thinking.
+The JSON must have exactly these two keys:
+- "captions": a string containing 4-6 timestamped lines, each formatted exactly as "0:00 – caption text here", separated by newlines.
+- "summary": a string containing one paragraph summarising the entire video in your assigned tone.
 
-No markdown, no code fences, no explanation. Start your response with { and end with }. /no_think`
+Both "captions" and "summary" MUST be non-empty strings. Start your response with { and end with }. /no_think`
 
-function parseToneResult(raw: string): ToneResult {
-  // Strip think blocks and fences, then grab the outermost { ... } (greedy — handles values with braces)
+function parseToneResult(raw: string): ToneResult | null {
   const stripped = raw
     .replace(/<think>[\s\S]*?<\/think>/gi, '')
-    .replace(/^```json\s*/i, '')
-    .replace(/^```\s*/i, '')
-    .replace(/```\s*$/g, '')
+    .replace(/^```json\s*/im, '')
+    .replace(/^```\s*/im, '')
+    .replace(/```\s*$/gm, '')
     .trim()
 
-  // Greedy match: from first { to last }
   const jsonMatch = stripped.match(/\{[\s\S]*\}/)
-  const clean = jsonMatch ? jsonMatch[0].trim() : stripped
+  if (!jsonMatch) return null
 
   let parsed: { captions?: unknown; summary?: unknown } = {}
   try {
-    parsed = JSON.parse(clean)
-  } catch { /* fall through — parsed stays {} */ }
+    parsed = JSON.parse(jsonMatch[0].trim())
+  } catch {
+    // Salvage truncated JSON by extracting fields with regex
+    const captionsMatch = jsonMatch[0].match(/"captions"\s*:\s*"((?:[^"\\]|\\.)*)"/s)
+    const summaryMatch  = jsonMatch[0].match(/"summary"\s*:\s*"((?:[^"\\]|\\.)*)"/s)
+    if (captionsMatch) parsed.captions = captionsMatch[1].replace(/\\n/g, '\n').replace(/\\"/g, '"')
+    if (summaryMatch)  parsed.summary  = summaryMatch[1].replace(/\\n/g, '\n').replace(/\\"/g, '"')
+  }
 
-  const isPlaceholder = (s: unknown) =>
-    typeof s !== 'string' || s.trim().length < 5 ||
-    s.trim() === 'CAPTION_TEXT' || s.trim() === 'SUMMARY_TEXT'
+  const isValid = (s: unknown) =>
+    typeof s === 'string' && s.trim().length >= 10 &&
+    s.trim() !== 'CAPTION_TEXT' && s.trim() !== 'SUMMARY_TEXT'
+
+  if (!isValid(parsed.summary)) return null
 
   return {
-    captions: isPlaceholder(parsed.captions) ? '' : (parsed.captions as string).trim(),
-    summary: isPlaceholder(parsed.summary) ? clean : (parsed.summary as string).trim(),
+    captions: isValid(parsed.captions) ? (parsed.captions as string).trim() : '',
+    summary: (parsed.summary as string).trim(),
   }
 }
 
-/**
- * Extract N evenly-spaced frames from a video URL using canvas.
- */
-/**
- * Process a video URL — extracts frames via canvas, sends only those to the API.
- */
+// ─── Shared caption pass ──────────────────────────────────────────────────────
+
+async function runCaptionPass(
+  videoDescription: string,
+  onProgress?: (tone: CaptionTone) => void,
+): Promise<CaptionResults> {
+  const results = {} as CaptionResults
+  const tones = Object.keys(TONE_SYSTEM_PROMPTS) as CaptionTone[]
+
+  await Promise.all(tones.map(async tone => {
+    let lastErr: unknown
+    for (let attempt = 0; attempt < 4; attempt++) {
+      try {
+        const msgs: FWMessage[] = [
+          { role: 'system', content: TONE_SYSTEM_PROMPTS[tone] },
+          { role: 'user', content: CAPTION_USER_PROMPT(videoDescription) },
+        ]
+        const choice = await callFW(msgs, GEMMA_MODELS.E4B, { temperature: 0.7 })
+        const parsed = parseToneResult(choice.message.content ?? '')
+        if (parsed) {
+          results[tone] = parsed
+          onProgress?.(tone)
+          return
+        }
+        lastErr = new Error('Empty or unparseable response')
+      } catch (err) {
+        lastErr = err
+      }
+      if (attempt < 3) await new Promise(r => setTimeout(r, 1200 * (attempt + 1)))
+    }
+    results[tone] = {
+      captions: '',
+      summary: `Failed to generate summary. ${lastErr instanceof Error ? lastErr.message : String(lastErr)}`,
+    }
+    onProgress?.(tone)
+  }))
+
+  return results
+}
+
+// ─── Frame capture helpers ────────────────────────────────────────────────────
+
+async function captureFrames(video: HTMLVideoElement, nFrames: number): Promise<string[]> {
+  const canvas = document.createElement('canvas')
+  canvas.width = 320
+  canvas.height = Math.round(320 * (video.videoHeight / video.videoWidth))
+  const ctx = canvas.getContext('2d')!
+
+  let duration = video.duration
+  if (!isFinite(duration) || duration <= 0) {
+    await new Promise<void>(res => {
+      const onSeeked = () => { video.removeEventListener('seeked', onSeeked); res() }
+      video.addEventListener('seeked', onSeeked)
+      video.currentTime = 1e9
+    })
+    duration = video.duration
+  }
+  if (!isFinite(duration) || duration <= 0) duration = 30
+
+  const interval = duration / (nFrames + 1)
+  const timestamps = Array.from({ length: nFrames }, (_, i) => interval * (i + 1))
+  const frames: string[] = []
+
+  for (const ts of timestamps) {
+    await new Promise<void>(res => {
+      const onSeeked = () => { video.removeEventListener('seeked', onSeeked); res() }
+      video.addEventListener('seeked', onSeeked)
+      video.currentTime = ts
+    })
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+    frames.push(canvas.toDataURL('image/jpeg', 0.6))
+  }
+
+  return frames
+}
+
+async function extractFrames(file: File, nFrames = 8): Promise<string[]> {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file)
+    const video = document.createElement('video')
+    video.preload = 'metadata'
+    video.muted = true
+    video.playsInline = true
+    video.src = url
+    video.addEventListener('error', () => { URL.revokeObjectURL(url); reject(new Error('Video load failed')) })
+    video.addEventListener('loadedmetadata', () => {
+      captureFrames(video, nFrames)
+        .then(frames => { URL.revokeObjectURL(url); resolve(frames) })
+        .catch(err => { URL.revokeObjectURL(url); reject(err) })
+    })
+  })
+}
+
+const DESC_SYSTEM = 'You are a video analysis assistant. Describe the video frames in detail: the exact setting/location, every subject visible (people, animals, objects), what actions are occurring, any text on screen, and the overall mood. Be thorough and specific. Output plain prose only — no markdown, no code, no JSON, no thinking. /no_think'
+const DESC_USER   = 'These are evenly-spaced frames from a video clip. Describe in detail what is happening throughout the video. Plain prose only. /no_think'
+
+// ─── Public API ───────────────────────────────────────────────────────────────
+
 export async function processVideoURL(
   url: string,
   onProgress?: (tone: CaptionTone) => void,
 ): Promise<CaptionResults> {
-  const model = GEMMA_MODELS.B31
-
-  // Fetch via local dev proxy to bypass CORS, then extract frames client-side
   const proxyUrl = `/api/video-proxy?url=${encodeURIComponent(url)}`
   const res = await fetch(proxyUrl)
   if (res.status === 400) throw new Error('Not a valid URL.')
@@ -236,116 +332,20 @@ export async function processVideoURL(
 
   if (frameDataUrls.length === 0) throw new Error('Could not extract frames from video.')
 
-  const frameParts = frameDataUrls.map(u => ({
-    type: 'image_url' as const,
-    image_url: { url: u },
-  }))
+  const descChoice = await callFW([
+    { role: 'system', content: DESC_SYSTEM },
+    { role: 'user', content: [
+      ...frameDataUrls.map(u => ({ type: 'image_url' as const, image_url: { url: u } })),
+      { type: 'text' as const, text: DESC_USER },
+    ]},
+  ], GEMMA_MODELS.B31, { temperature: 0.3 })
 
-  const descMessages: FWMessage[] = [
-    {
-      role: 'system',
-      content: 'You are a video analysis assistant. Describe the video frames in detail: the exact setting/location, every subject visible (people, animals, objects), what actions are occurring, any text on screen, and the overall mood. Be thorough and specific — your description will be used to generate captions. /no_think',
-    },
-    {
-      role: 'user',
-      content: [
-        ...frameParts,
-        { type: 'text', text: 'These are evenly-spaced frames from a video clip. Describe in detail what is happening throughout the video.' },
-      ] as FWMessage['content'],
-    },
-  ]
+  const videoDescription = (descChoice.message.content ?? '')
+    .replace(/<think>[\s\S]*?<\/think>/gi, '').trim() || `Video from URL: ${url}`
 
-  const descChoice = await callFW(descMessages, model, { temperature: 0.3, maxTokens: 600 })
-  const videoDescription = descChoice.message.content?.trim() ?? `Video from URL: ${url}`
-
-  const results = {} as CaptionResults
-  const tones = Object.keys(TONE_SYSTEM_PROMPTS) as CaptionTone[]
-
-  // Caption pass: all 4 tones in parallel — onProgress called on completion of each
-  await Promise.all(tones.map(async tone => {
-    let lastErr: unknown
-    for (let attempt = 0; attempt < 3; attempt++) {
-      try {
-        const msgs: FWMessage[] = [
-          { role: 'system', content: TONE_SYSTEM_PROMPTS[tone] },
-          { role: 'user', content: CAPTION_USER_PROMPT(videoDescription) },
-        ]
-        const choice = await callFW(msgs, GEMMA_MODELS.E4B, { temperature: 0.7, maxTokens: 1024 })
-        results[tone] = parseToneResult(choice.message.content ?? '')
-        onProgress?.(tone)
-        return
-      } catch (err) {
-        lastErr = err
-        if (attempt < 2) await new Promise(r => setTimeout(r, 1200 * (attempt + 1)))
-      }
-    }
-    results[tone] = {
-      captions: '',
-      summary: `⚠️ Failed after 3 attempts. ${lastErr instanceof Error ? lastErr.message : String(lastErr)}`,
-    }
-    onProgress?.(tone)
-  }))
-
-  return results
+  return runCaptionPass(videoDescription, onProgress)
 }
 
-async function captureFrames(video: HTMLVideoElement, nFrames: number): Promise<string[]> {
-  const canvas = document.createElement('canvas')
-  canvas.width = 320
-  canvas.height = Math.round(320 * (video.videoHeight / video.videoWidth))
-  const ctx = canvas.getContext('2d')!
-
-  // For streaming URLs, duration may be Infinity — force a seek to load it
-  let duration = video.duration
-  if (!isFinite(duration) || duration <= 0) {
-    // Seek to a large number to force the browser to buffer and reveal duration
-    await new Promise<void>(res => {
-      const onSeeked = () => { video.removeEventListener('seeked', onSeeked); res() }
-      video.addEventListener('seeked', onSeeked)
-      video.currentTime = 1e9
-    })
-    duration = video.duration
-  }
-  if (!isFinite(duration) || duration <= 0) duration = 30 // last resort fallback
-
-  const interval = duration / (nFrames + 1)
-  const timestamps = Array.from({ length: nFrames }, (_, i) => interval * (i + 1))
-  const frames: string[] = []
-
-  for (const ts of timestamps) {
-    await new Promise<void>(res => {
-      const onSeeked = () => { video.removeEventListener('seeked', onSeeked); res() }
-      video.addEventListener('seeked', onSeeked)
-      video.currentTime = ts
-    })
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
-    frames.push(canvas.toDataURL('image/jpeg', 0.6))
-  }
-
-  return frames
-}
-
-async function extractFrames(file: File, nFrames = 5): Promise<string[]> {
-  return new Promise((resolve, reject) => {
-    const url = URL.createObjectURL(file)
-    const video = document.createElement('video')
-    video.preload = 'metadata'
-    video.muted = true
-    video.playsInline = true
-    video.src = url
-    video.addEventListener('error', () => { URL.revokeObjectURL(url); reject(new Error('Video load failed')) })
-    video.addEventListener('loadedmetadata', () => {
-      captureFrames(video, nFrames)
-        .then(frames => { URL.revokeObjectURL(url); resolve(frames) })
-        .catch(err => { URL.revokeObjectURL(url); reject(err) })
-    })
-  })
-}
-
-/**
- * Process a local video file.
- * Extracts frames via canvas (no ffmpeg needed) and sends only those to the API.
- */
 export async function processVideoFile(
   file: File,
   onProgress?: (tone: CaptionTone) => void,
@@ -353,73 +353,27 @@ export async function processVideoFile(
 ): Promise<CaptionResults> {
   onUploadProgress?.('uploading', 10)
 
-  // Extract frames client-side — avoids sending the entire video as base64
   const frameDataUrls = await extractFrames(file, 8)
   if (frameDataUrls.length === 0) throw new Error('Could not extract frames from video.')
 
   onUploadProgress?.('processing')
 
-  const model = GEMMA_MODELS.B31
+  const descChoice = await callFW([
+    { role: 'system', content: DESC_SYSTEM },
+    { role: 'user', content: [
+      ...frameDataUrls.map(url => ({ type: 'image_url' as const, image_url: { url } })),
+      { type: 'text' as const, text: DESC_USER },
+    ]},
+  ], GEMMA_MODELS.B31, { temperature: 0.3 })
 
-  const frameParts = frameDataUrls.map(url => ({
-    type: 'image_url' as const,
-    image_url: { url },
-  }))
+  const videoDescription = (descChoice.message.content ?? '')
+    .replace(/<think>[\s\S]*?<\/think>/gi, '').trim() || `Video file: ${file.name}`
 
-  // First pass: describe the video from frames (frames sent ONCE only)
-  const descMessages: FWMessage[] = [
-    {
-      role: 'system',
-      content: 'You are a video analysis assistant. Describe the video frames in detail: the exact setting/location, every subject visible (people, animals, objects), what actions are occurring, any text on screen, and the overall mood. Be thorough and specific — your description will be used to generate captions. /no_think',
-    },
-    {
-      role: 'user',
-      content: [
-        ...frameParts,
-        { type: 'text', text: 'These are evenly-spaced frames from a video clip. Describe in detail what is happening throughout the video.' },
-      ] as FWMessage['content'],
-    },
-  ]
-
-  const descChoice = await callFW(descMessages, model, { temperature: 0.3, maxTokens: 600 })
-  const videoDescription = descChoice.message.content?.trim() ?? `Video file: ${file.name}`
-
-  const results = {} as CaptionResults
-  const tones = Object.keys(TONE_SYSTEM_PROMPTS) as CaptionTone[]
-
-  // Caption pass: all 4 tones in parallel — onProgress called on completion of each
-  await Promise.all(tones.map(async tone => {
-    let lastErr: unknown
-    for (let attempt = 0; attempt < 3; attempt++) {
-      try {
-        const msgs: FWMessage[] = [
-          { role: 'system', content: TONE_SYSTEM_PROMPTS[tone] },
-          { role: 'user', content: CAPTION_USER_PROMPT(videoDescription) },
-        ]
-        const choice = await callFW(msgs, GEMMA_MODELS.E4B, { temperature: 0.7, maxTokens: 1024 })
-        results[tone] = parseToneResult(choice.message.content ?? '')
-        onProgress?.(tone)
-        return
-      } catch (err) {
-        lastErr = err
-        if (attempt < 2) await new Promise(r => setTimeout(r, 1200 * (attempt + 1)))
-      }
-    }
-    results[tone] = {
-      captions: '',
-      summary: `⚠️ Failed after 3 attempts. ${lastErr instanceof Error ? lastErr.message : String(lastErr)}`,
-    }
-    onProgress?.(tone)
-  }))
-
-  return results
+  return runCaptionPass(videoDescription, onProgress)
 }
 
 // ─── Chat helpers ─────────────────────────────────────────────────────────────
 
-/**
- * Simple chat — uses Gemma 4 E4B for speed.
- */
 export async function sendMessage(
   messages: Message[],
   userMessage: string,
@@ -432,13 +386,10 @@ export async function sendMessage(
   }
   fwMsgs.push({ role: 'user', content: userMessage })
 
-  const choice = await callFW(fwMsgs, GEMMA_MODELS.E4B, { temperature: 0.9, maxTokens: 1024 })
+  const choice = await callFW(fwMsgs, GEMMA_MODELS.E4B, { temperature: 0.9 })
   return choice.message.content ?? 'No response.'
 }
 
-/**
- * Agentic chat with tool-calling — uses Gemma 4 26B for balanced capability.
- */
 export async function sendMessageWithTools(
   messages: Message[],
   userMessage: string,
@@ -454,25 +405,20 @@ export async function sendMessageWithTools(
   }
   fwMsgs.push({ role: 'user', content: userMessage })
 
-  // Use chat model for tool-calling
   const model = GEMMA_MODELS.B26
   const MAX_ROUNDS = 10
 
   for (let round = 0; round < MAX_ROUNDS; round++) {
     const choice = await callFW(fwMsgs, model, {
       temperature: 0.7,
-      maxTokens: 2048,
       tools: tools.length > 0 ? tools : undefined,
     })
 
     const msg = choice.message
     const toolCalls = msg.tool_calls ?? []
 
-    if (toolCalls.length === 0) {
-      return msg.content ?? 'Done.'
-    }
+    if (toolCalls.length === 0) return msg.content ?? 'Done.'
 
-    // Execute all tool calls in parallel
     const results = await Promise.all(
       toolCalls.map(async tc => {
         let args: Record<string, unknown> = {}
@@ -486,28 +432,16 @@ export async function sendMessageWithTools(
       })
     )
 
-    // Append assistant turn with tool calls
-    fwMsgs.push({
-      role: 'assistant',
-      content: msg.content ?? '',
-    })
-
-    // Append tool results
+    fwMsgs.push({ role: 'assistant', content: msg.content ?? '' })
     for (const r of results) {
-      fwMsgs.push({
-        role: 'tool',
-        tool_call_id: r.id,
-        name: r.name,
-        content: JSON.stringify(r.result),
-      })
+      fwMsgs.push({ role: 'tool', tool_call_id: r.id, name: r.name, content: JSON.stringify(r.result) })
     }
   }
 
   return 'I ran out of tool-call rounds. Please try again.'
 }
 
-// ─── Gemini-compatible re-exports (used by existing components) ───────────────
-// These aliases let us drop-in replace gemini.ts without touching other files.
+// ─── Gemini-compatible re-exports ─────────────────────────────────────────────
 
 export type { FWToolDeclaration as GeminiToolDeclaration }
 
@@ -562,6 +496,6 @@ export async function sendAudioToGemini(
     },
   ]
 
-  const choice = await callFW(fwMsgs, GEMMA_MODELS.E4B, { temperature: 0.9, maxTokens: 1024 })
+  const choice = await callFW(fwMsgs, GEMMA_MODELS.E4B, { temperature: 0.9 })
   return choice.message.content ?? 'No response.'
 }
