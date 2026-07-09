@@ -3,6 +3,7 @@ import AppHub from './components/AppHub'
 import ChatBox from './components/ChatBox'
 import NotesApp from './components/NotesApp'
 import VideoCaptionsApp from './components/VideoCaptionsApp'
+import UsageTrackingApp from './components/UsageTrackingApp'
 import DraggableWidget from './components/DraggableWidget'
 import type { AppItem, Note, AppControl, WidgetId } from './types'
 import { xo } from './env'
@@ -322,6 +323,7 @@ export default function App() {
   const [notesOpen, setNotesOpen] = useState(true)
   const [videoOpen, setVideoOpen] = useState(true)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [usageOpen, setUsageOpen] = useState(false)
   const [activeNote, setActiveNote] = useState<Note | null>(null)
   const [windowAnim, setWindowAnim] = useState<'visible' | 'entering' | 'exiting'>('visible')
   const exitTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -331,10 +333,12 @@ export default function App() {
   const notesOpenRef    = useRef(notesOpen)
   const videoOpenRef    = useRef(videoOpen)
   const settingsOpenRef = useRef(settingsOpen)
+  const usageOpenRef    = useRef(usageOpen)
   useEffect(() => { chatOpenRef.current     = chatOpen     }, [chatOpen])
   useEffect(() => { notesOpenRef.current    = notesOpen    }, [notesOpen])
   useEffect(() => { videoOpenRef.current    = videoOpen    }, [videoOpen])
   useEffect(() => { settingsOpenRef.current = settingsOpen }, [settingsOpen])
+  useEffect(() => { usageOpenRef.current    = usageOpen    }, [usageOpen])
 
   useEffect(() => {
     startNewSession()
@@ -369,6 +373,7 @@ export default function App() {
     if (id === 'notes')    setNotesOpen(prev => !prev)
     if (id === 'video')    setVideoOpen(prev => !prev)
     if (id === 'settings') { setSettingsOpen(prev => { if (!prev) trackFeatureUsage('settings'); return !prev }) }
+    if (id === 'usage')    setUsageOpen(prev => !prev)
   }
 
   // ── AppControl — the API the ChatBox tools call into ─────────────────────
@@ -378,12 +383,14 @@ export default function App() {
       if (id === 'notes')    setNotesOpen(true)
       if (id === 'video')    setVideoOpen(true)
       if (id === 'settings') setSettingsOpen(true)
+      if (id === 'usage')    setUsageOpen(true)
     },
     closeWidget(id: WidgetId) {
       if (id === 'chat')     setChatOpen(false)
       if (id === 'notes')    setNotesOpen(false)
       if (id === 'video')    setVideoOpen(false)
       if (id === 'settings') setSettingsOpen(false)
+      if (id === 'usage')    setUsageOpen(false)
     },
     getOpenWidgets(): WidgetId[] {
       const open: WidgetId[] = []
@@ -391,6 +398,7 @@ export default function App() {
       if (notesOpenRef.current)    open.push('notes')
       if (videoOpenRef.current)    open.push('video')
       if (settingsOpenRef.current) open.push('settings')
+      if (usageOpenRef.current)    open.push('usage')
       return open
     },
 
@@ -443,6 +451,7 @@ export default function App() {
     ...(notesOpen    ? ['notes']    : []),
     ...(videoOpen    ? ['video']    : []),
     ...(settingsOpen ? ['settings'] : []),
+    ...(usageOpen    ? ['usage']    : []),
   ])
 
   const animClass = windowAnim === 'entering' ? 'app-enter'
@@ -494,6 +503,12 @@ export default function App() {
       {settingsOpen && (
         <DraggableWidget initialX={Math.round((window.innerWidth - 340) / 2)} initialY={Math.round((window.innerHeight - 440) / 2)} baseWidth={340} baseHeight={440}>
           {(onCornerDown) => <SettingsWidget onClose={() => setSettingsOpen(false)} onCornerDown={onCornerDown} />}
+        </DraggableWidget>
+      )}
+
+      {usageOpen && (
+        <DraggableWidget initialX={Math.round((window.innerWidth - 480) / 2)} initialY={Math.round((window.innerHeight - 520) / 2)} baseWidth={480} baseHeight={520}>
+          {(onCornerDown) => <UsageTrackingApp onClose={() => setUsageOpen(false)} onCornerDown={onCornerDown} />}
         </DraggableWidget>
       )}
 

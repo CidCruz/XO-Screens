@@ -41,7 +41,7 @@ export interface CaptionHistoryEntry {
 
 // ── App Control (tool-calling) ───────────────────────────────────────────────
 
-export type WidgetId = 'chat' | 'notes' | 'video' | 'settings'
+export type WidgetId = 'chat' | 'notes' | 'video' | 'settings' | 'usage'
 
 export interface AppControl {
   // Widget visibility
