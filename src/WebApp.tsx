@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
+﻿import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import type { AppItem, Note, AppControl } from './types'
 import { APP_TOOLS, makeExecutor } from './appBridge'
 import { sendToGeminiWithTools, sendToGeminiWithSystem } from './gemini'
@@ -155,9 +155,10 @@ function HomePanel({ onNavigate }: { onNavigate: (id: string) => void }) {
     {
       num: '03',
       label: 'Track 3',
-      title: 'XO Screens "” Unicorn',
-      desc: 'Full AI productivity workspace: chat assistant, smart notes, video summarizer, and usage tracking "” all powered by AMD compute.',
-      chips: ['Chat', 'Notes', 'Video', 'AMD'],
+      title: 'XO Screens \u2014 Unicorn',
+      desc: 'Full AI productivity workspace: chat assistant, smart notes, video summarizer, and usage tracking \u2014 all powered by AMD compute.',
+      chips: [] as string[],
+      cta: true,
       color: 'rgba(238,111,83,0.95)',
       glow: 'rgba(238,111,83,0.07)',
       border: 'rgba(238,111,83,0.22)',
@@ -177,7 +178,7 @@ function HomePanel({ onNavigate }: { onNavigate: (id: string) => void }) {
       {/* Badge */}
       <div style={{ marginBottom: 18, animation: 'fadeIn 0.5s ease both' }}>
         <span className="web-hero-badge">
-          <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#EBB159', display: 'inline-block', boxShadow: '0 0 6px rgba(235,177,89,0.8)' }} />
+          <span className="web-hero-badge-dot" />
           AMD Developer Hackathon · ACT II
         </span>
       </div>
