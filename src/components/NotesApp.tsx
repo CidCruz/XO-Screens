@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import type { Note } from '../types'
+import { trackNoteCreated, trackNoteEdited, trackNoteDeleted, trackFeatureUsage } from '../usageTracking'
 
 const STORAGE_KEY = 'xo-notes'
 
@@ -119,7 +120,15 @@ export default function NotesApp({ onClose: _onClose, onCornerDown, onNoteChange
   }, [activeNote, onNoteChange])
 
   const updateNote = useCallback((id: string, patch: Partial<Note>) => {
-    setNotes(prev => prev.map(n => n.id === id ? { ...n, ...patch, updatedAt: Date.now() } : n))
+    setNotes(prev => prev.map(n => {
+      if (n.id !== id) return n
+      if (patch.content !== undefined && patch.content !== n.content) {
+        const oldWC = n.content.trim().split(/\s+/).filter(Boolean).length
+        const newWC = patch.content.trim().split(/\s+/).filter(Boolean).length
+        trackNoteEdited(oldWC, newWC)
+      }
+      return { ...n, ...patch, updatedAt: Date.now() }
+    }))
   }, [])
 
   function addNote() {
@@ -127,11 +136,19 @@ export default function NotesApp({ onClose: _onClose, onCornerDown, onNoteChange
     setNotes(prev => [n, ...prev])
     setActiveId(n.id)
     setConfirmDeleteId(null)
+    trackNoteCreated(0)
+    trackFeatureUsage('notes')
     setTimeout(() => titleRef.current?.focus(), 50)
   }
 
   function deleteNote(id: string) {
     setNotes(prev => {
+      const target = prev.find(n => n.id === id)
+      if (target) {
+        const wc = target.content.trim().split(/\s+/).filter(Boolean).length
+        trackNoteDeleted(wc)
+        trackFeatureUsage('notes')
+      }
       const next = prev.filter(n => n.id !== id)
       if (next.length === 0) {
         const fresh = newNote()

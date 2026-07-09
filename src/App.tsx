@@ -7,6 +7,7 @@ import DraggableWidget from './components/DraggableWidget'
 import type { AppItem, Note, AppControl, WidgetId } from './types'
 import { xo } from './env'
 import { loadCaptionHistory } from './captionHistory'
+import { startNewSession, trackFeatureUsage } from './usageTracking'
 
 const APPS: AppItem[] = [
   { id: 'chat',     label: 'Assistant'       },
@@ -336,6 +337,10 @@ export default function App() {
   useEffect(() => { settingsOpenRef.current = settingsOpen }, [settingsOpen])
 
   useEffect(() => {
+    startNewSession()
+  }, [])
+
+  useEffect(() => {
     const fadeInTimer = setTimeout(() => setFadeIn(true), 50)
     const fadeOutTimer = setTimeout(() => setFadeOut(true), 3500)
     const hide = setTimeout(() => setSplash(false), 4200)
@@ -363,7 +368,7 @@ export default function App() {
     if (id === 'chat')     setChatOpen(prev => !prev)
     if (id === 'notes')    setNotesOpen(prev => !prev)
     if (id === 'video')    setVideoOpen(prev => !prev)
-    if (id === 'settings') setSettingsOpen(prev => !prev)
+    if (id === 'settings') { setSettingsOpen(prev => !prev); trackFeatureUsage('settings') }
   }
 
   // ── AppControl — the API the ChatBox tools call into ─────────────────────

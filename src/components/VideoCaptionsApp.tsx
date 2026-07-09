@@ -4,6 +4,7 @@ import type { CaptionTone, CaptionResults } from '../gemini'
 import { processVideoFile, processVideoURL } from '../gemini'
 import type { ToneResult } from '../gemini'
 import { loadCaptionHistory, addCaptionHistoryEntry, deleteCaptionHistoryEntry, clearCaptionHistory } from '../captionHistory'
+import { trackVideoCaptionGenerated, trackVideoFileProcessed, trackFeatureUsage } from '../usageTracking'
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -400,6 +401,9 @@ export default function VideoCaptionsApp({ onClose: _onClose, onCornerDown }: Pr
       setStatus('done')
       setUploadPhase(null)
       setCurrentLabel(label)
+      trackVideoCaptionGenerated()
+      trackVideoFileProcessed()
+      trackFeatureUsage('video')
       const updated = addCaptionHistoryEntry({ label, results: res })
       setHistory(updated)
     } catch (err) {

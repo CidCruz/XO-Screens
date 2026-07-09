@@ -5,6 +5,7 @@ import { APP_TOOLS, makeExecutor } from '../appBridge'
 import {
   initSessions, newSession, upsertSession, saveSessions, deriveTitleFromMessage, deleteSession,
 } from '../chatHistory'
+import { trackChatMessage, trackChatSession, trackFeatureUsage } from '../usageTracking'
 
 // ── Capability groups ─────────────────────────────────────────────────────────
 
@@ -238,6 +239,7 @@ export default function ChatBox({ onCornerDown, activeNote, appControl }: Props)
     setSettingsOpen(false)
     setConfirmDeleteId(null)
     setInput('')
+    trackChatSession()
   }
 
   function handleSelectSession(id: string) {
@@ -272,6 +274,8 @@ export default function ChatBox({ onCornerDown, activeNote, appControl }: Props)
       updatedAt: Date.now(),
     }))
 
+    trackChatMessage('user')
+    trackFeatureUsage('chat')
     setInput('')
     setLoading(true)
     setActiveTools([])
@@ -306,7 +310,7 @@ export default function ChatBox({ onCornerDown, activeNote, appControl }: Props)
           updatedMessages, text, systemPrompt,
           activeAppTools,
           executorRef.current,
-          (call) => { setActiveTools(prev => [...prev, call.name]) },
+          (call) => { setActiveTools(prev => [...prev, call.name]); trackChatMessage('assistant', true) },
         )
       } else {
         const { sendToGeminiWithSystem } = await import('../gemini')
@@ -314,6 +318,7 @@ export default function ChatBox({ onCornerDown, activeNote, appControl }: Props)
       }
 
       setActiveTools([])
+      trackChatMessage('assistant')
       setSessions(prev => upsertSession(prev, {
         ...activeSession,
         title: newTitle,
