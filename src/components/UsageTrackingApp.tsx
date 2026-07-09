@@ -51,8 +51,8 @@ function ActivityChart({ dailyStats }: { dailyStats: DailyStat[] }) {
 }
 
 interface Props {
-  onClose: () => void
-  onCornerDown: (e: React.MouseEvent, dx: number, dy: number) => void
+  onClose?: () => void
+  onCornerDown?: (e: React.MouseEvent, dx: number, dy: number) => void
 }
 
 export default function UsageTrackingApp({ onClose, onCornerDown }: Props) {
@@ -119,7 +119,7 @@ export default function UsageTrackingApp({ onClose, onCornerDown }: Props) {
       onMouseLeave={() => setClosestCorner(null)}
     >
       {/* Corner handles */}
-      {corners.map((c, i) => (
+      {onCornerDown && corners.map((c, i) => (
         <div key={i} onMouseDown={e => onCornerDown(e, c.dx, c.dy)} style={{
           position: 'absolute', width: 16, height: 16, zIndex: 10,
           top: (c as { top?: number }).top, left: (c as { left?: number }).left,
@@ -159,7 +159,7 @@ export default function UsageTrackingApp({ onClose, onCornerDown }: Props) {
             <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.25)' }}>live</span>
           </div>
           {/* Close */}
-          <button data-no-drag onClick={onClose} title="Close"
+          {onClose && <button data-no-drag onClick={onClose} title="Close"
             style={{ width: 26, height: 26, borderRadius: 8, border: 'none', background: 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,255,255,0.25)', cursor: 'pointer', transition: 'all 0.15s', flexShrink: 0 }}
             onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = '#f87171'; (e.currentTarget as HTMLButtonElement).style.background = 'rgba(239,68,68,0.12)' }}
             onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = 'rgba(255,255,255,0.25)'; (e.currentTarget as HTMLButtonElement).style.background = 'transparent' }}
@@ -167,7 +167,7 @@ export default function UsageTrackingApp({ onClose, onCornerDown }: Props) {
             <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
-          </button>
+          </button>}
         </div>
 
         {/* ── Body ── */}

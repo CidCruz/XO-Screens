@@ -369,9 +369,9 @@ export default function App() {
   }, [])
 
   function handleSelect(id: string) {
-    if (id === 'chat')     setChatOpen(prev => !prev)
-    if (id === 'notes')    setNotesOpen(prev => !prev)
-    if (id === 'video')    setVideoOpen(prev => !prev)
+    if (id === 'chat')     { setChatOpen(prev => { if (!prev) trackFeatureUsage('chat'); return !prev }) }
+    if (id === 'notes')    { setNotesOpen(prev => { if (!prev) trackFeatureUsage('notes'); return !prev }) }
+    if (id === 'video')    { setVideoOpen(prev => { if (!prev) trackFeatureUsage('video'); return !prev }) }
     if (id === 'settings') { setSettingsOpen(prev => { if (!prev) trackFeatureUsage('settings'); return !prev }) }
     if (id === 'usage')    setUsageOpen(prev => !prev)
   }
