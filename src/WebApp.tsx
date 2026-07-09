@@ -315,11 +315,9 @@ function HomePanel({ onNavigate }: { onNavigate: (id: string) => void }) {
 
 /* â”€â”€ Settings panel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 function SettingsPanel() {
-  // true  = a key is already stored and we're in "locked" view
-  // false = no key yet, or user chose to replace/delete
   const [keyLocked, setKeyLocked] = useState(() => !!localStorage.getItem('xo-fireworks-api-key'))
-  const [newKey, setNewKey] = useState('')
-  const [saved, setSaved] = useState(false)
+  const [newKey, setNewKey]       = useState('')
+  const [saved, setSaved]         = useState(false)
 
   function handleSave() {
     const trimmed = newKey.trim()
@@ -328,7 +326,7 @@ function SettingsPanel() {
     setNewKey('')
     setKeyLocked(true)
     setSaved(true)
-    setTimeout(() => setSaved(false), 2000)
+    setTimeout(() => setSaved(false), 2500)
   }
 
   function handleDelete() {
@@ -339,203 +337,230 @@ function SettingsPanel() {
   }
 
   return (
-    <div className="web-panel-main" style={{ padding: '28px 32px', overflowY: 'auto' }}>
-      <div style={{ maxWidth: 520 }}>
-        <h2 style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-0.02em', marginBottom: 6 }}>Settings</h2>
-        <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.3)', marginBottom: 32 }}>Configure your XO Screens workspace.</p>
-
-        {/* API key section */}
-        <div style={{ marginBottom: 28 }}>
-          <div style={{ fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.35)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 12 }}>
-            Fireworks AI
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-
-            {keyLocked ? (
-              /* Key already set: show masked pill + action buttons */
-              <>
-                <div style={{
-                  display: 'flex', alignItems: 'center', gap: 10,
-                  background: 'rgba(16,185,129,0.07)', border: '1px solid rgba(16,185,129,0.2)',
-                  borderRadius: 10, padding: '10px 14px',
-                }}>
-                  <svg width="13" height="13" fill="none" stroke="rgba(16,185,129,0.7)" viewBox="0 0 24 24" style={{ flexShrink: 0 }}>
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                  </svg>
-                  <span style={{ fontSize: 12, fontFamily: 'monospace', color: 'rgba(16,185,129,0.85)', flex: 1, letterSpacing: '0.05em' }}>
-                    fw_&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;
-                  </span>
-                  {saved && (
-                    <span style={{ fontSize: 11, color: 'rgba(16,185,129,0.7)', fontWeight: 600 }}>&#x2713; Saved</span>
-                  )}
-                </div>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <button onClick={() => { setKeyLocked(false); setNewKey('') }} style={{
-                    flex: 1, padding: '10px', borderRadius: 10,
-                    border: '1px solid rgba(235,177,89,0.3)',
-                    background: 'rgba(235,177,89,0.08)', color: 'rgba(235,177,89,0.9)',
-                    fontSize: 12, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer', transition: 'all 0.2s',
-                  }}
-                    onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(235,177,89,0.16)' }}
-                    onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(235,177,89,0.08)' }}
-                  >
-                    Replace Key
-                  </button>
-                  <button onClick={handleDelete} style={{
-                    flex: 1, padding: '10px', borderRadius: 10,
-                    border: '1px solid rgba(239,68,68,0.25)',
-                    background: 'rgba(239,68,68,0.08)', color: 'rgba(239,68,68,0.7)',
-                    fontSize: 12, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer', transition: 'all 0.2s',
-                  }}
-                    onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(239,68,68,0.18)'; (e.currentTarget as HTMLButtonElement).style.color = '#f87171' }}
-                    onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(239,68,68,0.08)'; (e.currentTarget as HTMLButtonElement).style.color = 'rgba(239,68,68,0.7)' }}
-                  >
-                    Delete Key
-                  </button>
-                </div>
-              </>
-            ) : (
-              /* No key yet (or replace mode): show entry input */
-              <>
-                <input
-                  type="password"
-                  value={newKey}
-                  onChange={e => setNewKey(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && handleSave()}
-                  placeholder="fw_&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;"
-                  spellCheck={false}
-                  autoComplete="off"
-                  style={{
-                    width: '100%', boxSizing: 'border-box',
-                    background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
-                    borderRadius: 10, padding: '10px 14px',
-                    color: '#fff', fontSize: 12, fontFamily: 'monospace', outline: 'none',
-                  }}
-                  onFocus={e => { e.currentTarget.style.borderColor = 'rgba(235,177,89,0.5)' }}
-                  onBlur={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)' }}
-                />
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <button onClick={handleSave} disabled={!newKey.trim()} style={{
-                    flex: 1, padding: '10px', borderRadius: 10, border: 'none',
-                    cursor: newKey.trim() ? 'pointer' : 'default',
-                    background: newKey.trim() ? 'linear-gradient(135deg, #EBB159, #EE6F53)' : 'rgba(235,177,89,0.15)',
-                    color: newKey.trim() ? '#fff' : 'rgba(255,255,255,0.3)',
-                    fontSize: 12, fontWeight: 600, fontFamily: 'inherit', transition: 'all 0.2s',
-                  }}>
-                    Save API Key
-                  </button>
-                  {localStorage.getItem('xo-fireworks-api-key') && (
-                    <button onClick={() => { setKeyLocked(true); setNewKey('') }} style={{
-                      padding: '10px 16px', borderRadius: 10,
-                      border: '1px solid rgba(255,255,255,0.1)',
-                      background: 'transparent', color: 'rgba(255,255,255,0.35)',
-                      fontSize: 12, fontWeight: 500, fontFamily: 'inherit', cursor: 'pointer', transition: 'all 0.2s',
-                    }}>
-                      Cancel
-                    </button>
-                  )}
-                </div>
-              </>
-            )}
-
-            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.25)', lineHeight: 1.6 }}>
-              Get your key at{' '}
-              <a href="https://fireworks.ai" target="_blank" rel="noreferrer"
-                style={{ color: 'rgba(235,177,89,0.8)', textDecoration: 'none' }}>fireworks.ai</a>
-              . Stored locally in your browser only.
-            </div>
-          </div>
-        </div>
-
-        {/* About section */}
-        <div>
-          <div style={{ fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.35)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 12 }}>
-            About
-          </div>
+    /* ── Bento grid — centred, full-height ── */
+    <div style={{
+      width: '100%', height: '100%', overflowY: 'auto',
+      display: 'flex', flexDirection: 'column',
+      alignItems: 'center', justifyContent: 'flex-start',
+      padding: '36px 24px 100px',
+    }}>
+      {/* Page header */}
+      <div style={{ width: '100%', maxWidth: 720, marginBottom: 28, animation: 'fadeIn 0.4s ease both' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 6 }}>
           <div style={{
-            padding: '14px 16px', borderRadius: 12,
-            background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)',
-            display: 'flex', flexDirection: 'column', gap: 10,
+            width: 40, height: 40, borderRadius: 13, flexShrink: 0,
+            background: 'linear-gradient(145deg, rgba(235,177,89,0.22), rgba(238,111,83,0.12))',
+            border: '1px solid rgba(235,177,89,0.3)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            boxShadow: '0 0 20px rgba(235,177,89,0.15)',
           }}>
-            {[
-              { label: 'Version', value: '0.0.0' },
-              { label: 'Mode', value: 'Web App' },
-              { label: 'Provider', value: 'Fireworks AI' },
-            ].map(row => (
-              <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)' }}>{row.label}</span>
-                <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.65)', fontFamily: 'monospace' }}>{row.value}</span>
-              </div>
-            ))}
-            {/* Created by */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', paddingTop: 2 }}>
-              <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)' }}>Created by</span>
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
-                <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.65)', fontFamily: 'monospace' }}>Team Forge</span>
-                <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', fontFamily: 'monospace' }}>Cid &amp; Rin</span>
-              </div>
-            </div>
+            <svg width="18" height="18" fill="none" stroke="#EBB159" viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="3" strokeWidth={2}/>
+              <path strokeWidth={2} strokeLinecap="round" d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
+            </svg>
           </div>
-        </div>
-
-        {/* Download Unicorn */}
-        <div style={{ marginTop: 20 }}>
-          <a
-            href="https://github.com/your-org/xo-screens/releases/latest"
-            target="_blank"
-            rel="noreferrer"
-            style={{ textDecoration: 'none', display: 'block' }}
-          >
-            <button style={{
-              width: '100%', padding: '12px 16px', borderRadius: 12, border: 'none', cursor: 'pointer',
-              background: 'linear-gradient(135deg, rgba(235,177,89,0.15) 0%, rgba(238,111,83,0.15) 100%)',
-              border: '1px solid rgba(235,177,89,0.25)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-              transition: 'all 0.2s cubic-bezier(0.16,1,0.3,1)',
-            }}
-              onMouseEnter={e => {
-                const b = e.currentTarget as HTMLButtonElement
-                b.style.background = 'linear-gradient(135deg, rgba(235,177,89,0.25) 0%, rgba(238,111,83,0.25) 100%)'
-                b.style.borderColor = 'rgba(235,177,89,0.5)'
-                b.style.transform = 'translateY(-1px)'
-                b.style.boxShadow = '0 8px 24px rgba(238,111,83,0.15)'
-              }}
-              onMouseLeave={e => {
-                const b = e.currentTarget as HTMLButtonElement
-                b.style.background = 'linear-gradient(135deg, rgba(235,177,89,0.15) 0%, rgba(238,111,83,0.15) 100%)'
-                b.style.borderColor = 'rgba(235,177,89,0.25)'
-                b.style.transform = ''
-                b.style.boxShadow = ''
-              }}
-            >
-              <svg width="14" height="14" fill="none" stroke="url(#dl-grad)" viewBox="0 0 24 24">
-                <defs>
-                  <linearGradient id="dl-grad" x1="0" y1="0" x2="1" y2="0">
-                    <stop offset="0%" stopColor="#EBB159" />
-                    <stop offset="100%" stopColor="#EE6F53" />
-                  </linearGradient>
-                </defs>
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                  d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3" />
-              </svg>
-              <span style={{
-                fontSize: 12, fontWeight: 700, letterSpacing: '0.01em',
-                background: 'linear-gradient(135deg, #EBB159, #EE6F53)',
-                WebkitBackgroundClip: 'text', backgroundClip: 'text',
-                WebkitTextFillColor: 'transparent', color: 'transparent',
-              }}>
-                Download Unicorn Version
-              </span>
-              <svg width="10" height="10" fill="none" stroke="rgba(235,177,89,0.5)" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-              </svg>
-            </button>
-          </a>
-          <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.18)', textAlign: 'center', marginTop: 8, lineHeight: 1.5 }}>
-            Desktop overlay with real-time screen reading &amp; AI assistant
-          </p>
+          <div>
+            <h2 style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.03em', color: '#fff', lineHeight: 1.1, fontFamily: '"Syne", sans-serif' }}>Settings</h2>
+            <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)', marginTop: 3 }}>Configure your XO Screens workspace</p>
+          </div>
         </div>
       </div>
+
+      {/* ── Bento grid: 2-col top row ── */}
+      <div style={{ width: '100%', maxWidth: 720, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 14, animation: 'fadeIn 0.4s 0.06s ease both' }}>
+
+        {/* Card — API Key */}
+        <div className="xo-bento-card" style={{ padding: '22px 22px 20px', background: 'rgba(235,177,89,0.05)', borderColor: 'rgba(235,177,89,0.18)' }}>
+          {/* Glow blob */}
+          <div style={{ position: 'absolute', inset: 0, borderRadius: 'inherit', overflow: 'hidden', pointerEvents: 'none' }}>
+            <div style={{ position: 'absolute', width: 160, height: 160, borderRadius: '50%', background: 'radial-gradient(circle, rgba(235,177,89,0.18) 0%, transparent 70%)', top: -60, right: -50, filter: 'blur(20px)' }} />
+          </div>
+          <div style={{ position: 'relative' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 14 }}>
+              <div style={{ width: 30, height: 30, borderRadius: 9, background: 'rgba(235,177,89,0.12)', border: '1px solid rgba(235,177,89,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <svg width="13" height="13" fill="none" stroke="rgba(235,177,89,0.9)" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/>
+                </svg>
+              </div>
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#fff', letterSpacing: '-0.01em' }}>API Key</div>
+                <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', marginTop: 1 }}>Fireworks AI</div>
+              </div>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {keyLocked ? (
+                <>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(16,185,129,0.07)', border: '1px solid rgba(16,185,129,0.2)', borderRadius: 10, padding: '9px 12px' }}>
+                    <svg width="12" height="12" fill="none" stroke="rgba(16,185,129,0.7)" viewBox="0 0 24 24" style={{ flexShrink: 0 }}>
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                    </svg>
+                    <span style={{ fontSize: 11, fontFamily: 'monospace', color: 'rgba(16,185,129,0.85)', flex: 1, letterSpacing: '0.04em' }}>fw_••••••••••••••••••</span>
+                    {saved && <span style={{ fontSize: 10, color: 'rgba(16,185,129,0.7)', fontWeight: 700 }}>✓ Saved</span>}
+                  </div>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <button onClick={() => { setKeyLocked(false); setNewKey('') }} style={{ flex: 1, padding: '8px', borderRadius: 9, border: '1px solid rgba(235,177,89,0.28)', background: 'rgba(235,177,89,0.08)', color: 'rgba(235,177,89,0.9)', fontSize: 11, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer', transition: 'all 0.18s' }}
+                      onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(235,177,89,0.18)' }}
+                      onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(235,177,89,0.08)' }}
+                    >Replace</button>
+                    <button onClick={handleDelete} style={{ flex: 1, padding: '8px', borderRadius: 9, border: '1px solid rgba(239,68,68,0.22)', background: 'rgba(239,68,68,0.07)', color: 'rgba(239,68,68,0.7)', fontSize: 11, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer', transition: 'all 0.18s' }}
+                      onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(239,68,68,0.16)'; (e.currentTarget as HTMLButtonElement).style.color = '#f87171' }}
+                      onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(239,68,68,0.07)'; (e.currentTarget as HTMLButtonElement).style.color = 'rgba(239,68,68,0.7)' }}
+                    >Delete</button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <input type="password" value={newKey} onChange={e => setNewKey(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && handleSave()}
+                    placeholder="fw_••••••••••••••••••"
+                    spellCheck={false} autoComplete="off"
+                    style={{ width: '100%', boxSizing: 'border-box', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, padding: '9px 12px', color: '#fff', fontSize: 11, fontFamily: 'monospace', outline: 'none', transition: 'border 0.15s' }}
+                    onFocus={e => { e.currentTarget.style.borderColor = 'rgba(235,177,89,0.5)' }}
+                    onBlur={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)' }}
+                  />
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <button onClick={handleSave} disabled={!newKey.trim()} style={{ flex: 1, padding: '8px', borderRadius: 9, border: 'none', cursor: newKey.trim() ? 'pointer' : 'default', background: newKey.trim() ? 'linear-gradient(135deg, #EBB159, #EE6F53)' : 'rgba(235,177,89,0.12)', color: newKey.trim() ? '#fff' : 'rgba(255,255,255,0.3)', fontSize: 11, fontWeight: 700, fontFamily: 'inherit', transition: 'all 0.18s' }}>Save Key</button>
+                    {localStorage.getItem('xo-fireworks-api-key') && (
+                      <button onClick={() => { setKeyLocked(true); setNewKey('') }} style={{ padding: '8px 12px', borderRadius: 9, border: '1px solid rgba(255,255,255,0.1)', background: 'transparent', color: 'rgba(255,255,255,0.3)', fontSize: 11, fontFamily: 'inherit', cursor: 'pointer', transition: 'all 0.18s' }}>Cancel</button>
+                    )}
+                  </div>
+                </>
+              )}
+              <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.22)', lineHeight: 1.6 }}>
+                Get yours at <a href="https://fireworks.ai" target="_blank" rel="noreferrer" style={{ color: 'rgba(235,177,89,0.75)', textDecoration: 'none' }}>fireworks.ai</a>. Stored locally only.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Card — About */}
+        <div className="xo-bento-card" style={{ padding: '22px 22px 20px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 16 }}>
+            <div style={{ width: 30, height: 30, borderRadius: 9, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <svg width="13" height="13" fill="none" stroke="rgba(255,255,255,0.55)" viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="10" strokeWidth={2}/>
+                <line x1="12" y1="8" x2="12" y2="12" strokeWidth={2} strokeLinecap="round"/>
+                <line x1="12" y1="16" x2="12.01" y2="16" strokeWidth={2.5} strokeLinecap="round"/>
+              </svg>
+            </div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: '#fff', letterSpacing: '-0.01em' }}>About</div>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
+            {[
+              { label: 'Version',    value: '0.0.0' },
+              { label: 'Mode',       value: 'Web App' },
+              { label: 'Provider',   value: 'Fireworks AI' },
+              { label: 'Model',      value: 'DeepSeek V4 Pro' },
+            ].map(row => (
+              <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 10px', borderRadius: 9, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)' }}>
+                <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)' }}>{row.label}</span>
+                <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', fontFamily: 'monospace' }}>{row.value}</span>
+              </div>
+            ))}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 10px', borderRadius: 9, background: 'rgba(235,177,89,0.05)', border: '1px solid rgba(235,177,89,0.12)' }}>
+              <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)' }}>Created by</span>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 1 }}>
+                <span style={{ fontSize: 11, color: 'rgba(235,177,89,0.9)', fontFamily: 'monospace', fontWeight: 600 }}>Team Forge</span>
+                <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.28)', fontFamily: 'monospace' }}>Cid &amp; Rin</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>{/* end top 2-col grid */}
+
+      {/* ── Stack cards row ── */}
+      <div style={{ width: '100%', maxWidth: 720, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 14, marginBottom: 14, animation: 'fadeIn 0.4s 0.12s ease both' }}>
+
+        {/* Card — AMD Compute */}
+        <div className="xo-bento-card" style={{ padding: '20px 18px' }}>
+          <div style={{ width: 34, height: 34, borderRadius: 10, background: 'rgba(238,111,83,0.12)', border: '1px solid rgba(238,111,83,0.22)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
+            <svg width="16" height="16" fill="none" stroke="rgba(238,111,83,0.9)" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18"/>
+            </svg>
+          </div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: '#fff', marginBottom: 4 }}>AMD Compute</div>
+          <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', lineHeight: 1.6 }}>Powered by AMD Instinct accelerators via Fireworks AI infrastructure.</div>
+          <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+            <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'rgba(238,111,83,0.85)', boxShadow: '0 0 6px rgba(238,111,83,0.7)' }} />
+            <span style={{ fontSize: 10, color: 'rgba(238,111,83,0.7)', fontWeight: 600 }}>Active</span>
+          </div>
+        </div>
+
+        {/* Card — Hackathon */}
+        <div className="xo-bento-card" style={{ padding: '20px 18px', background: 'rgba(235,177,89,0.04)', borderColor: 'rgba(235,177,89,0.13)' }}>
+          <div style={{ width: 34, height: 34, borderRadius: 10, background: 'rgba(235,177,89,0.12)', border: '1px solid rgba(235,177,89,0.22)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
+            <svg width="16" height="16" fill="none" stroke="rgba(235,177,89,0.9)" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M13 10V3L4 14h7v7l9-11h-7z"/>
+            </svg>
+          </div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: '#fff', marginBottom: 4 }}>Hackathon</div>
+          <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', lineHeight: 1.6 }}>AMD Developer Hackathon · ACT II. Competing across 3 tracks.</div>
+          <div style={{ marginTop: 12 }}>
+            <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'rgba(235,177,89,0.8)', background: 'rgba(235,177,89,0.1)', border: '1px solid rgba(235,177,89,0.2)', padding: '2px 8px', borderRadius: 5 }}>ACT II</span>
+          </div>
+        </div>
+
+        {/* Card — Storage */}
+        <div className="xo-bento-card" style={{ padding: '20px 18px' }}>
+          <div style={{ width: 34, height: 34, borderRadius: 10, background: 'rgba(139,92,246,0.1)', border: '1px solid rgba(139,92,246,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
+            <svg width="16" height="16" fill="none" stroke="rgba(139,92,246,0.9)" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M4 7v10c0 2 1 3 3 3h10c2 0 3-1 3-3V7M4 7c0-2 1-3 3-3h10c2 0 3 1 3 3M4 7h16M8 11h.01M8 15h.01"/>
+            </svg>
+          </div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: '#fff', marginBottom: 4 }}>Storage</div>
+          <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', lineHeight: 1.6 }}>All data — notes, chats, captions — stored in your browser locally.</div>
+          <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+            <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'rgba(139,92,246,0.85)', boxShadow: '0 0 6px rgba(139,92,246,0.6)' }} />
+            <span style={{ fontSize: 10, color: 'rgba(139,92,246,0.7)', fontWeight: 600 }}>localStorage</span>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Download Unicorn — full-width CTA card ── */}
+      <div style={{ width: '100%', maxWidth: 720, animation: 'fadeIn 0.4s 0.18s ease both' }}>
+        <div className="xo-bento-card" style={{ padding: '24px 28px', background: 'linear-gradient(135deg, rgba(235,177,89,0.07) 0%, rgba(238,111,83,0.07) 100%)', borderColor: 'rgba(235,177,89,0.2)' }}>
+          <div style={{ position: 'absolute', inset: 0, borderRadius: 'inherit', overflow: 'hidden', pointerEvents: 'none' }}>
+            <div style={{ position: 'absolute', width: 300, height: 300, borderRadius: '50%', background: 'radial-gradient(circle, rgba(235,177,89,0.1) 0%, transparent 65%)', top: -120, right: -60, filter: 'blur(28px)' }} />
+            <div style={{ position: 'absolute', width: 200, height: 200, borderRadius: '50%', background: 'radial-gradient(circle, rgba(238,111,83,0.08) 0%, transparent 70%)', bottom: -80, left: 40, filter: 'blur(20px)' }} />
+          </div>
+          <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 20 }}>
+            {/* Icon */}
+            <div style={{ width: 52, height: 52, borderRadius: 16, flexShrink: 0, background: 'linear-gradient(145deg, rgba(235,177,89,0.22), rgba(238,111,83,0.14))', border: '1px solid rgba(235,177,89,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 24px rgba(235,177,89,0.18)' }}>
+              <svg width="22" height="22" fill="none" stroke="url(#dl-grad2)" viewBox="0 0 24 24">
+                <defs><linearGradient id="dl-grad2" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#EBB159"/><stop offset="100%" stopColor="#EE6F53"/></linearGradient></defs>
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3"/>
+              </svg>
+            </div>
+            {/* Text */}
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                <span style={{ fontFamily: '"Syne", sans-serif', fontSize: 15, fontWeight: 800, background: 'linear-gradient(135deg, #EBB159, #EE6F53)', WebkitBackgroundClip: 'text', backgroundClip: 'text', WebkitTextFillColor: 'transparent', color: 'transparent', letterSpacing: '-0.02em' }}>Unicorn Version</span>
+                <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'rgba(238,111,83,0.8)', background: 'rgba(238,111,83,0.1)', border: '1px solid rgba(238,111,83,0.22)', padding: '2px 7px', borderRadius: 5 }}>Desktop</span>
+              </div>
+              <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', lineHeight: 1.6, margin: 0 }}>
+                Real-time screen reading, AI overlay &amp; full productivity suite — powered by AMD compute.
+              </p>
+            </div>
+            {/* CTA */}
+            <a href="https://github.com/your-org/xo-screens/releases/latest" target="_blank" rel="noreferrer" style={{ textDecoration: 'none', flexShrink: 0 }}>
+              <button
+                style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '11px 20px', borderRadius: 12, border: '1px solid rgba(235,177,89,0.35)', background: 'rgba(235,177,89,0.1)', color: '#fff', fontSize: 12, fontWeight: 700, fontFamily: 'inherit', cursor: 'pointer', transition: 'all 0.2s cubic-bezier(0.16,1,0.3,1)', whiteSpace: 'nowrap' }}
+                onMouseEnter={e => { const b = e.currentTarget as HTMLButtonElement; b.style.background = 'rgba(235,177,89,0.2)'; b.style.borderColor = 'rgba(235,177,89,0.6)'; b.style.transform = 'translateY(-1px)'; b.style.boxShadow = '0 8px 28px rgba(238,111,83,0.2)' }}
+                onMouseLeave={e => { const b = e.currentTarget as HTMLButtonElement; b.style.background = 'rgba(235,177,89,0.1)'; b.style.borderColor = 'rgba(235,177,89,0.35)'; b.style.transform = ''; b.style.boxShadow = '' }}
+              >
+                <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3"/>
+                </svg>
+                Download
+                <svg width="10" height="10" fill="none" stroke="rgba(235,177,89,0.6)" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+                </svg>
+              </button>
+            </a>
+          </div>
+        </div>
+      </div>
+
     </div>
   )
 }
