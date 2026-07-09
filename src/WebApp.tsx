@@ -767,7 +767,7 @@ function WebChatPanel({ activeNote, appControl }: WebChatPanelProps) {
                 <span style={{ fontFamily:'"Syne", sans-serif', fontSize:16, fontWeight:800, color:'#EBB159', letterSpacing:'-0.04em', textShadow:'0 0 12px rgba(235,177,89,0.8)' }}>XO</span>
               </div>
               <div>
-                <div style={{ fontSize:15, fontWeight:700, color:'#fff', letterSpacing:'-0.02em', lineHeight:1.2 }}>Assistant</div>
+                <div style={{ fontFamily:'"Syne", sans-serif', fontSize:16, fontWeight:800, color:'#fff', letterSpacing:'-0.03em', lineHeight:1.1 }}>Assistant</div>
                 <div style={{ display:'flex', alignItems:'center', gap:6, marginTop:4 }}>
                   <div className="status-dot" />
                   <span style={{ fontSize:11, color:'rgba(255,255,255,0.35)', fontWeight:500, letterSpacing:'0.02em' }}>DeepSeek V4 Pro</span>
@@ -1267,7 +1267,7 @@ function WebNotesInner({ onNoteChange }: { onNoteChange?: (note: Note | null) =>
               </svg>
             </div>
             <div>
-              <div style={{ fontSize:15, fontWeight:700, color:'#fff', letterSpacing:'-0.02em' }}>Notes</div>
+              <div style={{ fontFamily:'"Syne", sans-serif', fontSize:16, fontWeight:800, color:'#fff', letterSpacing:'-0.03em', lineHeight:1.1 }}>Notes</div>
               <div style={{ display:'flex', alignItems:'center', gap:6, marginTop:3 }}>
                 <div className="status-dot" />
                 <span style={{ fontSize:11, color:'rgba(255,255,255,0.32)', fontWeight:500 }}>{notes.length} note{notes.length !== 1 ? 's' : ''}</span>
@@ -1630,7 +1630,7 @@ function WebVideoPanel() {
               </svg>
             </div>
             <div>
-              <div style={{ fontSize:15, fontWeight:700, color:'#fff', letterSpacing:'-0.02em', lineHeight:1.2 }}>Video Summarizer</div>
+              <div style={{ fontFamily:'"Syne", sans-serif', fontSize:16, fontWeight:800, color:'#fff', letterSpacing:'-0.03em', lineHeight:1.1 }}>Video Summarizer</div>
               <div style={{ display:'flex', alignItems:'center', gap:6, marginTop:3 }}>
                 <div style={{ width:7, height:7, borderRadius:'50%', background:'rgba(238,111,83,0.85)', flexShrink:0 }} />
                 <span style={{ fontSize:11, color:'rgba(255,255,255,0.32)', fontWeight:500 }}>4 caption styles · AI-powered</span>
@@ -2002,37 +2002,70 @@ function UsageTrackingPanel() {
   ]
 
   return (
-    <div className="web-panel-main" style={{ padding: '28px 32px', overflowY: 'auto' }}>
-      <div style={{ maxWidth: 560 }}>
-        <h2 style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-0.02em', marginBottom: 6 }}>Usage Tracking</h2>
-        <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.3)', marginBottom: 32 }}>Your activity in this session.</p>
-
-        {/* Stats grid */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 32 }}>
-          {stats.map(s => (
-            <div key={s.label} className="xo-stat-card">
-              <div style={{ fontSize: 30, fontWeight: 800, letterSpacing: '-0.04em', color: s.color, marginBottom: 4, fontFamily: '"Syne", sans-serif' }}>{s.value}</div>
-              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)' }}>{s.label}</div>
-            </div>
-          ))}
+    <div style={{
+      width: '100%', height: '100%', overflowY: 'auto',
+      display: 'flex', flexDirection: 'column',
+      alignItems: 'center', justifyContent: 'flex-start',
+      padding: '36px 24px 100px',
+    }}>
+      {/* Page header */}
+      <div style={{ width: '100%', maxWidth: 680, marginBottom: 28, animation: 'fadeIn 0.4s ease both' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{
+            width: 40, height: 40, borderRadius: 13, flexShrink: 0,
+            background: 'linear-gradient(145deg, rgba(235,177,89,0.22), rgba(238,111,83,0.12))',
+            border: '1px solid rgba(235,177,89,0.3)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            boxShadow: '0 0 20px rgba(235,177,89,0.15)',
+          }}>
+            <svg width="18" height="18" fill="none" stroke="#EBB159" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
+                d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+            </svg>
+          </div>
+          <div>
+            <h2 style={{ fontFamily: '"Syne", sans-serif', fontSize: 22, fontWeight: 800, letterSpacing: '-0.03em', color: '#fff', lineHeight: 1.1 }}>Usage Tracking</h2>
+            <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)', marginTop: 3 }}>Your activity in this session</p>
+          </div>
         </div>
+      </div>
 
-        {/* Models section */}
-        <div style={{ fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.35)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 12 }}>Model Routing</div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {modelInfo.map(m => (
-            <div key={m.model} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderRadius: 12, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: '#fff', marginBottom: 2, fontFamily: 'monospace' }}>{m.model}</div>
-                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)' }}>{m.role}</div>
+      {/* Stats grid */}
+      <div style={{ width: '100%', maxWidth: 680, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 12, marginBottom: 14, animation: 'fadeIn 0.4s 0.06s ease both' }}>
+        {stats.map(s => (
+          <div key={s.label} className="xo-bento-card" style={{ padding: '20px 18px' }}>
+            <div style={{ fontSize: 34, fontWeight: 800, letterSpacing: '-0.04em', color: s.color, marginBottom: 4, fontFamily: '"Syne", sans-serif', lineHeight: 1 }}>{s.value}</div>
+            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', lineHeight: 1.4 }}>{s.label}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Model routing */}
+      <div style={{ width: '100%', maxWidth: 680, animation: 'fadeIn 0.4s 0.12s ease both', marginBottom: 14 }}>
+        <div className="xo-bento-card" style={{ padding: '20px 22px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+            <svg width="12" height="12" fill="none" stroke="rgba(255,255,255,0.3)" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18"/>
+            </svg>
+            <span style={{ fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.3)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>Model Routing</span>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {modelInfo.map(m => (
+              <div key={m.model} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 14px', borderRadius: 12, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: '#fff', marginBottom: 2, fontFamily: 'monospace' }}>{m.model}</div>
+                  <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.32)' }}>{m.role}</div>
+                </div>
+                <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 9px', borderRadius: 6, background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.45)', letterSpacing: '0.05em', flexShrink: 0 }}>{m.badge}</span>
               </div>
-              <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 6, background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.5)', letterSpacing: '0.05em' }}>{m.badge}</span>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
+      </div>
 
-        {/* Provider */}
-        <div style={{ marginTop: 24, padding: '12px 14px', borderRadius: 12, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', gap: 10 }}>
+      {/* Provider footer card */}
+      <div style={{ width: '100%', maxWidth: 680, animation: 'fadeIn 0.4s 0.18s ease both' }}>
+        <div className="xo-bento-card" style={{ padding: '16px 20px', background: 'rgba(235,177,89,0.04)', borderColor: 'rgba(235,177,89,0.14)', display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#EBB159', boxShadow: '0 0 6px rgba(235,177,89,0.6)', flexShrink: 0 }} />
           <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>All inference via <span style={{ color: '#EBB159', fontWeight: 600 }}>Fireworks AI</span> · AMD hardware</span>
         </div>
