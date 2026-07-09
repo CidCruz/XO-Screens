@@ -7,7 +7,7 @@ import DraggableWidget from './components/DraggableWidget'
 import type { AppItem, Note, AppControl, WidgetId } from './types'
 import { xo } from './env'
 import { loadCaptionHistory } from './captionHistory'
-import { startNewSession, trackFeatureUsage } from './usageTracking'
+import { startNewSession, trackFeatureUsage, trackNoteCreated, trackNoteDeleted } from './usageTracking'
 
 const APPS: AppItem[] = [
   { id: 'chat',     label: 'Assistant'       },
@@ -368,7 +368,7 @@ export default function App() {
     if (id === 'chat')     setChatOpen(prev => !prev)
     if (id === 'notes')    setNotesOpen(prev => !prev)
     if (id === 'video')    setVideoOpen(prev => !prev)
-    if (id === 'settings') { setSettingsOpen(prev => !prev); trackFeatureUsage('settings') }
+    if (id === 'settings') { setSettingsOpen(prev => { if (!prev) trackFeatureUsage('settings'); return !prev }) }
   }
 
   // ── AppControl — the API the ChatBox tools call into ─────────────────────
@@ -405,6 +405,8 @@ export default function App() {
     createNote(title: string, content: string): Note {
       const note = makeNewNote(title, content)
       saveNotes([note, ...loadNotes()])
+      const wc = content.trim().split(/\s+/).filter(Boolean).length
+      trackNoteCreated(wc)
       return note
     },
     updateNote(id: string, patch: Partial<Pick<Note, 'title' | 'content' | 'color'>>): Note | null {
@@ -418,8 +420,10 @@ export default function App() {
     },
     deleteNote(id: string): boolean {
       const notes = loadNotes()
+      const target = notes.find(n => n.id === id)
       const next = notes.filter(n => n.id !== id)
       if (next.length === notes.length) return false
+      if (target) trackNoteDeleted(target.content.trim().split(/\s+/).filter(Boolean).length)
       saveNotes(next)
       return true
     },
