@@ -119,22 +119,23 @@ export default function NotesApp({ onClose: _onClose, onCornerDown, onNoteChange
     onNoteChange?.(activeNote ?? null)
   }, [activeNote, onNoteChange])
 
-  const pendingEditRef = useRef<{ id: string; oldWC: number } | null>(null)
+  const pendingEditRef = useRef<{ id: string; oldWC: number; newWC: number } | null>(null)
   const editDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const updateNote = useCallback((id: string, patch: Partial<Note>) => {
     setNotes(prev => prev.map(n => {
       if (n.id !== id) return n
       if (patch.content !== undefined && patch.content !== n.content) {
-        // Capture old word count only at the start of an edit burst
+        const newWC = patch.content.trim().split(/\s+/).filter(Boolean).length
         if (!pendingEditRef.current || pendingEditRef.current.id !== id) {
-          pendingEditRef.current = { id, oldWC: n.content.trim().split(/\s+/).filter(Boolean).length }
+          pendingEditRef.current = { id, oldWC: n.content.trim().split(/\s+/).filter(Boolean).length, newWC }
+        } else {
+          pendingEditRef.current.newWC = newWC
         }
         if (editDebounceRef.current) clearTimeout(editDebounceRef.current)
         editDebounceRef.current = setTimeout(() => {
           if (!pendingEditRef.current) return
-          const newWC = (localStorage.getItem('xo-notes') ? JSON.parse(localStorage.getItem('xo-notes')!) as Note[] : []).find(x => x.id === id)?.content.trim().split(/\s+/).filter(Boolean).length ?? 0
-          trackNoteEdited(pendingEditRef.current.oldWC, newWC)
+          trackNoteEdited(pendingEditRef.current.oldWC, pendingEditRef.current.newWC)
           pendingEditRef.current = null
         }, 1500)
       }
