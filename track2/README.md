@@ -2,57 +2,98 @@
 
 **XO-Screens | AMD Developer Hackathon: ACT II**
 
-Watches a video clip and generates captions in 4 styles using Fireworks AI vision models.
+Watches a video clip and generates captions in 4 distinct styles using Fireworks AI vision and language models.
 
 ---
 
-## How it works
+## Pipeline
 
-1. Reads `/input/tasks.json` — list of video URLs + requested styles
-2. Downloads each video (up to 500 MB) to a temp directory
-3. Extracts **8 evenly-spaced JPEG frames** with a single `ffmpeg` invocation
-4. **First pass** — sends all frames to a vision model to produce a detailed description
-5. Deletes frames and video from disk immediately after description to free space
-6. **Second pass** — generates captions for all requested styles in parallel (ThreadPoolExecutor)
-7. Every requested style is guaranteed an entry in the output — no silent drops
-8. Writes `/output/results.json` — one entry per task with captions for every requested style
-9. Exits with code `0`
+```
+/input/tasks.json
+      │
+      ▼
+ Download video (stream, 500MB cap)
+      │
+      ├──────────────────────────────┐
+      ▼                              ▼
+Extract frames                Transcribe audio
+(ffmpeg, scene-aware)         (Whisper tiny, CPU)
+      │                              │
+      └──────────────┬───────────────┘
+                     ▼
+         Vision description pass
+         (Qwen3-VL-32B, temp=0.1)
+         Narrative prose, 3–5 paragraphs
+                     │
+         ┌───────────┼───────────┐───────────┐
+         ▼           ▼           ▼           ▼
+      formal     sarcastic  humorous_tech  humorous_non_tech
+     temp=0.15   temp=0.85   temp=0.88     temp=0.92
+    (llama4-maverick, parallel)
+         │
+         ▼
+/output/results.json
+```
 
 ---
 
 ## Styles supported
 
-| Style | Description |
-|---|---|
-| `formal` | Professional, objective, factual tone |
-| `sarcastic` | Dry, ironic, lightly mocking |
-| `humorous_tech` | Funny with programming/tech references |
-| `humorous_non_tech` | Funny, everyday humour, no technical jargon |
+| Style | Description | Temperature |
+|---|---|---|
+| `formal` | BBC documentary narrator — precise, authoritative, active voice | 0.15 |
+| `sarcastic` | Bone-dry wit, ironic understatement, sardonic commentary | 0.85 |
+| `humorous_tech` | Developer Twitch commentary — git jokes, Stack Overflow refs, "works on my machine" | 0.88 |
+| `humorous_non_tech` | Stand-up crowd work — punny, observational, accessible to everyone | 0.92 |
+
+---
+
+## Key design decisions
+
+### Per-style temperature
+Formal captions use `temp=0.15` for factual consistency. Humorous captions use `temp=0.88–0.92` for creative variance. This is what separates good style match scores from generic ones.
+
+### Two-pass pipeline
+**Pass 1 (vision):** All frames + audio transcript → one detailed narrative description from Qwen3-VL-32B.
+**Pass 2 (text):** That description → 4 captions generated in parallel by llama4-maverick, each with its own system prompt and temperature.
+
+This keeps vision token costs to one call per video while maximising caption quality.
+
+### Scene-change frame sampling
+In addition to evenly-spaced frames, ffmpeg's `select='gt(scene,0.35)'` filter extracts up to 4 frames at hard visual cuts. This catches scene transitions that fixed-interval sampling misses entirely.
+
+### Budget watchdog
+A global 520-second wall-clock timer prevents TIMEOUT disqualifications. If the budget drops below 60 seconds, remaining tasks receive placeholder captions and the agent exits cleanly with exit code 0 and valid JSON.
+
+### Whisper tiny
+Default model is `tiny` (~4–10s per clip on CPU) vs `base` (~30–90s). The eval set has ~12 clips — timing matters more than marginal transcript accuracy.
 
 ---
 
 ## Environment variables
 
-| Variable | Required | Description |
-|---|---|---|
-| `FIREWORKS_API_KEY` | **Yes** | Your Fireworks AI API key — use your own credentials for Track 2 |
-| `FIREWORKS_BASE_URL` | No | Override the Fireworks base URL (default: `https://api.fireworks.ai/inference/v1`) |
-| `VISION_MODEL` | No | Override the vision model (default: `qwen2p5-vl-72b-instruct`) |
-| `TEXT_MODEL` | No | Override the text model (default: `llama4-scout-instruct-basic`) |
-
-> **Note:** Track 2 has no `ALLOWED_MODELS` restriction — you may use any model, API, or framework with your own credentials inside the container.
+| Variable | Required | Default | Description |
+|---|---|---|---|
+| `FIREWORKS_API_KEY` | **Yes** | — | Your Fireworks AI API key (Track 2 uses your own credentials) |
+| `FIREWORKS_BASE_URL` | No | `https://api.fireworks.ai/inference/v1` | Base URL for all API calls |
+| `VISION_MODEL` | No | `accounts/fireworks/models/qwen3-vl-32b-instruct` | Vision model for description pass |
+| `TEXT_MODEL` | No | `accounts/fireworks/models/llama4-maverick-instruct` | Text model for caption pass |
+| `WHISPER_MODEL` | No | `tiny` | Whisper model size: `tiny` / `base` / `small` |
+| `ENABLE_WHISPER` | No | `true` | Set to `false` to skip audio transcription |
+| `TOTAL_BUDGET_SECS` | No | `520` | Global wall-clock budget before graceful exit |
 
 ---
 
 ## Build
 
 ```bash
-# From the track2/ directory — linux/amd64 required by judging VM
+# From the track2/ directory
+# --platform linux/amd64 is required by the judging VM
 docker buildx build --platform linux/amd64 -t xo-screens-track2:latest .
 ```
 
-> **Apple Silicon (M1/M2/M3):** the `--platform linux/amd64` flag is mandatory.
-> **Intel/AMD machines:** the flag is harmless to keep.
+> **Apple Silicon (M1/M2/M3):** `--platform linux/amd64` is mandatory.
+> **Intel/AMD machines:** the flag is safe to keep.
 
 ---
 
@@ -62,7 +103,7 @@ docker buildx build --platform linux/amd64 -t xo-screens-track2:latest .
 # Copy sample input
 cp sample_input.json test/input/tasks.json
 
-# Run — only FIREWORKS_API_KEY is required
+# Run container
 docker run --rm \
   -e FIREWORKS_API_KEY=your_fireworks_api_key \
   -v "$(pwd)/test/input:/input:ro" \
@@ -73,11 +114,20 @@ docker run --rm \
 cat test/output/results.json
 ```
 
-For local development outside Docker, copy `.env.example` to `.env` and fill in your key, then run:
+**Without Docker (local Python):**
 
 ```bash
+cd track2
 pip install -r requirements.txt
-# Set FIREWORKS_API_KEY in your shell or .env, then:
+cp .env.example .env
+# Edit .env and add your FIREWORKS_API_KEY
+
+# Create test dirs and copy sample input
+mkdir -p test/input test/output
+cp sample_input.json test/input/tasks.json
+
+# Temporarily mount paths for local run
+INPUT_PATH can be overridden by editing agent.py INPUT_PATH for local testing
 python agent.py
 ```
 
@@ -118,10 +168,10 @@ docker push ghcr.io/yourgithubuser/xo-screens-track2:latest
   {
     "task_id": "v1",
     "captions": {
-      "formal": "...",
-      "sarcastic": "...",
-      "humorous_tech": "...",
-      "humorous_non_tech": "..."
+      "formal": "A tree-lined urban boulevard bathed in autumn gold...",
+      "sarcastic": "Oh look, leaves are falling. Groundbreaking stuff.",
+      "humorous_tech": "When your CSS gradient finally deploys to production...",
+      "humorous_non_tech": "Nature said 'fall aesthetic' and truly committed."
     }
   }
 ]
@@ -141,8 +191,9 @@ docker push ghcr.io/yourgithubuser/xo-screens-track2:latest
 
 ## Scoring
 
-Each caption is scored by LLM-Judge on:
-1. **Caption accuracy** (0–1): how faithfully the caption reflects the video content
-2. **Style match** (0–1): how well the caption matches the requested tone
+Each caption is scored by LLM-Judge on two dimensions:
 
-Final score = weighted average across all clips and all requested styles.
+1. **Caption accuracy (0–1):** how faithfully the caption reflects the video content
+2. **Style match (0–1):** how well the caption matches the requested tone
+
+Final score = weighted average across all clips and all four styles.

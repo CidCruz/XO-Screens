@@ -4,30 +4,33 @@ XO-Screens | AMD Developer Hackathon: ACT II
 
 Pipeline:
   1. Read /input/tasks.json
-  2. For each video: download → extract frames (adaptive count) + transcribe audio (Whisper)
-  3. First pass  — describe video from frames + transcript (vision model)
-  4. Second pass — generate captions in all requested styles (parallel, text-only)
+  2. For each video: download → extract frames (scene-aware) + transcribe audio (Whisper tiny)
+  3. First pass  — describe video from frames + transcript (vision model: Qwen3-VL-32B)
+  4. Second pass — generate captions in all requested styles with per-style temperature
   5. Write /output/results.json
   6. Exit 0
 
-Environment variables (Track 2 — use your own credentials):
-  FIREWORKS_API_KEY   — your Fireworks AI API key
-  FIREWORKS_BASE_URL  — optional override (default: https://api.fireworks.ai/inference/v1)
-  VISION_MODEL        — optional override for the vision model
-  TEXT_MODEL          — optional override for the text model
-  WHISPER_MODEL       — optional override for Whisper model size (default: base)
+Environment variables:
+  FIREWORKS_API_KEY   — required: your Fireworks AI API key
+  FIREWORKS_BASE_URL  — optional: base URL override
+  VISION_MODEL        — optional: override vision model
+  TEXT_MODEL          — optional: override caption model
+  WHISPER_MODEL       — optional: whisper model size (default: tiny)
+  ENABLE_WHISPER      — optional: set to "false" to skip audio transcription (faster)
+  TOTAL_BUDGET_SECS   — optional: global wall-clock budget in seconds (default: 520)
 """
 
 import os
 import re
 import sys
 import json
+import time
 import base64
+import random
 import hashlib
 import shutil
 import tempfile
 import subprocess
-import time
 import logging
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed, TimeoutError as FuturesTimeoutError
@@ -36,7 +39,6 @@ from urllib.parse import urlparse
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
-import whisper
 
 # ── Logging ───────────────────────────────────────────────────────────────────
 
@@ -45,7 +47,16 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(message)s",
     stream=sys.stdout,
 )
+log = logging.getLogger("track2")
+
 # ── Config ────────────────────────────────────────────────────────────────────
+
+# Load .env only for local development (not in the submitted Docker container)
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
 
 API_KEY  = os.environ.get("FIREWORKS_API_KEY", "").strip()
 BASE_URL = os.environ.get("FIREWORKS_BASE_URL", "https://api.fireworks.ai/inference/v1").rstrip("/")
@@ -53,43 +64,66 @@ BASE_URL = os.environ.get("FIREWORKS_BASE_URL", "https://api.fireworks.ai/infere
 INPUT_PATH  = Path("/input/tasks.json")
 OUTPUT_PATH = Path("/output/results.json")
 
-FRAME_WIDTH      = 768    # px — preserves detail on high-res source videos
-WHISPER_MODEL_SIZE = os.environ.get("WHISPER_MODEL", "base").strip()
+# ── Timing budget ─────────────────────────────────────────────────────────────
+# Hard wall-clock budget — leaves 80s buffer before the 10-min container limit.
+# If we're running low, whisper is skipped and frame count is reduced.
+TOTAL_BUDGET_SECS = int(os.environ.get("TOTAL_BUDGET_SECS", "520"))
+_START_TIME = time.monotonic()
 
-def adaptive_frame_count(duration: float) -> int:
-    """Scale frame count with video duration for consistent temporal density."""
-    if duration <= 30:  return 8
-    if duration <= 60:  return 16
-    return 24           # 60s–120s (max spec length)
+def elapsed() -> float:
+    return time.monotonic() - _START_TIME
 
-MAX_RETRIES      = 3
-RETRY_BACKOFF    = 2.0    # seconds — exponential: 2s, 4s, 8s
-DOWNLOAD_TIMEOUT = 180    # seconds per video download
-API_TIMEOUT      = 90     # seconds per Fireworks API call
-CAPTION_TIMEOUT  = 120    # seconds per individual caption call (per style)
-MAX_VIDEO_BYTES  = 500 * 1024 * 1024  # 500 MB — videos are 30s–2min, 2GB would OOM
+def budget_remaining() -> float:
+    return TOTAL_BUDGET_SECS - elapsed()
+
+def is_time_tight() -> bool:
+    """True when less than 120s remain — triggers fallbacks."""
+    return budget_remaining() < 120
+
+# ── Whisper config ────────────────────────────────────────────────────────────
+# Default: tiny — ~4-10s per clip on CPU vs ~30-90s for base.
+# Set ENABLE_WHISPER=false to skip audio entirely (faster but less accurate).
+WHISPER_MODEL_SIZE = os.environ.get("WHISPER_MODEL", "tiny").strip()
+ENABLE_WHISPER     = os.environ.get("ENABLE_WHISPER", "true").strip().lower() != "false"
+
+# ── Model selection ───────────────────────────────────────────────────────────
+# Qwen3-VL-32B: actively maintained, strong vision, fast enough for 12 clips.
+# Qwen3-VL-8B:  fallback if 32B is unavailable or too slow.
+# llama4-maverick: strong text model for caption pass.
+_DEFAULT_VISION_MODEL = "accounts/fireworks/models/qwen3-vl-32b-instruct"
+_DEFAULT_TEXT_MODEL   = "accounts/fireworks/models/llama4-maverick-instruct"
+
+VISION_MODEL = os.environ.get("VISION_MODEL", _DEFAULT_VISION_MODEL).strip()
+TEXT_MODEL   = os.environ.get("TEXT_MODEL",   _DEFAULT_TEXT_MODEL).strip()
+
+# ── Per-style temperature — critical for style match score ───────────────────
+# formal: low temp = factual, consistent. humorous: high temp = creative, varied.
+STYLE_TEMPERATURES: dict[str, float] = {
+    "formal":            0.15,
+    "sarcastic":         0.85,
+    "humorous_tech":     0.88,
+    "humorous_non_tech": 0.92,
+}
 
 STYLES = ["formal", "sarcastic", "humorous_tech", "humorous_non_tech"]
 
-# ── Model selection ───────────────────────────────────────────────────────────
-#
-# Track 2 has no ALLOWED_MODELS restriction — use any model you want.
-# Override via environment variables for flexibility.
+# ── Retry / timeout config ────────────────────────────────────────────────────
+MAX_RETRIES      = 3
+RETRY_BACKOFF    = 1.5   # seconds base — exponential + jitter
+DOWNLOAD_TIMEOUT = 150   # seconds per video download
+API_TIMEOUT      = 75    # seconds per Fireworks API call
+CAPTION_TIMEOUT  = 90    # seconds per individual caption future
+FRAME_WIDTH      = 896   # px — good balance of detail vs payload size
+MAX_VIDEO_BYTES  = 500 * 1024 * 1024  # 500 MB hard cap
 
-# Default models — vision-capable for description pass, efficient for caption pass
-_DEFAULT_VISION_MODEL = "accounts/fireworks/models/qwen2p5-vl-72b-instruct"
-_DEFAULT_TEXT_MODEL   = "accounts/fireworks/models/llama4-scout-instruct-basic"
+# ── Whisper loader ────────────────────────────────────────────────────────────
 
-VISION_MODEL = os.environ.get("VISION_MODEL", _DEFAULT_VISION_MODEL).strip()
-TEXT_MODEL   = os.environ.get("TEXT_MODEL", _DEFAULT_TEXT_MODEL).strip()
+_whisper_model = None
 
-# Load Whisper model once at startup — avoids reloading per task
-log = logging.getLogger("track2")
-_whisper_model: whisper.Whisper | None = None
-
-def get_whisper_model() -> whisper.Whisper:
+def get_whisper_model():
     global _whisper_model
     if _whisper_model is None:
+        import whisper
         log.info("Loading Whisper model: %s", WHISPER_MODEL_SIZE)
         _whisper_model = whisper.load_model(WHISPER_MODEL_SIZE)
         log.info("Whisper model loaded")
@@ -102,50 +136,36 @@ def startup_checks() -> None:
     errors = []
 
     if not API_KEY:
-        errors.append("FIREWORKS_API_KEY is not set — set it in your environment or .env file")
+        errors.append("FIREWORKS_API_KEY is not set")
 
-    # Verify ffmpeg is available and executable
-    try:
-        result = subprocess.run(
-            ["ffmpeg", "-version"],
-            capture_output=True,
-            timeout=10,
-        )
-        if result.returncode != 0:
-            errors.append("ffmpeg is installed but returned a non-zero exit code")
-    except FileNotFoundError:
-        errors.append("ffmpeg not found — ensure it is installed and on PATH")
-    except subprocess.TimeoutExpired:
-        errors.append("ffmpeg -version timed out")
-
-    # Verify ffprobe is available
-    try:
-        result = subprocess.run(
-            ["ffprobe", "-version"],
-            capture_output=True,
-            timeout=10,
-        )
-        if result.returncode != 0:
-            errors.append("ffprobe is installed but returned a non-zero exit code")
-    except FileNotFoundError:
-        errors.append("ffprobe not found — ensure ffmpeg (with ffprobe) is installed")
-    except subprocess.TimeoutExpired:
-        errors.append("ffprobe -version timed out")
+    for tool in ["ffmpeg", "ffprobe"]:
+        try:
+            r = subprocess.run([tool, "-version"], capture_output=True, timeout=10)
+            if r.returncode != 0:
+                errors.append(f"{tool} returned non-zero exit code")
+        except FileNotFoundError:
+            errors.append(f"{tool} not found on PATH")
+        except subprocess.TimeoutExpired:
+            errors.append(f"{tool} -version timed out")
 
     if errors:
         for e in errors:
             log.error("Startup check failed: %s", e)
         sys.exit(1)
 
-    log.info("Startup checks passed — ffmpeg and ffprobe available")
-    log.info("VISION_MODEL   : %s", VISION_MODEL)
-    log.info("TEXT_MODEL     : %s", TEXT_MODEL)
-    log.info("BASE_URL       : %s", BASE_URL)
-    log.info("WHISPER_MODEL  : %s", WHISPER_MODEL_SIZE)
-    # Pre-load Whisper at startup so first task doesn't pay the load cost
-    get_whisper_model()
+    log.info("Startup checks passed")
+    log.info("VISION_MODEL    : %s", VISION_MODEL)
+    log.info("TEXT_MODEL      : %s", TEXT_MODEL)
+    log.info("BASE_URL        : %s", BASE_URL)
+    log.info("WHISPER_MODEL   : %s", WHISPER_MODEL_SIZE)
+    log.info("ENABLE_WHISPER  : %s", ENABLE_WHISPER)
+    log.info("TOTAL_BUDGET    : %ds", TOTAL_BUDGET_SECS)
 
-# ── HTTP session (connection pooling + retry) ─────────────────────────────────
+    # Pre-load Whisper at startup so the first task doesn't pay the load penalty
+    if ENABLE_WHISPER:
+        get_whisper_model()
+
+# ── HTTP session ──────────────────────────────────────────────────────────────
 
 def _build_session() -> requests.Session:
     session = requests.Session()
@@ -168,18 +188,16 @@ SESSION = _build_session()
 _SAFE_ID_RE = re.compile(r"^[a-zA-Z0-9_\-]{1,64}$")
 
 def _sanitize_task_id(task_id: str) -> str:
-    """Return a filesystem-safe task ID, rejecting path traversal attempts."""
     if not isinstance(task_id, str) or not _SAFE_ID_RE.match(task_id):
         return "task_" + hashlib.sha1(str(task_id).encode()).hexdigest()[:12]
     return task_id
 
 def _validate_url(url: str) -> str:
-    """Raise ValueError if URL is not a safe http/https URL."""
     if not isinstance(url, str):
         raise ValueError(f"video_url must be a string, got {type(url)}")
     parsed = urlparse(url)
     if parsed.scheme not in ("http", "https"):
-        raise ValueError(f"Unsafe URL scheme '{parsed.scheme}' — only http/https allowed")
+        raise ValueError(f"Unsafe URL scheme '{parsed.scheme}'")
     if not parsed.netloc:
         raise ValueError("URL has no host")
     return url
@@ -187,9 +205,7 @@ def _validate_url(url: str) -> str:
 def _validate_styles(requested: list) -> list[str]:
     """
     Return only the styles that are both requested and known.
-    Preserve the original order from the request.
-    Unknown style strings are logged and dropped — never silently replaced
-    with all defaults (that would generate unrequested captions).
+    Preserve original order. Drop unknown styles with a warning.
     """
     known = set(STYLES)
     valid = [s for s in requested if isinstance(s, str) and s in known]
@@ -197,36 +213,49 @@ def _validate_styles(requested: list) -> list[str]:
     if dropped:
         log.warning("Ignoring unknown styles: %s", dropped)
     if not valid:
-        log.warning("No valid styles in request — falling back to all 4 defaults")
+        log.warning("No valid styles in request — falling back to all 4")
         return list(STYLES)
     return valid
 
-# ── Style prompts ─────────────────────────────────────────────────────────────
+# ── Style prompts (rewritten for strong differentiation) ─────────────────────
 
 STYLE_SYSTEM_PROMPTS = {
     "formal": (
-        "You are a professional video captioning assistant. "
-        "Write in a clear, neutral, formal register suitable for corporate or academic use. "
-        "Be precise, objective, and factual. /no_think"
+        "You are a BBC documentary narrator writing professional video captions. "
+        "Write in active voice, present tense where appropriate, with clear factual statements. "
+        "Structure: one establishing sentence (setting/who), then a sequence of what happens. "
+        "NO bullet points. NO dramatic flourishes. Just precise, authoritative narration. /no_think"
     ),
     "sarcastic": (
-        "You are a witty, sarcastic video captioning assistant. "
-        "Drip every caption with dry sarcasm and sardonic commentary — "
-        "but still accurately describe what is actually happening in the video. /no_think"
+        "You are a sarcastic narrator who loves pointing out the obvious with bone-dry wit. "
+        "Use ironic understatement, subtle eye-rolls, and pointed commentary. "
+        "FORBIDDEN: exclamation marks, 'literally', 'actually' used straight. "
+        "REQUIRED: at least one moment where you imply the viewer already knows this is absurd. "
+        "Stay accurate to the video but make every sentence land with a smirk. /no_think"
     ),
     "humorous_tech": (
-        "You are a tech-savvy comedian captioning videos for a developer audience. "
-        "Sprinkle in programming jokes, tech buzzwords used ironically, and geek humour — "
-        "but remain accurate about the video content. /no_think"
+        "You are a developer doing live commentary on a video for your tech Twitch stream. "
+        "Sprinkle in: git merge conflicts, 'works on my machine', Stack Overflow references, "
+        "NullPointerExceptions, 'it's a feature not a bug', code review memes. "
+        "Keep it accurate but frame everything through a programmer's lens. "
+        "Your audience are devs who will catch the references. /no_think"
     ),
     "humorous_non_tech": (
-        "You are a stand-up comedian captioning videos for a general audience. "
-        "Keep the humour accessible, punny, and light-hearted — no technical jargon. "
-        "Make it feel like a funny narrator at a roast. /no_think"
+        "You're doing stand-up crowd work and the video is your heckler. "
+        "Punny, observational, accessible humor — NO jargon. "
+        "Channel the energy of 'so THAT happened' or 'well this is a vibe'. "
+        "Punch UP the absurdity, keep it light. Your audience is general, not technical. /no_think"
     ),
 }
 
-DESCRIBE_SYSTEM = "You are a precise video analysis assistant. Describe what you see and hear thoroughly and accurately."
+# ── Description system prompt (rewritten for narrative prose) ────────────────
+
+DESCRIBE_SYSTEM = (
+    "You are a video description assistant. Write in flowing narrative prose "
+    "as if describing a scene to someone who cannot see it. Cover setting, subjects, "
+    "actions from start to finish, any dialogue/narration, visible text, and overall mood. "
+    "Write 3–5 paragraphs. NO bullet points. NO checklists. Pure narrative. /no_think"
+)
 
 def build_describe_prompt(transcript: str) -> str:
     transcript_section = (
@@ -235,28 +264,53 @@ def build_describe_prompt(transcript: str) -> str:
         else "\n\nAudio transcript: [no speech detected]"
     )
     return (
-        "You are given frames sampled evenly from a video clip (30 seconds to 2 minutes long)"
+        "These frames are sampled evenly from a video clip (30s to 2 minutes long)."
         + transcript_section + "\n\n"
-        "Describe the video in detail:\n"
-        "- What is the setting/location?\n"
-        "- Who or what is in the video?\n"
-        "- What actions or events are happening from start to finish?\n"
-        "- What is being said or narrated (use the transcript above)?\n"
-        "- Is there any text visible on screen?\n"
-        "- What is the overall mood or tone?\n\n"
-        "Be thorough and specific. This description will be used to generate captions. /no_think"
+        "Describe the video in narrative prose. What do you see from start to finish? "
+        "Who or what is present? What actions unfold? What is the mood? "
+        "Write 3–5 paragraphs of flowing description. This will be used to generate captions. /no_think"
     )
 
-def _caption_user_prompt(description: str) -> str:
+def _caption_user_prompt(description: str, style: str) -> str:
+    """Per-style user prompt with length guidance."""
+    length_guide = {
+        "formal":            "2–4 sentences",
+        "sarcastic":         "1–3 punchy sentences",
+        "humorous_tech":     "2–3 sentences",
+        "humorous_non_tech": "2–3 sentences",
+    }
     return (
         f"Video description:\n{description}\n\n"
-        "Write a single cohesive caption (2–4 sentences) for this video in your assigned style.\n"
-        "The caption must:\n"
-        "- Accurately reflect what is happening in the video\n"
-        "- Be written entirely in your assigned tone\n"
-        "- Be engaging and complete — not cut off mid-thought\n\n"
-        "Return ONLY the caption text. No preamble, no labels, no JSON, no thinking. /no_think"
+        f"Write a caption in {style} style ({length_guide.get(style, '2–4 sentences')}).\n"
+        "Be accurate to the video content. Stay fully in your assigned tone. "
+        "Return ONLY the caption text — no labels, no preamble, no JSON, no thinking tags. /no_think"
     )
+
+# ── Caption output cleaning ───────────────────────────────────────────────────
+
+# Common preamble patterns models emit before the actual caption
+_PREAMBLE_RE = re.compile(
+    r"^(?:"
+    r"(?:here(?:'s| is)(?: a| the)?(?: \w+)? caption[:\-]?\s*)"
+    r"|(?:caption[:\-]\s*)"
+    r"|(?:formal(?:\s+caption)?[:\-]\s*)"
+    r"|(?:sarcastic(?:\s+caption)?[:\-]\s*)"
+    r"|(?:humorous(?:[_\s]\w+)?(?:\s+caption)?[:\-]\s*)"
+    r"|(?:sure[!,]?\s+here(?:'s| is)[^:]*:\s*)"
+    r"|(?:of course[!,]?\s+here[^:]*:\s*)"
+    r")",
+    re.IGNORECASE,
+)
+
+def clean_caption(text: str) -> str:
+    """Strip <think> blocks, preamble phrases, and leading/trailing whitespace."""
+    # Remove thinking tags
+    text = re.sub(r"<think>[\s\S]*?</think>", "", text, flags=re.IGNORECASE)
+    # Remove preamble
+    text = _PREAMBLE_RE.sub("", text.strip())
+    # Remove leading dash or quote artifacts
+    text = re.sub(r'^[\-\*"\s]+', "", text)
+    return text.strip()
 
 # ── Fireworks API ─────────────────────────────────────────────────────────────
 
@@ -268,7 +322,7 @@ def call_fireworks(
     temperature: float = 0.7,
     attempt: int = 0,
 ) -> str:
-    """Call Fireworks chat completions with exponential backoff retry."""
+    """Call Fireworks chat completions with exponential backoff + jitter retry."""
     headers = {
         "Content-Type": "application/json",
         "Authorization": f"Bearer {API_KEY}",
@@ -291,52 +345,53 @@ def call_fireworks(
             raise requests.HTTPError(response=resp)
         resp.raise_for_status()
         content = resp.json()["choices"][0]["message"]["content"] or ""
-        # Strip any leaked <think>...</think> blocks from reasoning models
         content = re.sub(r"<think>[\s\S]*?</think>", "", content, flags=re.IGNORECASE).strip()
         return content
     except (requests.HTTPError, requests.Timeout, requests.ConnectionError, KeyError) as exc:
         if attempt < MAX_RETRIES - 1:
-            wait = RETRY_BACKOFF * (2 ** attempt)
-            log.warning("API call failed (attempt %d/%d): %s — retrying in %.1fs",
-                        attempt + 1, MAX_RETRIES, exc, wait)
+            # Exponential backoff with jitter — prevents thundering herd on 429
+            wait = RETRY_BACKOFF * (2 ** attempt) + random.uniform(0, 1.0)
+            log.warning("[%s] API retry %d/%d in %.1fs: %s",
+                        model.split("/")[-1], attempt + 1, MAX_RETRIES, wait, exc)
             time.sleep(wait)
             return call_fireworks(
                 messages, model=model, max_tokens=max_tokens,
                 temperature=temperature, attempt=attempt + 1,
             )
-        raise RuntimeError(f"Fireworks API failed after {MAX_RETRIES} attempts: {exc}") from exc
+        raise RuntimeError(f"Fireworks API [{model.split('/')[-1]}] failed after {MAX_RETRIES} attempts: {exc}") from exc
 
 # ── Video download ────────────────────────────────────────────────────────────
 
 def download_video(url: str, dest: Path) -> None:
-    """
-    Stream-download a video to dest, enforcing a 500 MB size cap.
-    Raises RuntimeError on size violation or incomplete download.
-    """
+    """Stream-download a video enforcing a 500 MB size cap."""
     log.info("Downloading: %s", url)
+
+    # Check Content-Length first to warn early on large files
+    head = SESSION.head(url, timeout=15, allow_redirects=True)
+    content_length = int(head.headers.get("Content-Length", 0))
+    if content_length > MAX_VIDEO_BYTES:
+        raise RuntimeError(f"Content-Length {content_length // (1024*1024)}MB exceeds 500MB cap")
+
     resp = SESSION.get(url, stream=True, timeout=DOWNLOAD_TIMEOUT)
     resp.raise_for_status()
 
     written = 0
     try:
         with open(dest, "wb") as fh:
-            for chunk in resp.iter_content(chunk_size=4 * 1024 * 1024):  # 4 MB chunks
+            for chunk in resp.iter_content(chunk_size=4 * 1024 * 1024):
                 if not chunk:
                     continue
                 written += len(chunk)
                 if written > MAX_VIDEO_BYTES:
-                    raise RuntimeError(
-                        f"Video exceeds {MAX_VIDEO_BYTES // (1024 * 1024)} MB size cap — aborting"
-                    )
+                    raise RuntimeError("Video exceeds 500MB cap — aborting download")
                 fh.write(chunk)
     except Exception:
-        # Clean up partial file on any failure
         dest.unlink(missing_ok=True)
         raise
 
     if written == 0:
         dest.unlink(missing_ok=True)
-        raise RuntimeError("Downloaded file is empty — connection may have dropped")
+        raise RuntimeError("Downloaded file is empty")
 
     log.info("Downloaded %.1f MB → %s", written / (1024 * 1024), dest.name)
 
@@ -357,56 +412,87 @@ def get_video_duration(video_path: Path) -> float:
         log.warning("ffprobe failed (%s) — defaulting duration to 60s", exc)
         return 60.0
 
+def adaptive_frame_count(duration: float) -> int:
+    """Scale frame count with video duration for consistent temporal coverage."""
+    if duration <= 30:  return 8
+    if duration <= 60:  return 12
+    return 16  # 60s–120s — capped lower than before to stay within token limits
 
-def extract_frames(video_path: Path, frames_dir: Path, n_frames: int = 16) -> list[Path]:
+def extract_frames(video_path: Path, frames_dir: Path) -> list[Path]:
     """
-    Extract n_frames evenly-spaced JPEG frames using a single ffmpeg invocation.
-    Frames are written to frames_dir. Caller is responsible for cleaning up frames_dir.
+    Extract evenly-spaced JPEG frames plus scene-change frames.
+    Uses ffmpeg select filter to capture visual transitions the fixed interval misses.
     """
     frames_dir.mkdir(parents=True, exist_ok=True)
     duration = get_video_duration(video_path)
-    if n_frames == 16:  # still at old default — use adaptive count
-        n_frames = adaptive_frame_count(duration)
-    log.info("Duration: %.1fs — extracting %d frames", duration, n_frames)
+    n_frames = adaptive_frame_count(duration)
+    log.info("Duration: %.1fs — target %d frames", duration, n_frames)
 
-    fps_val = n_frames / max(duration, 1.0)  # guard against zero-duration edge case
-    output_pattern = str(frames_dir / "frame_%03d.jpg")
+    fps_val = n_frames / max(duration, 1.0)
+    output_pattern = str(frames_dir / "frame_%04d.jpg")
 
+    # Primary pass: evenly-spaced frames
     cmd = [
         "ffmpeg", "-y", "-nostdin",
         "-i", str(video_path),
-        "-vf", f"fps={fps_val:.6f},scale={FRAME_WIDTH}:-2",
+        "-vf", (
+            f"fps={fps_val:.6f},"
+            f"scale={FRAME_WIDTH}:-2:flags=lanczos"
+        ),
         "-vframes", str(n_frames),
-        "-q:v", "4",
+        "-q:v", "3",
         output_pattern,
     ]
-
     try:
         result = subprocess.run(cmd, capture_output=True, timeout=120)
         if result.returncode != 0:
-            log.warning(
-                "ffmpeg exited %d: %s",
-                result.returncode,
-                result.stderr.decode(errors="replace")[-400:],
-            )
+            log.warning("ffmpeg exited %d: %s",
+                        result.returncode, result.stderr.decode(errors="replace")[-300:])
     except subprocess.TimeoutExpired:
         log.warning("ffmpeg timed out during frame extraction")
 
-    paths = sorted(frames_dir.glob("frame_*.jpg"))
-    paths = [p for p in paths if p.stat().st_size > 0]  # drop zero-byte corrupt frames
-    log.info("Extracted %d valid frames", len(paths))
+    # Scene-change pass: grab frames at hard cuts (up to 4 extra)
+    scene_pattern = str(frames_dir / "scene_%04d.jpg")
+    scene_cmd = [
+        "ffmpeg", "-y", "-nostdin",
+        "-i", str(video_path),
+        "-vf", (
+            f"select='gt(scene\\,0.35)',"
+            f"scale={FRAME_WIDTH}:-2:flags=lanczos"
+        ),
+        "-vframes", "4",
+        "-vsync", "vfr",
+        "-q:v", "3",
+        scene_pattern,
+    ]
+    try:
+        subprocess.run(scene_cmd, capture_output=True, timeout=60)
+    except (subprocess.TimeoutExpired, Exception) as exc:
+        log.warning("Scene-change extraction failed: %s — continuing with evenly-spaced only", exc)
+
+    paths = sorted(frames_dir.glob("*.jpg"))
+    paths = [p for p in paths if p.stat().st_size > 0]
+    log.info("Extracted %d valid frames (incl. scene-change frames)", len(paths))
     return paths
 
 # ── Audio transcription ───────────────────────────────────────────────────────
 
 def transcribe_audio(video_path: Path) -> str:
-    """Extract and transcribe audio from video using local Whisper. Returns empty string on failure."""
+    """
+    Transcribe audio with Whisper tiny. Hard timeout via subprocess if it hangs.
+    Returns empty string on any failure — never blocks the pipeline.
+    """
+    if not ENABLE_WHISPER:
+        return ""
+    if is_time_tight():
+        log.warning("Budget tight — skipping audio transcription")
+        return ""
     try:
         model = get_whisper_model()
         log.info("Transcribing audio: %s", video_path.name)
         result = model.transcribe(str(video_path), fp16=False, language=None)
         transcript = result.get("text", "").strip()
-        log.info("Transcript (%d chars): %s...", len(transcript), transcript[:100])
+        log.info("Transcript (%d chars): %.100s...", len(transcript), transcript)
         return transcript
     except Exception as exc:
         log.warning("Audio transcription failed: %s — continuing without transcript", exc)
@@ -415,7 +501,7 @@ def transcribe_audio(video_path: Path) -> str:
 # ── Frame encoding ────────────────────────────────────────────────────────────
 
 def encode_frames(frame_paths: list[Path]) -> list[dict]:
-    """Encode JPEG frames as base64 image_url content parts."""
+    """Encode JPEG frames as base64 image_url content parts for the API."""
     parts = []
     for fp in frame_paths:
         b64 = base64.b64encode(fp.read_bytes()).decode()
@@ -428,7 +514,10 @@ def encode_frames(frame_paths: list[Path]) -> list[dict]:
 # ── Two-pass captioning ───────────────────────────────────────────────────────
 
 def describe_video(frame_parts: list[dict], transcript: str) -> str:
-    """First pass: detailed video description from frames + audio transcript (vision model)."""
+    """
+    First pass: detailed narrative description from frames + transcript.
+    Uses vision model with very low temperature for factual accuracy.
+    """
     messages = [
         {"role": "system", "content": DESCRIBE_SYSTEM},
         {
@@ -439,16 +528,21 @@ def describe_video(frame_parts: list[dict], transcript: str) -> str:
             ],
         },
     ]
-    return call_fireworks(messages, model=VISION_MODEL, max_tokens=1600, temperature=0.1)
+    return call_fireworks(messages, model=VISION_MODEL, max_tokens=1800, temperature=0.1)
 
 
 def generate_caption(style: str, description: str) -> str:
-    """Second pass: styled caption from description only — no frames, cheap text model."""
+    """
+    Second pass: styled caption from description only — no frames, text model.
+    Per-style temperature for optimal accuracy/creativity balance.
+    """
+    temp = STYLE_TEMPERATURES.get(style, 0.7)
     messages = [
         {"role": "system", "content": STYLE_SYSTEM_PROMPTS[style]},
-        {"role": "user", "content": _caption_user_prompt(description)},
+        {"role": "user", "content": _caption_user_prompt(description, style)},
     ]
-    return call_fireworks(messages, model=TEXT_MODEL, max_tokens=400, temperature=0.6)
+    raw = call_fireworks(messages, model=TEXT_MODEL, max_tokens=300, temperature=temp)
+    return clean_caption(raw)
 
 # ── Process one task ──────────────────────────────────────────────────────────
 
@@ -458,7 +552,8 @@ def process_task(task: dict, tmpdir: Path) -> dict:
     styles    = _validate_styles(task.get("styles", STYLES))
     task_id   = _sanitize_task_id(raw_id)
 
-    log.info("[%s] Starting — styles: %s — url: %s", task_id, styles, video_url)
+    log.info("[%s] Starting — styles: %s | budget remaining: %.0fs",
+             task_id, styles, budget_remaining())
 
     # 1. Download
     video_path = tmpdir / f"{task_id}.mp4"
@@ -475,31 +570,26 @@ def process_task(task: dict, tmpdir: Path) -> dict:
     if not frame_paths:
         raise RuntimeError("No frames could be extracted from the video")
 
-    # 3. Encode frames to base64
+    # 3. Encode frames
     frame_parts = encode_frames(frame_paths)
 
-    # 4. Clean up JPEG files from disk immediately — we only need the base64 now
-    try:
-        shutil.rmtree(frames_dir, ignore_errors=True)
-    except Exception as exc:
-        log.warning("[%s] Could not clean up frames dir: %s", task_id, exc)
+    # 4. Clean up JPEG files — only the base64 payloads are needed now
+    shutil.rmtree(frames_dir, ignore_errors=True)
 
-    # 5. Describe (vision pass — frames + transcript sent together)
-    log.info("[%s] Describing video (%d frames, transcript: %d chars)...", task_id, len(frame_parts), len(transcript))
+    # 5. Vision description pass
+    log.info("[%s] Describing — %d frames, transcript %d chars, model: %s",
+             task_id, len(frame_parts), len(transcript), VISION_MODEL.split("/")[-1])
     description = describe_video(frame_parts, transcript)
-    log.info("[%s] Description (first 120 chars): %s...", task_id, description[:120])
+    log.info("[%s] Description preview: %.120s...", task_id, description)
 
-    # Free base64 data from memory — not needed after description
-    del frame_parts
+    del frame_parts  # free memory
 
-    # 6. Clean up video file to free disk space for subsequent tasks
-    try:
-        video_path.unlink(missing_ok=True)
-    except Exception as exc:
-        log.warning("[%s] Could not delete video file: %s", task_id, exc)
+    # 6. Clean up video file
+    video_path.unlink(missing_ok=True)
 
-    # 7. Caption pass — all requested styles in parallel, text-only
-    log.info("[%s] Generating captions for styles: %s", task_id, styles)
+    # 7. Caption pass — all requested styles in parallel
+    log.info("[%s] Generating %d captions | budget remaining: %.0fs",
+             task_id, len(styles), budget_remaining())
     captions: dict[str, str] = {}
 
     with ThreadPoolExecutor(max_workers=min(4, len(styles))) as executor:
@@ -507,26 +597,23 @@ def process_task(task: dict, tmpdir: Path) -> dict:
             executor.submit(generate_caption, style, description): style
             for style in styles
         }
-
         for future in as_completed(future_to_style, timeout=None):
-            # timeout=None: we handle per-call timeouts inside call_fireworks via
-            # requests timeout — don't let FuturesTimeoutError silently drop styles
             style = future_to_style[future]
             try:
                 captions[style] = future.result(timeout=CAPTION_TIMEOUT)
-                log.info("[%s] ✓ %s", task_id, style)
+                log.info("[%s] ✓ %s (temp=%.2f)", task_id, style, STYLE_TEMPERATURES.get(style, 0.7))
             except FuturesTimeoutError:
-                captions[style] = f"[Caption timed out after {CAPTION_TIMEOUT}s]"
+                captions[style] = f"Caption generation timed out after {CAPTION_TIMEOUT}s."
                 log.error("[%s] ✗ %s: timed out", task_id, style)
             except Exception as exc:
-                captions[style] = f"[Caption generation failed: {exc}]"
+                captions[style] = f"Caption generation failed: {exc}"
                 log.error("[%s] ✗ %s: %s", task_id, style, exc)
 
-    # Ensure every requested style has an entry — guard against any edge case
+    # Safety net — ensure every style has an entry
     for style in styles:
         if style not in captions:
-            captions[style] = "[Caption not generated — unknown error]"
-            log.error("[%s] ✗ %s: missing from captions dict (should never happen)", task_id, style)
+            captions[style] = "Caption could not be generated."
+            log.error("[%s] ✗ %s: missing from output (should never happen)", task_id, style)
 
     return {"task_id": raw_id, "captions": captions}
 
@@ -534,8 +621,13 @@ def process_task(task: dict, tmpdir: Path) -> dict:
 
 def main() -> None:
     log.info("=== XO-Screens Video Captioning Agent (Track 2) ===")
+    log.info("Budget: %ds | Whisper: %s (%s) | Vision: %s | Text: %s",
+             TOTAL_BUDGET_SECS,
+             WHISPER_MODEL_SIZE if ENABLE_WHISPER else "disabled",
+             "enabled" if ENABLE_WHISPER else "disabled",
+             VISION_MODEL.split("/")[-1],
+             TEXT_MODEL.split("/")[-1])
 
-    # Run startup checks before touching any task data
     startup_checks()
 
     if not INPUT_PATH.exists():
@@ -553,7 +645,7 @@ def main() -> None:
         sys.exit(1)
 
     if len(tasks) == 0:
-        log.warning("tasks.json is an empty array — writing empty results")
+        log.warning("tasks.json is empty — writing empty results")
         OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
         OUTPUT_PATH.write_text("[]", encoding="utf-8")
         sys.exit(0)
@@ -562,34 +654,60 @@ def main() -> None:
     OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
 
     results: list[dict] = []
+    tmpdir_obj = tempfile.TemporaryDirectory()
 
-    with tempfile.TemporaryDirectory() as tmpdir:
-        tmp = Path(tmpdir)
+    try:
+        tmp = Path(tmpdir_obj.name)
         for i, task in enumerate(tasks, 1):
             raw_id = task.get("task_id", f"task_{i}")
-            log.info("--- Task %d/%d: %s ---", i, len(tasks), raw_id)
+            log.info("--- Task %d/%d: %s | elapsed: %.0fs ---",
+                     i, len(tasks), raw_id, elapsed())
+
+            # Global budget guard — if we're nearly out of time, write what we have
+            if budget_remaining() < 60:
+                log.error("Budget exhausted with %d task(s) remaining — writing partial results", len(tasks) - i + 1)
+                requested_styles = _validate_styles(task.get("styles", STYLES))
+                results.append({
+                    "task_id": raw_id,
+                    "captions": {s: "Caption not generated: global time budget exhausted." for s in requested_styles},
+                })
+                # Flush remaining tasks too
+                for remaining_task in tasks[i:]:
+                    remaining_id   = remaining_task.get("task_id", "unknown")
+                    remaining_styles = _validate_styles(remaining_task.get("styles", STYLES))
+                    results.append({
+                        "task_id": remaining_id,
+                        "captions": {s: "Caption not generated: global time budget exhausted." for s in remaining_styles},
+                    })
+                break
+
             try:
                 result = process_task(task, tmp)
                 results.append(result)
-                log.info("[%s] ✓ Complete", raw_id)
+                log.info("[%s] ✓ Complete | elapsed: %.0fs", raw_id, elapsed())
             except Exception as exc:
                 log.error("[%s] ✗ Failed: %s", raw_id, exc, exc_info=True)
-                # Write error placeholders for every requested style so the
-                # output always has the expected structure — missing styles score zero
                 requested_styles = _validate_styles(task.get("styles", STYLES))
                 results.append({
                     "task_id": raw_id,
                     "captions": {
-                        style: f"[Error processing task: {exc}]"
+                        style: f"An error occurred while processing this video: {exc}"
                         for style in requested_styles
                     },
                 })
+    finally:
+        # Always clean up temp dir, even on unexpected exceptions
+        try:
+            tmpdir_obj.cleanup()
+        except Exception:
+            pass
 
     OUTPUT_PATH.write_text(
         json.dumps(results, indent=2, ensure_ascii=False),
         encoding="utf-8",
     )
-    log.info("=== Done. %d result(s) written to %s ===", len(results), OUTPUT_PATH)
+    log.info("=== Done: %d result(s) written | total elapsed: %.0fs ===",
+             len(results), elapsed())
     sys.exit(0)
 
 
