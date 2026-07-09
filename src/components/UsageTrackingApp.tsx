@@ -133,6 +133,7 @@ export default function UsageTrackingApp() {
                 { label:'Time Spent',     value: formatDuration(stats.totalTimeSpent), color:'rgba(99,179,237,0.85)' },
                 { label:'Messages Sent',  value: stats.chatMessagesUser,        color:'rgba(99,179,237,0.85)' },
                 { label:'Notes Created',  value: stats.notesCreated,            color:'rgba(167,243,208,0.85)'},
+                { label:'Words Written',  value: Math.max(stats.notesWordCount, 0), color:'rgba(167,243,208,0.6)' },
                 { label:'Captions Made',  value: stats.videoCaptionsGenerated,  color:'rgba(236,144,86,0.85)' },
                 { label:'Tool Calls',     value: stats.chatToolCalls,           color:'rgba(167,243,208,0.85)'},
               ].map(row => (
@@ -385,6 +386,17 @@ export default function UsageTrackingApp() {
                   </span>
                 </div>
               ))}
+              {(() => {
+                const today = new Date().toISOString().slice(0,10)
+                const todayStat = stats.dailyStats.find(s => s.date === today)
+                const todayTime = todayStat?.timeSpent ?? 0
+                return (
+                  <div style={{ display:'flex', flexDirection:'column', gap:1 }}>
+                    <span style={{ fontSize:9, color:'rgba(255,255,255,0.25)', fontWeight:600, letterSpacing:'0.07em', textTransform:'uppercase' }}>Today's Time</span>
+                    <span style={{ fontSize:11, color:'rgba(235,177,89,0.7)', fontFamily:'monospace' }}>{formatDuration(todayTime)}</span>
+                  </div>
+                )
+              })()}
             </div>
             <div style={{ display:'flex', alignItems:'center', gap:6 }}>
               <div style={{ width:6, height:6, borderRadius:'50%', background:'#EBB159',

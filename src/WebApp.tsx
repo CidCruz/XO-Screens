@@ -1576,9 +1576,10 @@ function WebVideoPanel() {
       setUploadPhase(null); setCurrentLabel(label)
       const updated = addCaptionHistoryEntry({ label, results: res as unknown as Record<string, never> })
       setHistory(updated)
-      // Track video processing and captions generated
       trackVideoFileProcessed()
-      trackVideoCaptionGenerated()
+      // Each run generates 4 caption tones — track all of them
+      const toneCount = Object.keys(res).length || 4
+      for (let i = 0; i < toneCount; i++) trackVideoCaptionGenerated()
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : 'Something went wrong.')
       setStatus('error'); setProcessingTone(null); setUploadPhase(null)

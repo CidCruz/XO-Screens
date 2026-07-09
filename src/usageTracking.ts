@@ -131,6 +131,10 @@ export function getCurrentSession(): SessionInfo | null {
 }
 
 export function startNewSession(): SessionInfo {
+  // If a valid session already exists, return it without bumping totalSessions
+  const existing = getCurrentSession()
+  if (existing) return existing
+
   const session: SessionInfo = {
     id: Date.now().toString() + Math.random().toString(36).slice(2),
     startTime: Date.now(),
