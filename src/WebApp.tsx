@@ -315,16 +315,27 @@ function HomePanel({ onNavigate }: { onNavigate: (id: string) => void }) {
 
 /* â”€â”€ Settings panel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 function SettingsPanel() {
-  const [apiKey, setApiKey] = useState(() => localStorage.getItem('xo-fireworks-api-key') ?? '')
+  // true  = a key is already stored and we're in "locked" view
+  // false = no key yet, or user chose to replace/delete
+  const [keyLocked, setKeyLocked] = useState(() => !!localStorage.getItem('xo-fireworks-api-key'))
+  const [newKey, setNewKey] = useState('')
   const [saved, setSaved] = useState(false)
-  const [show, setShow] = useState(false)
 
   function handleSave() {
-    const trimmed = apiKey.trim()
-    if (trimmed) localStorage.setItem('xo-fireworks-api-key', trimmed)
-    else localStorage.removeItem('xo-fireworks-api-key')
+    const trimmed = newKey.trim()
+    if (!trimmed) return
+    localStorage.setItem('xo-fireworks-api-key', trimmed)
+    setNewKey('')
+    setKeyLocked(true)
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
+  }
+
+  function handleDelete() {
+    localStorage.removeItem('xo-fireworks-api-key')
+    setNewKey('')
+    setKeyLocked(false)
+    setSaved(false)
   }
 
   return (
@@ -339,43 +350,94 @@ function SettingsPanel() {
             Fireworks AI
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <div style={{ position: 'relative' }}>
-              <input
-                type={show ? 'text' : 'password'}
-                value={apiKey}
-                onChange={e => { setApiKey(e.target.value); setSaved(false) }}
-                onKeyDown={e => e.key === 'Enter' && handleSave()}
-                placeholder="fw_••••••••••••••••••••"
-                spellCheck={false}
-                style={{
-                  width: '100%', boxSizing: 'border-box',
-                  background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
-                  borderRadius: 10, padding: '10px 38px 10px 14px',
-                  color: '#fff', fontSize: 12, fontFamily: 'monospace', outline: 'none',
-                }}
-                onFocus={e => { e.currentTarget.style.borderColor = 'rgba(235,177,89,0.5)' }}
-                onBlur={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)' }}
-              />
-              <button onClick={() => setShow(v => !v)} style={{
-                position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
-                background: 'none', border: 'none', cursor: 'pointer',
-                color: 'rgba(255,255,255,0.3)', padding: 2,
-              }}>
-                <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  {show
-                    ? <><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" /></>
-                    : <><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></>}
-                </svg>
-              </button>
-            </div>
-            <button onClick={handleSave} style={{
-              padding: '10px', borderRadius: 10, border: 'none', cursor: 'pointer',
-              background: saved ? 'rgba(16,185,129,0.2)' : 'linear-gradient(135deg, #EBB159, #EE6F53)',
-              color: saved ? 'rgba(16,185,129,0.9)' : '#fff',
-              fontSize: 12, fontWeight: 600, fontFamily: 'inherit', transition: 'all 0.2s',
-            }}>
-              {saved ? 'âœ“ Saved' : 'Save API Key'}
-            </button>
+
+            {keyLocked ? (
+              /* Key already set: show masked pill + action buttons */
+              <>
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: 10,
+                  background: 'rgba(16,185,129,0.07)', border: '1px solid rgba(16,185,129,0.2)',
+                  borderRadius: 10, padding: '10px 14px',
+                }}>
+                  <svg width="13" height="13" fill="none" stroke="rgba(16,185,129,0.7)" viewBox="0 0 24 24" style={{ flexShrink: 0 }}>
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                  </svg>
+                  <span style={{ fontSize: 12, fontFamily: 'monospace', color: 'rgba(16,185,129,0.85)', flex: 1, letterSpacing: '0.05em' }}>
+                    fw_&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;
+                  </span>
+                  {saved && (
+                    <span style={{ fontSize: 11, color: 'rgba(16,185,129,0.7)', fontWeight: 600 }}>&#x2713; Saved</span>
+                  )}
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button onClick={() => { setKeyLocked(false); setNewKey('') }} style={{
+                    flex: 1, padding: '10px', borderRadius: 10,
+                    border: '1px solid rgba(235,177,89,0.3)',
+                    background: 'rgba(235,177,89,0.08)', color: 'rgba(235,177,89,0.9)',
+                    fontSize: 12, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer', transition: 'all 0.2s',
+                  }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(235,177,89,0.16)' }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(235,177,89,0.08)' }}
+                  >
+                    Replace Key
+                  </button>
+                  <button onClick={handleDelete} style={{
+                    flex: 1, padding: '10px', borderRadius: 10,
+                    border: '1px solid rgba(239,68,68,0.25)',
+                    background: 'rgba(239,68,68,0.08)', color: 'rgba(239,68,68,0.7)',
+                    fontSize: 12, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer', transition: 'all 0.2s',
+                  }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(239,68,68,0.18)'; (e.currentTarget as HTMLButtonElement).style.color = '#f87171' }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(239,68,68,0.08)'; (e.currentTarget as HTMLButtonElement).style.color = 'rgba(239,68,68,0.7)' }}
+                  >
+                    Delete Key
+                  </button>
+                </div>
+              </>
+            ) : (
+              /* No key yet (or replace mode): show entry input */
+              <>
+                <input
+                  type="password"
+                  value={newKey}
+                  onChange={e => setNewKey(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && handleSave()}
+                  placeholder="fw_&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;"
+                  spellCheck={false}
+                  autoComplete="off"
+                  style={{
+                    width: '100%', boxSizing: 'border-box',
+                    background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
+                    borderRadius: 10, padding: '10px 14px',
+                    color: '#fff', fontSize: 12, fontFamily: 'monospace', outline: 'none',
+                  }}
+                  onFocus={e => { e.currentTarget.style.borderColor = 'rgba(235,177,89,0.5)' }}
+                  onBlur={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)' }}
+                />
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button onClick={handleSave} disabled={!newKey.trim()} style={{
+                    flex: 1, padding: '10px', borderRadius: 10, border: 'none',
+                    cursor: newKey.trim() ? 'pointer' : 'default',
+                    background: newKey.trim() ? 'linear-gradient(135deg, #EBB159, #EE6F53)' : 'rgba(235,177,89,0.15)',
+                    color: newKey.trim() ? '#fff' : 'rgba(255,255,255,0.3)',
+                    fontSize: 12, fontWeight: 600, fontFamily: 'inherit', transition: 'all 0.2s',
+                  }}>
+                    Save API Key
+                  </button>
+                  {localStorage.getItem('xo-fireworks-api-key') && (
+                    <button onClick={() => { setKeyLocked(true); setNewKey('') }} style={{
+                      padding: '10px 16px', borderRadius: 10,
+                      border: '1px solid rgba(255,255,255,0.1)',
+                      background: 'transparent', color: 'rgba(255,255,255,0.35)',
+                      fontSize: 12, fontWeight: 500, fontFamily: 'inherit', cursor: 'pointer', transition: 'all 0.2s',
+                    }}>
+                      Cancel
+                    </button>
+                  )}
+                </div>
+              </>
+            )}
+
             <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.25)', lineHeight: 1.6 }}>
               Get your key at{' '}
               <a href="https://fireworks.ai" target="_blank" rel="noreferrer"
@@ -399,14 +461,20 @@ function SettingsPanel() {
               { label: 'Version', value: '0.0.0' },
               { label: 'Mode', value: 'Web App' },
               { label: 'Provider', value: 'Fireworks AI' },
-              { label: 'Chat',    value: 'DeepSeek V4 Pro' },
-              { label: 'Captions', value: 'Kimi K2 P6 (Vision)' },
             ].map(row => (
               <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)' }}>{row.label}</span>
                 <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.65)', fontFamily: 'monospace' }}>{row.value}</span>
               </div>
             ))}
+            {/* Created by */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', paddingTop: 2 }}>
+              <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)' }}>Created by</span>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
+                <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.65)', fontFamily: 'monospace' }}>Team Forge</span>
+                <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', fontFamily: 'monospace' }}>Cid &amp; Rin</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
