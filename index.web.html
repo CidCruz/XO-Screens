@@ -77,6 +77,72 @@
         to   { width: 100%; }
       }
     </style>
+    <script>
+      // ── Usage Tracking Bootstrap (Web) ───────────────────────────────────
+      // Runs before React so sessions are initialised early and page-time
+      // is accurately captured even if the user refreshes.
+      ;(function () {
+        var STATS_KEY   = 'xo-usage-stats'
+        var SESSION_KEY = 'xo-current-session'
+        var now = Date.now()
+        var SESSION_TIMEOUT = 30 * 60 * 1000 // 30 minutes
+
+        function getStats() {
+          try { return JSON.parse(localStorage.getItem(STATS_KEY)) || null } catch { return null }
+        }
+        function saveStats(s) {
+          try { localStorage.setItem(STATS_KEY, JSON.stringify(s)) } catch {}
+        }
+
+        // Seed default stats if missing
+        var stats = getStats()
+        if (!stats) {
+          stats = {
+            chatMessagesUser: 0, chatMessagesAI: 0, chatSessions: 0, chatToolCalls: 0,
+            notesCreated: 0, notesEdited: 0, notesDeleted: 0, notesWordCount: 0,
+            videoCaptionsGenerated: 0, videoFilesProcessed: 0,
+            totalSessions: 0, totalTimeSpent: 0,
+            lastSessionDate: now, firstSessionDate: now,
+            featuresUsed: { chat: 0, notes: 0, video: 0, settings: 0 },
+            dailyStats: [],
+          }
+          saveStats(stats)
+        }
+
+        // Handle stale session from previous page visit
+        try {
+          var rawSession = localStorage.getItem(SESSION_KEY)
+          if (rawSession) {
+            var prevSession = JSON.parse(rawSession)
+            var elapsed = now - prevSession.startTime
+            if (elapsed > SESSION_TIMEOUT) {
+              // Session timed out — credit leftover time and clear
+              stats.totalTimeSpent = (stats.totalTimeSpent || 0) + elapsed
+              saveStats(stats)
+              localStorage.removeItem(SESSION_KEY)
+            }
+          }
+        } catch (e) { /* non-fatal */ }
+
+        // When the page unloads, persist session duration
+        function onPageHide() {
+          try {
+            var rawS = localStorage.getItem(SESSION_KEY)
+            if (!rawS) return
+            var ses = JSON.parse(rawS)
+            var duration = Date.now() - ses.startTime
+            var s2 = getStats()
+            if (s2) {
+              s2.totalTimeSpent = (s2.totalTimeSpent || 0) + duration
+              saveStats(s2)
+            }
+            localStorage.removeItem(SESSION_KEY)
+          } catch (e) { /* non-fatal */ }
+        }
+        window.addEventListener('pagehide', onPageHide)
+        window.addEventListener('beforeunload', onPageHide)
+      })()
+    </script>
   </head>
   <body>
     <!-- Splash -->

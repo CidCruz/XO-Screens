@@ -197,9 +197,9 @@ body {
 .web-content {
   flex: 1;
   display: flex;
-  /* island clearance (82px) + top padding (16px) */
-  height: calc(100% - 82px - 40px);
-  max-height: calc(100% - 82px - 40px);
+  /* Reduced bottom clearance to island: was 82px, now 62px (20px less gap) */
+  height: calc(100% - 62px - 40px);
+  max-height: calc(100% - 62px - 40px);
   overflow: hidden;
   position: relative;
   z-index: 1;

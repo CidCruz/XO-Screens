@@ -3,6 +3,12 @@ import type { AppItem, Note, AppControl } from './types'
 import { APP_TOOLS, makeExecutor } from './appBridge'
 import { sendToGeminiWithTools, sendToGeminiWithSystem } from './gemini'
 import type { ToolCallRequest } from './fireworks'
+import {
+  trackChatMessage, trackChatSession, trackFeatureUsage,
+  trackVideoCaptionGenerated, trackVideoFileProcessed,
+  trackNoteCreated, trackNoteEdited, trackNoteDeleted,
+  startNewSession, recordInteraction,
+} from './usageTracking'
 
 /* â”€â”€ Nav items â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 const APPS: AppItem[] = [
@@ -672,6 +678,10 @@ function WebChatPanel({ activeNote, appControl }: WebChatPanelProps) {
     const newTitle = isFirstUserMsg ? deriveTitleFromMessage(text) : activeSession.title
     const updatedMessages = [...messages, userMsg]
 
+    // Track user message
+    trackChatMessage('user')
+    if (isFirstUserMsg) trackChatSession()
+
     setSessions(prev => upsertSession(prev, { ...activeSession, title: newTitle, messages: updatedMessages, updatedAt: Date.now() }))
     setInput('')
     setLoading(true)
@@ -692,13 +702,14 @@ function WebChatPanel({ activeNote, appControl }: WebChatPanelProps) {
         reply = await sendToGeminiWithTools(
           updatedMessages, text, systemPrompt, activeAppTools,
           executorRef.current,
-          (call) => setActiveTools(prev => [...prev, call.name]),
+          (call) => { setActiveTools(prev => [...prev, call.name]); trackChatMessage('assistant', true) },
         )
       } else {
         reply = await sendToGeminiWithSystem(updatedMessages, text, systemPrompt)
       }
 
       setActiveTools([])
+      trackChatMessage('assistant')
       setSessions(prev => upsertSession(prev, {
         ...activeSession, title: newTitle,
         messages: [...updatedMessages, { id: Date.now().toString(), role: 'assistant', content: reply, timestamp: new Date() }],
@@ -1201,7 +1212,15 @@ function WebNotesInner({ onNoteChange }: { onNoteChange?: (note: Note | null) =>
   useEffectN(() => { onNoteChange?.(activeNote ?? null) }, [activeNote, onNoteChange])
 
   const updateNote = useCallbackN((id: string, patch: Partial<Note>) => {
-    setNotes(prev => prev.map(n => n.id === id ? { ...n, ...patch, updatedAt: Date.now() } : n))
+    setNotes(prev => {
+      const existing = prev.find(n => n.id === id)
+      if (existing && patch.content !== undefined) {
+        const oldWc = (existing.content || '').split(/\s+/).filter(Boolean).length
+        const newWc = (patch.content || '').split(/\s+/).filter(Boolean).length
+        if (oldWc !== newWc) trackNoteEdited(oldWc, newWc)
+      }
+      return prev.map(n => n.id === id ? { ...n, ...patch, updatedAt: Date.now() } : n)
+    })
   }, [])
 
   function addNote() {
@@ -1210,10 +1229,15 @@ function WebNotesInner({ onNoteChange }: { onNoteChange?: (note: Note | null) =>
     setActiveId(n.id)
     setConfirmDeleteId(null)
     setTimeout(() => titleRef.current?.focus(), 50)
+    trackNoteCreated(0)
   }
 
   function deleteNote(id: string) {
     setNotes(prev => {
+      const noteToDelete = prev.find(n => n.id === id)
+      if (noteToDelete) {
+        trackNoteDeleted((noteToDelete.content || '').split(/\s+/).filter(Boolean).length)
+      }
       const next = prev.filter(n => n.id !== id)
       if (!next.length) { const f = newNoteObj(); setActiveId(f.id); return [f] }
       if (activeId === id) setActiveId(next[0].id)
@@ -1552,6 +1576,9 @@ function WebVideoPanel() {
       setUploadPhase(null); setCurrentLabel(label)
       const updated = addCaptionHistoryEntry({ label, results: res as unknown as Record<string, never> })
       setHistory(updated)
+      // Track video processing and captions generated
+      trackVideoFileProcessed()
+      trackVideoCaptionGenerated()
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : 'Something went wrong.')
       setStatus('error'); setProcessingTone(null); setUploadPhase(null)
@@ -1963,102 +1990,31 @@ function WebVideoPanel() {
 
 /* â”€â”€ Usage Tracking panel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
+import UsageTrackingApp from './components/UsageTrackingApp'
+
 function UsageTrackingPanel() {
-  const sessions = initSessions().sessions
-  const totalMessages = sessions.reduce((a, s) => a + s.messages.filter(m => m.role === 'user').length, 0)
-  const captionHistory = loadCaptionHistory()
-  const totalTones = captionHistory.reduce((a, e) => a + Object.keys(e.results).length, 0)
-
-  const stats = [
-    { label: 'Chat Sessions',       value: sessions.length,    color: '#EBB159'  },
-    { label: 'Messages Sent',        value: totalMessages,      color: '#EC9056'  },
-    { label: 'Videos Summarized',   value: captionHistory.length, color: '#EE6F53' },
-    { label: 'Summaries Generated', value: totalTones,            color: '#EBB159'  },
-  ]
-
-  const modelInfo = [
-    { model: 'Gemma 4 E4B',    role: 'Chat (simple messages)',          badge: 'Fast'     },
-    { model: 'Gemma 4 26B',    role: 'Chat with tools (notes/widgets)', badge: 'Balanced' },
-    { model: 'Gemma 4 31B IT', role: 'Video summaries',      badge: 'Powerful' },
-  ]
-
-  return (
-    <div style={{
-      width: '100%', height: '100%', overflowY: 'auto',
-      display: 'flex', flexDirection: 'column',
-      alignItems: 'center', justifyContent: 'flex-start',
-      padding: '36px 24px 100px',
-    }}>
-      {/* Page header */}
-      <div style={{ width: '100%', maxWidth: 680, marginBottom: 28, animation: 'fadeIn 0.4s ease both' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{
-            width: 40, height: 40, borderRadius: 13, flexShrink: 0,
-            background: 'linear-gradient(145deg, rgba(235,177,89,0.22), rgba(238,111,83,0.12))',
-            border: '1px solid rgba(235,177,89,0.3)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: '0 0 20px rgba(235,177,89,0.15)',
-          }}>
-            <svg width="18" height="18" fill="none" stroke="#EBB159" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
-                d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-            </svg>
-          </div>
-          <div>
-            <h2 style={{ fontFamily: '"Syne", sans-serif', fontSize: 22, fontWeight: 800, letterSpacing: '-0.03em', color: '#fff', lineHeight: 1.1 }}>Usage Tracking</h2>
-            <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)', marginTop: 3 }}>Your activity in this session</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Stats grid */}
-      <div style={{ width: '100%', maxWidth: 680, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 12, marginBottom: 14, animation: 'fadeIn 0.4s 0.06s ease both' }}>
-        {stats.map(s => (
-          <div key={s.label} className="xo-bento-card" style={{ padding: '20px 18px' }}>
-            <div style={{ fontSize: 34, fontWeight: 800, letterSpacing: '-0.04em', color: s.color, marginBottom: 4, fontFamily: '"Syne", sans-serif', lineHeight: 1 }}>{s.value}</div>
-            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', lineHeight: 1.4 }}>{s.label}</div>
-          </div>
-        ))}
-      </div>
-
-      {/* Model routing */}
-      <div style={{ width: '100%', maxWidth: 680, animation: 'fadeIn 0.4s 0.12s ease both', marginBottom: 14 }}>
-        <div className="xo-bento-card" style={{ padding: '20px 22px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
-            <svg width="12" height="12" fill="none" stroke="rgba(255,255,255,0.3)" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18"/>
-            </svg>
-            <span style={{ fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.3)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>Model Routing</span>
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {modelInfo.map(m => (
-              <div key={m.model} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 14px', borderRadius: 12, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: '#fff', marginBottom: 2, fontFamily: 'monospace' }}>{m.model}</div>
-                  <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.32)' }}>{m.role}</div>
-                </div>
-                <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 9px', borderRadius: 6, background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.45)', letterSpacing: '0.05em', flexShrink: 0 }}>{m.badge}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Provider footer card */}
-      <div style={{ width: '100%', maxWidth: 680, animation: 'fadeIn 0.4s 0.18s ease both' }}>
-        <div className="xo-bento-card" style={{ padding: '16px 20px', background: 'rgba(235,177,89,0.04)', borderColor: 'rgba(235,177,89,0.14)', display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#EBB159', boxShadow: '0 0 6px rgba(235,177,89,0.6)', flexShrink: 0 }} />
-          <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>All inference via <span style={{ color: '#EBB159', fontWeight: 600 }}>Fireworks AI</span> · AMD hardware</span>
-        </div>
-      </div>
-    </div>
-  )
+  return <UsageTrackingApp />
 }
 
 /* â”€â”€ Root WebApp component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 export default function WebApp() {
   const [activeId, setActiveId] = useState('home')
   const [activeNote, setActiveNote] = useState<Note | null>(null)
+
+  // Start a session on mount and track feature navigation
+  useEffect(() => {
+    startNewSession()
+  }, [])
+
+  // Track feature navigations
+  const handleNavigate = useCallback((id: string) => {
+    setActiveId(id)
+    if (id === 'chat' || id === 'notes' || id === 'video' || id === 'settings') {
+      trackFeatureUsage(id as 'chat' | 'notes' | 'video' | 'settings')
+    } else {
+      recordInteraction()
+    }
+  }, [])
 
   // Build a web-native AppControl "” no Electron APIs, just localStorage + events
   const appControl: AppControl = useMemo(() => {
@@ -2084,22 +2040,28 @@ export default function WebApp() {
       createNote:      (title, content) => {
         const n = makeNote(title, content)
         saveN([n, ...loadN()])
+        trackNoteCreated(content.split(/\s+/).filter(Boolean).length)
         return n
       },
       updateNote:      (id, patch) => {
         const notes = loadN()
         const idx = notes.findIndex(n => n.id === id)
         if (idx === -1) return null
+        const oldWordCount = (notes[idx].content || '').split(/\s+/).filter(Boolean).length
+        const newWordCount = (patch.content ?? notes[idx].content ?? '').split(/\s+/).filter(Boolean).length
         const updated = { ...notes[idx], ...patch, updatedAt: Date.now() }
         notes[idx] = updated
         saveN(notes)
+        trackNoteEdited(oldWordCount, newWordCount)
         return updated
       },
       deleteNote:      (id) => {
         const notes = loadN()
+        const note = notes.find(n => n.id === id)
         const next = notes.filter(n => n.id !== id)
         if (next.length === notes.length) return false
         saveN(next)
+        if (note) trackNoteDeleted((note.content || '').split(/\s+/).filter(Boolean).length)
         return true
       },
       focusNote:       (id) => {
@@ -2117,7 +2079,7 @@ export default function WebApp() {
       case 'video':   return <WebVideoPanel />
       case 'usage':   return <UsageTrackingPanel />
       case 'settings':return <SettingsPanel />
-      default:        return <HomePanel onNavigate={setActiveId} />
+      default:        return <HomePanel onNavigate={handleNavigate} />
     }
   }
 
@@ -2128,7 +2090,7 @@ export default function WebApp() {
       <main className="web-content">
         {renderContent()}
       </main>
-      <Sidebar activeId={activeId} onSelect={setActiveId} />
+      <Sidebar activeId={activeId} onSelect={handleNavigate} />
     </div>
   )
 }

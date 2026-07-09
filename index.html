@@ -7,6 +7,45 @@
     <title>XO Screens</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <script>
+      // ── Usage Tracking Bootstrap (Desktop) ───────────────────────────────
+      // Initialise session tracking as early as possible so we don't miss
+      // any interactions that happen before React hydrates.
+      ;(function () {
+        var STATS_KEY  = 'xo-usage-stats'
+        var SESSION_KEY = 'xo-current-session'
+        var now = Date.now()
+
+        // Ensure stats record exists
+        try {
+          var raw = localStorage.getItem(STATS_KEY)
+          var stats = raw ? JSON.parse(raw) : null
+          if (!stats) {
+            stats = {
+              chatMessagesUser: 0, chatMessagesAI: 0, chatSessions: 0, chatToolCalls: 0,
+              notesCreated: 0, notesEdited: 0, notesDeleted: 0, notesWordCount: 0,
+              videoCaptionsGenerated: 0, videoFilesProcessed: 0,
+              totalSessions: 0, totalTimeSpent: 0,
+              lastSessionDate: now, firstSessionDate: now,
+              featuresUsed: { chat: 0, notes: 0, video: 0, settings: 0 },
+              dailyStats: [],
+            }
+            localStorage.setItem(STATS_KEY, JSON.stringify(stats))
+          }
+          // Clean up any stale session older than 30 min
+          var rawSession = localStorage.getItem(SESSION_KEY)
+          if (rawSession) {
+            var session = JSON.parse(rawSession)
+            if (now - session.startTime > 30 * 60 * 1000) {
+              // Add leftover time to stats
+              stats.totalTimeSpent = (stats.totalTimeSpent || 0) + (now - session.startTime)
+              localStorage.setItem(STATS_KEY, JSON.stringify(stats))
+              localStorage.removeItem(SESSION_KEY)
+            }
+          }
+        } catch (e) { /* non-fatal */ }
+      })()
+    </script>
   </head>
   <body tabindex="-1">
     <div id="root"></div>
