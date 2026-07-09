@@ -279,9 +279,11 @@ def _caption_user_prompt(description: str, style: str) -> str:
         "humorous_tech":     "2–3 sentences",
         "humorous_non_tech": "2–3 sentences",
     }
+    # Human-readable style name for the prompt
+    style_display = style.replace("_", " ")
     return (
         f"Video description:\n{description}\n\n"
-        f"Write a caption in {style} style ({length_guide.get(style, '2–4 sentences')}).\n"
+        f"Write a caption in {style_display} style ({length_guide.get(style, '2–4 sentences')}).\n"
         "Be accurate to the video content. Stay fully in your assigned tone. "
         "Return ONLY the caption text — no labels, no preamble, no JSON, no thinking tags. /no_think"
     )
@@ -366,11 +368,16 @@ def download_video(url: str, dest: Path) -> None:
     """Stream-download a video enforcing a 500 MB size cap."""
     log.info("Downloading: %s", url)
 
-    # Check Content-Length first to warn early on large files
-    head = SESSION.head(url, timeout=15, allow_redirects=True)
-    content_length = int(head.headers.get("Content-Length", 0))
-    if content_length > MAX_VIDEO_BYTES:
-        raise RuntimeError(f"Content-Length {content_length // (1024*1024)}MB exceeds 500MB cap")
+    # Try HEAD to check Content-Length early — ignore failures (some CDNs reject HEAD)
+    try:
+        head = SESSION.head(url, timeout=15, allow_redirects=True)
+        content_length = int(head.headers.get("Content-Length", 0))
+        if content_length > MAX_VIDEO_BYTES:
+            raise RuntimeError(f"Content-Length {content_length // (1024*1024)}MB exceeds 500MB cap")
+    except RuntimeError:
+        raise
+    except Exception as exc:
+        log.warning("HEAD request failed (%s) — proceeding with streaming download", exc)
 
     resp = SESSION.get(url, stream=True, timeout=DOWNLOAD_TIMEOUT)
     resp.raise_for_status()
@@ -528,21 +535,36 @@ def describe_video(frame_parts: list[dict], transcript: str) -> str:
             ],
         },
     ]
-    return call_fireworks(messages, model=VISION_MODEL, max_tokens=1800, temperature=0.1)
+    description = call_fireworks(messages, model=VISION_MODEL, max_tokens=1800, temperature=0.1)
+    # Strip thinking tags that vision models sometimes leak
+    description = re.sub(r"<think>[\s\S]*?</think>", "", description, flags=re.IGNORECASE).strip()
+    if not description:
+        log.warning("Vision model returned empty description — using URL as fallback context")
+        description = "A video clip. Unable to extract detailed visual description."
+    return description
 
 
 def generate_caption(style: str, description: str) -> str:
     """
     Second pass: styled caption from description only — no frames, text model.
     Per-style temperature for optimal accuracy/creativity balance.
+    Retries once with slightly higher temperature if the output is empty.
     """
     temp = STYLE_TEMPERATURES.get(style, 0.7)
     messages = [
         {"role": "system", "content": STYLE_SYSTEM_PROMPTS[style]},
         {"role": "user", "content": _caption_user_prompt(description, style)},
     ]
-    raw = call_fireworks(messages, model=TEXT_MODEL, max_tokens=300, temperature=temp)
-    return clean_caption(raw)
+    raw = call_fireworks(messages, model=TEXT_MODEL, max_tokens=400, temperature=temp)
+    caption = clean_caption(raw)
+
+    # Retry once if the result is empty or suspiciously short (< 20 chars)
+    if len(caption) < 20:
+        log.warning("[%s] Caption too short (%d chars) — retrying with higher temperature", style, len(caption))
+        raw = call_fireworks(messages, model=TEXT_MODEL, max_tokens=400, temperature=min(temp + 0.1, 1.0))
+        caption = clean_caption(raw)
+
+    return caption if caption else f"A video clip in {style} context."
 
 # ── Process one task ──────────────────────────────────────────────────────────
 
