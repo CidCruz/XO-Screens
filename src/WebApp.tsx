@@ -155,7 +155,7 @@ function HomePanel({ onNavigate }: { onNavigate: (id: string) => void }) {
     {
       num: '03',
       label: 'Track 3',
-      title: 'XO Screens \u2014 Unicorn',
+      title: 'XO Screens \u2014 Unicorn (Real-Time Screen Reading)',
       desc: 'Full AI productivity workspace: chat assistant, smart notes, video summarizer, and usage tracking \u2014 all powered by AMD compute.',
       chips: [] as string[],
       cta: true,
@@ -248,9 +248,31 @@ function HomePanel({ onNavigate }: { onNavigate: (id: string) => void }) {
                   background: t.iconBg, border: `1px solid ${t.border}`,
                   padding: '2px 7px', borderRadius: 5,
                 }}>{t.label}</span>
-                <span style={{ fontSize: 13, fontWeight: 700, color: '#fff', letterSpacing: '-0.01em' }}>{t.title}</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: '#fff', letterSpacing: '-0.01em' }}>
+                  {t.num === '03'
+                    ? <><span>XO Screens — Unicorn</span><span style={{ opacity: 0.35, fontWeight: 500 }}> (Real-Time Screen Reading)</span></>
+                    : t.title}
+                </span>
               </div>
               <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.38)', lineHeight: 1.6, margin: '0 0 10px' }}>{t.desc}</p>
+              {/* Download CTA for Track 3 */}
+              {t.cta && (
+                <div style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 6,
+                  fontSize: 10, fontWeight: 600, letterSpacing: '0.04em',
+                  color: 'rgba(238,111,83,0.85)',
+                  background: 'rgba(238,111,83,0.08)',
+                  border: '1px solid rgba(238,111,83,0.2)',
+                  padding: '4px 10px', borderRadius: 6,
+                  marginBottom: 10,
+                }}>
+                  <svg width="10" height="10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5}
+                      d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3" />
+                  </svg>
+                  Download App for more Features
+                </div>
+              )}
               {/* Chips */}
               <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
                 {t.chips.map(chip => (
