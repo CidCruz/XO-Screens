@@ -477,6 +477,64 @@ function SettingsPanel() {
             </div>
           </div>
         </div>
+
+        {/* Download Unicorn */}
+        <div style={{ marginTop: 20 }}>
+          <a
+            href="https://github.com/your-org/xo-screens/releases/latest"
+            target="_blank"
+            rel="noreferrer"
+            style={{ textDecoration: 'none', display: 'block' }}
+          >
+            <button style={{
+              width: '100%', padding: '12px 16px', borderRadius: 12, border: 'none', cursor: 'pointer',
+              background: 'linear-gradient(135deg, rgba(235,177,89,0.15) 0%, rgba(238,111,83,0.15) 100%)',
+              border: '1px solid rgba(235,177,89,0.25)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+              transition: 'all 0.2s cubic-bezier(0.16,1,0.3,1)',
+            }}
+              onMouseEnter={e => {
+                const b = e.currentTarget as HTMLButtonElement
+                b.style.background = 'linear-gradient(135deg, rgba(235,177,89,0.25) 0%, rgba(238,111,83,0.25) 100%)'
+                b.style.borderColor = 'rgba(235,177,89,0.5)'
+                b.style.transform = 'translateY(-1px)'
+                b.style.boxShadow = '0 8px 24px rgba(238,111,83,0.15)'
+              }}
+              onMouseLeave={e => {
+                const b = e.currentTarget as HTMLButtonElement
+                b.style.background = 'linear-gradient(135deg, rgba(235,177,89,0.15) 0%, rgba(238,111,83,0.15) 100%)'
+                b.style.borderColor = 'rgba(235,177,89,0.25)'
+                b.style.transform = ''
+                b.style.boxShadow = ''
+              }}
+            >
+              <svg width="14" height="14" fill="none" stroke="url(#dl-grad)" viewBox="0 0 24 24">
+                <defs>
+                  <linearGradient id="dl-grad" x1="0" y1="0" x2="1" y2="0">
+                    <stop offset="0%" stopColor="#EBB159" />
+                    <stop offset="100%" stopColor="#EE6F53" />
+                  </linearGradient>
+                </defs>
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                  d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3" />
+              </svg>
+              <span style={{
+                fontSize: 12, fontWeight: 700, letterSpacing: '0.01em',
+                background: 'linear-gradient(135deg, #EBB159, #EE6F53)',
+                WebkitBackgroundClip: 'text', backgroundClip: 'text',
+                WebkitTextFillColor: 'transparent', color: 'transparent',
+              }}>
+                Download Unicorn Version
+              </span>
+              <svg width="10" height="10" fill="none" stroke="rgba(235,177,89,0.5)" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+              </svg>
+            </button>
+          </a>
+          <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.18)', textAlign: 'center', marginTop: 8, lineHeight: 1.5 }}>
+            Desktop overlay with real-time screen reading &amp; AI assistant
+          </p>
+        </div>
       </div>
     </div>
   )

@@ -247,26 +247,6 @@ function SettingsWidget({ onClose, onCornerDown }: SettingsWidgetProps) {
             </div>
           </div>
 
-          {/* Shortcuts section */}
-          <div>
-            <div style={{ fontSize: 9, fontWeight: 700, color: 'rgba(255,255,255,0.3)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 8 }}>
-              Shortcuts
-            </div>
-            <div style={{ padding: '12px 14px', borderRadius: 12, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', display: 'flex', flexDirection: 'column', gap: 9 }}>
-              {[
-                { label: 'Toggle overlay',  value: '⌘⇧Space' },
-                { label: 'Drag widget',     value: 'Header drag' },
-                { label: 'Resize widget',   value: 'Corner drag' },
-                { label: 'Reset size',      value: 'Corner dbl-click' },
-              ].map(row => (
-                <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)' }}>{row.label}</span>
-                  <kbd style={{ fontSize: 10, color: 'rgba(255,255,255,0.55)', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 5, padding: '2px 7px', fontFamily: 'inherit' }}>{row.value}</kbd>
-                </div>
-              ))}
-            </div>
-          </div>
-
           {/* App actions */}
           <div>
             <div style={{ fontSize: 9, fontWeight: 700, color: 'rgba(255,255,255,0.3)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 8 }}>
