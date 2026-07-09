@@ -87,11 +87,18 @@ WHISPER_MODEL_SIZE = os.environ.get("WHISPER_MODEL", "tiny").strip()
 ENABLE_WHISPER     = os.environ.get("ENABLE_WHISPER", "true").strip().lower() != "false"
 
 # ── Model selection ───────────────────────────────────────────────────────────
-# Qwen3-VL-32B: actively maintained, strong vision, fast enough for 12 clips.
-# Qwen3-VL-8B:  fallback if 32B is unavailable or too slow.
-# llama4-maverick: strong text model for caption pass.
+# Both models are confirmed live on Fireworks serverless as of July 2026.
+#
+# VISION — qwen3-vl-32b-instruct:
+#   Best vision-language model on Fireworks serverless. Handles multi-frame
+#   image inputs, strong spatial reasoning and scene description.
+#
+# TEXT — llama4-maverick-instruct-basic:
+#   The "-basic" suffix = free serverless tier of Llama 4 Maverick.
+#   NOT deprecated — confirmed active in Fireworks catalogue July 2026.
+#   Strong instruction-following, great for styled creative writing.
 _DEFAULT_VISION_MODEL = "accounts/fireworks/models/qwen3-vl-32b-instruct"
-_DEFAULT_TEXT_MODEL   = "accounts/fireworks/models/llama4-maverick-instruct"
+_DEFAULT_TEXT_MODEL   = "accounts/fireworks/models/llama4-maverick-instruct-basic"
 
 VISION_MODEL = os.environ.get("VISION_MODEL", _DEFAULT_VISION_MODEL).strip()
 TEXT_MODEL   = os.environ.get("TEXT_MODEL",   _DEFAULT_TEXT_MODEL).strip()

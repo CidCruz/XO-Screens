@@ -77,7 +77,7 @@ Default model is `tiny` (~4–10s per clip on CPU) vs `base` (~30–90s). The ev
 | `FIREWORKS_API_KEY` | **Yes** | — | Your Fireworks AI API key (Track 2 uses your own credentials) |
 | `FIREWORKS_BASE_URL` | No | `https://api.fireworks.ai/inference/v1` | Base URL for all API calls |
 | `VISION_MODEL` | No | `accounts/fireworks/models/qwen3-vl-32b-instruct` | Vision model for description pass |
-| `TEXT_MODEL` | No | `accounts/fireworks/models/llama4-maverick-instruct` | Text model for caption pass |
+| `TEXT_MODEL` | No | `accounts/fireworks/models/llama4-maverick-instruct-basic` | Text model for caption pass (`-basic` = free serverless tier) |
 | `WHISPER_MODEL` | No | `tiny` | Whisper model size: `tiny` / `base` / `small` |
 | `ENABLE_WHISPER` | No | `true` | Set to `false` to skip audio transcription |
 | `TOTAL_BUDGET_SECS` | No | `520` | Global wall-clock budget before graceful exit |
