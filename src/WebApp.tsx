@@ -616,23 +616,6 @@ function timeAgoChat(ts: number) {
   return `${Math.floor(d / 86_400_000)}d ago`
 }
 
-function CapToggle({ on, onChange, color }: { on: boolean; onChange: (v: boolean) => void; color: string }) {
-  return (
-    <button onClick={() => onChange(!on)} style={{
-      width: 32, height: 18, borderRadius: 99, border: 'none', cursor: 'pointer',
-      background: on ? color.replace('0.9', '0.7') : 'rgba(255,255,255,0.1)',
-      position: 'relative', flexShrink: 0, transition: 'background 0.2s',
-      boxShadow: on ? `0 0 8px ${color.replace('0.9', '0.35')}` : 'none',
-    }}>
-      <span style={{
-        position: 'absolute', top: 2, left: on ? 16 : 2,
-        width: 14, height: 14, borderRadius: '50%',
-        background: on ? '#fff' : 'rgba(255,255,255,0.4)',
-        transition: 'left 0.2s, background 0.2s', display: 'block',
-      }} />
-    </button>
-  )
-}
 
 interface WebChatPanelProps {
   activeNote?: Note | null
@@ -645,7 +628,6 @@ function WebChatPanel({ activeNote, appControl }: WebChatPanelProps) {
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [activeTools, setActiveTools] = useState<string[]>([])
-  const [settingsOpen, setSettingsOpen] = useState(false)
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const [enabledCaps, setEnabledCaps] = useState<EnabledCaps>(loadCaps)
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -669,7 +651,6 @@ function WebChatPanel({ activeNote, appControl }: WebChatPanelProps) {
     const s = newSession()
     setSessions(prev => [s, ...prev])
     setActiveId(s.id)
-    setSettingsOpen(false)
     setConfirmDeleteId(null)
     setInput('')
   }
