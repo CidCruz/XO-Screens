@@ -53,8 +53,8 @@ BASE_URL = os.environ.get("FIREWORKS_BASE_URL", "https://api.fireworks.ai/infere
 INPUT_PATH  = Path("/input/tasks.json")
 OUTPUT_PATH = Path("/output/results.json")
 
-MAX_FRAMES       = 8      # 8 evenly-spaced frames — good coverage, small payload
-FRAME_WIDTH      = 480    # px — retains visual detail while keeping base64 size down
+MAX_FRAMES       = 16     # 16 evenly-spaced frames — better temporal coverage
+FRAME_WIDTH      = 768    # px — preserves detail on high-res source videos
 MAX_RETRIES      = 3
 RETRY_BACKOFF    = 2.0    # seconds — exponential: 2s, 4s, 8s
 DOWNLOAD_TIMEOUT = 180    # seconds per video download
@@ -392,7 +392,7 @@ def describe_video(frame_parts: list[dict]) -> str:
             ],
         },
     ]
-    return call_fireworks(messages, model=VISION_MODEL, max_tokens=800, temperature=0.2)
+    return call_fireworks(messages, model=VISION_MODEL, max_tokens=1200, temperature=0.2)
 
 
 def generate_caption(style: str, description: str) -> str:
