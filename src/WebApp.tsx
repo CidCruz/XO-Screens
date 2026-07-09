@@ -751,38 +751,62 @@ function WebChatPanel({ activeNote, appControl }: WebChatPanelProps) {
             </div>
             {/* Divider */}
             <div style={{ height:1, background:'linear-gradient(90deg, rgba(235,177,89,0.2), transparent)', marginBottom:14, position:'relative' }} />
-            {/* Capability pills */}
-            <div style={{ display:'flex', flexDirection:'column', gap:6, position:'relative' }}>
-              <div style={{ fontSize:9, fontWeight:700, color:'rgba(255,255,255,0.25)', letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:2 }}>Capabilities</div>
+            {/* Capability toggles */}
+            <div style={{ display:'flex', flexDirection:'column', gap:5, position:'relative' }}>
+              <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:4 }}>
+                <svg width="10" height="10" fill="none" stroke="rgba(255,255,255,0.3)" viewBox="0 0 24 24">
+                  <circle cx="12" cy="12" r="3" strokeWidth={2} />
+                  <path strokeWidth={2} strokeLinecap="round" d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z" />
+                </svg>
+                <span style={{ fontSize:9, fontWeight:700, color:'rgba(255,255,255,0.25)', letterSpacing:'0.1em', textTransform:'uppercase' }}>Settings</span>
+              </div>
               {WEB_CAP_GROUPS.map(group => {
                 const isOn = !!enabledCaps[group.id]
                 return (
-                  <button
+                  <div
                     key={group.id}
-                    onClick={() => setEnabledCaps(prev => ({ ...prev, [group.id]: !isOn }))}
-                    title={group.description}
                     style={{
-                      display:'flex', alignItems:'center', gap:8,
-                      padding:'7px 10px', borderRadius:10, textAlign:'left',
-                      background: isOn ? group.color.replace('0.9','0.1') : 'rgba(255,255,255,0.03)',
-                      border:`1px solid ${isOn ? group.color.replace('0.9','0.22') : 'rgba(255,255,255,0.06)'}`,
-                      cursor:'pointer', transition:'all 0.18s', width:'100%',
+                      display:'flex', alignItems:'center', gap:9,
+                      padding:'8px 10px', borderRadius:10,
+                      background: isOn ? 'rgba(255,255,255,0.04)' : 'rgba(255,255,255,0.02)',
+                      border:`1px solid ${isOn ? group.color.replace('0.9','0.18') : 'rgba(255,255,255,0.06)'}`,
+                      transition:'all 0.2s',
                     }}
                   >
+                    {/* Icon */}
                     <div style={{
-                      width:20, height:20, borderRadius:6, flexShrink:0,
-                      background: isOn ? group.color.replace('0.9','0.15') : 'rgba(255,255,255,0.05)',
+                      width:26, height:26, borderRadius:7, flexShrink:0,
+                      background: isOn ? group.color.replace('0.9','0.12') : 'rgba(255,255,255,0.04)',
+                      border:`1px solid ${isOn ? group.color.replace('0.9','0.25') : 'rgba(255,255,255,0.08)'}`,
                       display:'flex', alignItems:'center', justifyContent:'center',
-                      color: isOn ? group.color : 'rgba(255,255,255,0.2)',
+                      color: isOn ? group.color : 'rgba(255,255,255,0.22)',
+                      transition:'all 0.2s',
                     }}>{group.icon}</div>
-                    <span style={{ fontSize:11, fontWeight:600, color: isOn ? 'rgba(255,255,255,0.8)' : 'rgba(255,255,255,0.25)', flex:1 }}>{group.label}</span>
-                    <div style={{
-                      width:6, height:6, borderRadius:'50%', flexShrink:0,
-                      background: isOn ? group.color : 'rgba(255,255,255,0.1)',
-                      boxShadow: isOn ? `0 0 6px ${group.color.replace('0.9','0.7')}` : 'none',
-                      transition:'all 0.18s',
-                    }} />
-                  </button>
+                    {/* Label + desc */}
+                    <div style={{ flex:1, minWidth:0 }}>
+                      <div style={{ fontSize:11, fontWeight:600, color: isOn ? '#fff' : 'rgba(255,255,255,0.35)', lineHeight:1.2, transition:'color 0.2s' }}>{group.label}</div>
+                      <div style={{ fontSize:9, color:'rgba(255,255,255,0.22)', lineHeight:1.4, marginTop:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{group.description}</div>
+                    </div>
+                    {/* Toggle switch */}
+                    <button
+                      onClick={() => setEnabledCaps(prev => ({ ...prev, [group.id]: !isOn }))}
+                      title={isOn ? 'Disable' : 'Enable'}
+                      style={{
+                        width:30, height:17, borderRadius:99, border:'none', cursor:'pointer', flexShrink:0,
+                        background: isOn ? group.color.replace('0.9','0.7') : 'rgba(255,255,255,0.1)',
+                        position:'relative', transition:'background 0.2s',
+                        boxShadow: isOn ? `0 0 8px ${group.color.replace('0.9','0.35')}` : 'none',
+                      }}
+                    >
+                      <span style={{
+                        position:'absolute', top:2, left: isOn ? 15 : 2,
+                        width:13, height:13, borderRadius:'50%',
+                        background: isOn ? '#fff' : 'rgba(255,255,255,0.4)',
+                        transition:'left 0.2s, background 0.2s',
+                        display:'block',
+                      }} />
+                    </button>
+                  </div>
                 )
               })}
             </div>
