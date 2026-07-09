@@ -13,16 +13,19 @@
 
 FROM --platform=linux/amd64 python:3.11-slim
 
-# Install ffmpeg (includes ffprobe) — single layer, clean apt cache
+# Install ffmpeg + ffprobe
 RUN apt-get update && \
     apt-get install -y --no-install-recommends ffmpeg && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# Install Python deps first — cached unless requirements.txt changes
+# Install Python deps — whisper pulls torch, cached unless requirements.txt changes
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
+
+# Pre-download Whisper base model into the image — no download at eval time
+RUN python -c "import whisper; whisper.load_model('base')"
 
 # Copy agent
 COPY agent.py .

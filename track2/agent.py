@@ -4,8 +4,8 @@ XO-Screens | AMD Developer Hackathon: ACT II
 
 Pipeline:
   1. Read /input/tasks.json
-  2. For each video: download → extract frames (single ffmpeg pass) → base64 encode
-  3. First pass  — describe video from frames (vision model)
+  2. For each video: download → extract frames (adaptive count) + transcribe audio (Whisper)
+  3. First pass  — describe video from frames + transcript (vision model)
   4. Second pass — generate captions in all requested styles (parallel, text-only)
   5. Write /output/results.json
   6. Exit 0
@@ -15,6 +15,7 @@ Environment variables (Track 2 — use your own credentials):
   FIREWORKS_BASE_URL  — optional override (default: https://api.fireworks.ai/inference/v1)
   VISION_MODEL        — optional override for the vision model
   TEXT_MODEL          — optional override for the text model
+  WHISPER_MODEL       — optional override for Whisper model size (default: base)
 """
 
 import os
@@ -35,6 +36,7 @@ from urllib.parse import urlparse
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
+import whisper
 
 # ── Logging ───────────────────────────────────────────────────────────────────
 
@@ -43,8 +45,6 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(message)s",
     stream=sys.stdout,
 )
-log = logging.getLogger("track2")
-
 # ── Config ────────────────────────────────────────────────────────────────────
 
 API_KEY  = os.environ.get("FIREWORKS_API_KEY", "").strip()
@@ -53,8 +53,15 @@ BASE_URL = os.environ.get("FIREWORKS_BASE_URL", "https://api.fireworks.ai/infere
 INPUT_PATH  = Path("/input/tasks.json")
 OUTPUT_PATH = Path("/output/results.json")
 
-MAX_FRAMES       = 16     # 16 evenly-spaced frames — better temporal coverage
 FRAME_WIDTH      = 768    # px — preserves detail on high-res source videos
+WHISPER_MODEL_SIZE = os.environ.get("WHISPER_MODEL", "base").strip()
+
+def adaptive_frame_count(duration: float) -> int:
+    """Scale frame count with video duration for consistent temporal density."""
+    if duration <= 30:  return 8
+    if duration <= 60:  return 16
+    return 24           # 60s–120s (max spec length)
+
 MAX_RETRIES      = 3
 RETRY_BACKOFF    = 2.0    # seconds — exponential: 2s, 4s, 8s
 DOWNLOAD_TIMEOUT = 180    # seconds per video download
@@ -75,6 +82,18 @@ _DEFAULT_TEXT_MODEL   = "accounts/fireworks/models/llama4-scout-instruct-basic"
 
 VISION_MODEL = os.environ.get("VISION_MODEL", _DEFAULT_VISION_MODEL).strip()
 TEXT_MODEL   = os.environ.get("TEXT_MODEL", _DEFAULT_TEXT_MODEL).strip()
+
+# Load Whisper model once at startup — avoids reloading per task
+log = logging.getLogger("track2")
+_whisper_model: whisper.Whisper | None = None
+
+def get_whisper_model() -> whisper.Whisper:
+    global _whisper_model
+    if _whisper_model is None:
+        log.info("Loading Whisper model: %s", WHISPER_MODEL_SIZE)
+        _whisper_model = whisper.load_model(WHISPER_MODEL_SIZE)
+        log.info("Whisper model loaded")
+    return _whisper_model
 
 # ── Startup checks ────────────────────────────────────────────────────────────
 
@@ -119,9 +138,12 @@ def startup_checks() -> None:
         sys.exit(1)
 
     log.info("Startup checks passed — ffmpeg and ffprobe available")
-    log.info("VISION_MODEL : %s", VISION_MODEL)
-    log.info("TEXT_MODEL   : %s", TEXT_MODEL)
-    log.info("BASE_URL     : %s", BASE_URL)
+    log.info("VISION_MODEL   : %s", VISION_MODEL)
+    log.info("TEXT_MODEL     : %s", TEXT_MODEL)
+    log.info("BASE_URL       : %s", BASE_URL)
+    log.info("WHISPER_MODEL  : %s", WHISPER_MODEL_SIZE)
+    # Pre-load Whisper at startup so first task doesn't pay the load cost
+    get_whisper_model()
 
 # ── HTTP session (connection pooling + retry) ─────────────────────────────────
 
@@ -204,18 +226,26 @@ STYLE_SYSTEM_PROMPTS = {
     ),
 }
 
-DESCRIBE_SYSTEM = "You are a precise video analysis assistant. Describe what you see thoroughly and accurately."
+DESCRIBE_SYSTEM = "You are a precise video analysis assistant. Describe what you see and hear thoroughly and accurately."
 
-DESCRIBE_PROMPT = (
-    "You are given frames sampled evenly from a video clip (30 seconds to 2 minutes long).\n\n"
-    "Describe the video in detail:\n"
-    "- What is the setting/location?\n"
-    "- Who or what is in the video?\n"
-    "- What actions or events are happening from start to finish?\n"
-    "- Is there any text visible on screen?\n"
-    "- What is the overall mood or tone?\n\n"
-    "Be thorough and specific. This description will be used to generate captions. /no_think"
-)
+def build_describe_prompt(transcript: str) -> str:
+    transcript_section = (
+        f"\n\nAudio transcript:\n{transcript.strip()}"
+        if transcript.strip()
+        else "\n\nAudio transcript: [no speech detected]"
+    )
+    return (
+        "You are given frames sampled evenly from a video clip (30 seconds to 2 minutes long)"
+        + transcript_section + "\n\n"
+        "Describe the video in detail:\n"
+        "- What is the setting/location?\n"
+        "- Who or what is in the video?\n"
+        "- What actions or events are happening from start to finish?\n"
+        "- What is being said or narrated (use the transcript above)?\n"
+        "- Is there any text visible on screen?\n"
+        "- What is the overall mood or tone?\n\n"
+        "Be thorough and specific. This description will be used to generate captions. /no_think"
+    )
 
 def _caption_user_prompt(description: str) -> str:
     return (
@@ -328,13 +358,15 @@ def get_video_duration(video_path: Path) -> float:
         return 60.0
 
 
-def extract_frames(video_path: Path, frames_dir: Path, n_frames: int = MAX_FRAMES) -> list[Path]:
+def extract_frames(video_path: Path, frames_dir: Path, n_frames: int = 16) -> list[Path]:
     """
     Extract n_frames evenly-spaced JPEG frames using a single ffmpeg invocation.
     Frames are written to frames_dir. Caller is responsible for cleaning up frames_dir.
     """
     frames_dir.mkdir(parents=True, exist_ok=True)
     duration = get_video_duration(video_path)
+    if n_frames == 16:  # still at old default — use adaptive count
+        n_frames = adaptive_frame_count(duration)
     log.info("Duration: %.1fs — extracting %d frames", duration, n_frames)
 
     fps_val = n_frames / max(duration, 1.0)  # guard against zero-duration edge case
@@ -365,6 +397,21 @@ def extract_frames(video_path: Path, frames_dir: Path, n_frames: int = MAX_FRAME
     log.info("Extracted %d valid frames", len(paths))
     return paths
 
+# ── Audio transcription ───────────────────────────────────────────────────────
+
+def transcribe_audio(video_path: Path) -> str:
+    """Extract and transcribe audio from video using local Whisper. Returns empty string on failure."""
+    try:
+        model = get_whisper_model()
+        log.info("Transcribing audio: %s", video_path.name)
+        result = model.transcribe(str(video_path), fp16=False, language=None)
+        transcript = result.get("text", "").strip()
+        log.info("Transcript (%d chars): %s...", len(transcript), transcript[:100])
+        return transcript
+    except Exception as exc:
+        log.warning("Audio transcription failed: %s — continuing without transcript", exc)
+        return ""
+
 # ── Frame encoding ────────────────────────────────────────────────────────────
 
 def encode_frames(frame_paths: list[Path]) -> list[dict]:
@@ -380,19 +427,19 @@ def encode_frames(frame_paths: list[Path]) -> list[dict]:
 
 # ── Two-pass captioning ───────────────────────────────────────────────────────
 
-def describe_video(frame_parts: list[dict]) -> str:
-    """First pass: detailed video description from frames (vision model)."""
+def describe_video(frame_parts: list[dict], transcript: str) -> str:
+    """First pass: detailed video description from frames + audio transcript (vision model)."""
     messages = [
         {"role": "system", "content": DESCRIBE_SYSTEM},
         {
             "role": "user",
             "content": [
                 *frame_parts,
-                {"type": "text", "text": DESCRIBE_PROMPT},
+                {"type": "text", "text": build_describe_prompt(transcript)},
             ],
         },
     ]
-    return call_fireworks(messages, model=VISION_MODEL, max_tokens=1200, temperature=0.2)
+    return call_fireworks(messages, model=VISION_MODEL, max_tokens=1600, temperature=0.1)
 
 
 def generate_caption(style: str, description: str) -> str:
@@ -401,7 +448,7 @@ def generate_caption(style: str, description: str) -> str:
         {"role": "system", "content": STYLE_SYSTEM_PROMPTS[style]},
         {"role": "user", "content": _caption_user_prompt(description)},
     ]
-    return call_fireworks(messages, model=TEXT_MODEL, max_tokens=300, temperature=0.8)
+    return call_fireworks(messages, model=TEXT_MODEL, max_tokens=400, temperature=0.6)
 
 # ── Process one task ──────────────────────────────────────────────────────────
 
@@ -417,9 +464,13 @@ def process_task(task: dict, tmpdir: Path) -> dict:
     video_path = tmpdir / f"{task_id}.mp4"
     download_video(video_url, video_path)
 
-    # 2. Extract frames into a per-task subdirectory
-    frames_dir  = tmpdir / f"{task_id}_frames"
-    frame_paths = extract_frames(video_path, frames_dir)
+    # 2. Extract frames + transcribe audio in parallel
+    frames_dir = tmpdir / f"{task_id}_frames"
+    with ThreadPoolExecutor(max_workers=2) as ex:
+        frames_future     = ex.submit(extract_frames, video_path, frames_dir)
+        transcript_future = ex.submit(transcribe_audio, video_path)
+        frame_paths = frames_future.result()
+        transcript  = transcript_future.result()
 
     if not frame_paths:
         raise RuntimeError("No frames could be extracted from the video")
@@ -433,9 +484,9 @@ def process_task(task: dict, tmpdir: Path) -> dict:
     except Exception as exc:
         log.warning("[%s] Could not clean up frames dir: %s", task_id, exc)
 
-    # 5. Describe (vision pass — frames sent exactly once)
-    log.info("[%s] Describing video (%d frames)...", task_id, len(frame_parts))
-    description = describe_video(frame_parts)
+    # 5. Describe (vision pass — frames + transcript sent together)
+    log.info("[%s] Describing video (%d frames, transcript: %d chars)...", task_id, len(frame_parts), len(transcript))
+    description = describe_video(frame_parts, transcript)
     log.info("[%s] Description (first 120 chars): %s...", task_id, description[:120])
 
     # Free base64 data from memory — not needed after description

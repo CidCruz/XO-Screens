@@ -105,6 +105,9 @@ async function callFW(
 
   if (!res.ok) {
     const errText = await res.text().catch(() => '')
+    if (res.status === 401) {
+      throw new Error('You haven\'t set up your Fireworks API key yet. Go to Settings → paste your key from fireworks.ai')
+    }
     if (attempt < 2 && (res.status >= 500 || res.status === 429)) {
       await new Promise(r => setTimeout(r, 1500 * (attempt + 1)))
       return callFW(messages, model, { ...options, attempt: attempt + 1 })
