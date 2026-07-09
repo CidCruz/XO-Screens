@@ -340,8 +340,13 @@ export default function App() {
   useEffect(() => { settingsOpenRef.current = settingsOpen }, [settingsOpen])
   useEffect(() => { usageOpenRef.current    = usageOpen    }, [usageOpen])
 
+  const [workAreaHeight, setWorkAreaHeight] = useState(window.innerHeight)
+
   useEffect(() => {
     startNewSession()
+    ;(xo as any).getWorkArea?.().then((wa: { height: number }) => {
+      if (wa?.height) setWorkAreaHeight(wa.height)
+    }).catch(() => {})
   }, [])
 
   useEffect(() => {
@@ -478,7 +483,7 @@ export default function App() {
   return (
     <div className={`w-screen h-screen ${animClass}`} style={{ background: 'transparent', pointerEvents: 'none', opacity: appVisible ? 1 : 0, transition: appVisible ? undefined : 'opacity 0.6s ease' }}>
 
-      <DraggableWidget initialX={20} initialY={Math.round((window.innerHeight - 300) / 2)} baseWidth={64} baseHeight={300}>
+      <DraggableWidget initialX={20} initialY={40} baseWidth={64} baseHeight={300}>
         {(onCornerDown) => <AppHub apps={APPS} openApps={openApps} onSelect={handleSelect} onCornerDown={onCornerDown} />}
       </DraggableWidget>
 
@@ -507,7 +512,7 @@ export default function App() {
       )}
 
       {usageOpen && (
-        <DraggableWidget initialX={Math.round((window.innerWidth - 480) / 2)} initialY={Math.round((window.innerHeight - 520) / 2)} baseWidth={480} baseHeight={520}>
+        <DraggableWidget initialX={20} initialY={Math.round(workAreaHeight - 520 - 120)} baseWidth={480} baseHeight={520}>
           {(onCornerDown) => <UsageTrackingApp onClose={() => setUsageOpen(false)} onCornerDown={onCornerDown} />}
         </DraggableWidget>
       )}

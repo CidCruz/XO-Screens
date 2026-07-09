@@ -24,4 +24,5 @@ contextBridge.exposeInMainWorld('xo', {
   onShow: (cb) => ipcRenderer.on('show-window', cb),
   onHideAnimate: (cb) => ipcRenderer.on('hide-window-animate', cb),
   setIgnoreMouse,
+  getWorkArea: () => ipcRenderer.invoke('get-work-area'),
 })

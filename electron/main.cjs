@@ -58,7 +58,8 @@ function createTray(win) {
 }
 
 function createWindow() {
-  const { width, height } = screen.getPrimaryDisplay().bounds
+  const { bounds, workArea } = screen.getPrimaryDisplay()
+  const { width, height } = bounds
 
   const win = new BrowserWindow({
     width,
@@ -91,6 +92,8 @@ function createWindow() {
   } else {
     win.loadFile(path.join(__dirname, '../dist/index.html'))
   }
+
+  ipcMain.handle('get-work-area', () => workArea)
 
   ipcMain.on('set-ignore-mouse', (_, ignore) => {
     win.setIgnoreMouseEvents(ignore, { forward: true })
