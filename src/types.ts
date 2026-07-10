@@ -36,6 +36,7 @@ export interface CaptionHistoryEntry {
   id: string
   label: string          // filename or URL
   createdAt: number
+  // Keyed by CaptionTone (formal | sarcastic | humorous_tech | humorous_non_tech)
   results: Record<string, CaptionToneResult>
 }
 

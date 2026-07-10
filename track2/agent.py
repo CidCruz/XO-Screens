@@ -343,6 +343,11 @@ def call_fireworks(
         "max_tokens": max_tokens,
     }
 
+    # Disable thinking mode for models that support it (e.g. qwen3-vl-32b-instruct).
+    # Without this, thinking models emit large <think> blocks that waste tokens and
+    # can push responses past max_tokens before the actual content is written.
+    payload["thinking"] = {"type": "disabled"}
+
     try:
         resp = SESSION.post(
             f"{BASE_URL}/chat/completions",
@@ -427,10 +432,14 @@ def get_video_duration(video_path: Path) -> float:
         return 60.0
 
 def adaptive_frame_count(duration: float) -> int:
-    """Scale frame count with video duration for consistent temporal coverage."""
+    """Scale frame count with video duration for consistent temporal coverage.
+
+    Cap at 16 to avoid hitting vision model context limits — each 896px JPEG
+    encodes to ~50–80KB of base64, so 16 frames ≈ 1.1MB of image data.
+    """
     if duration <= 30:  return 8
     if duration <= 60:  return 12
-    return 16  # 60s–120s — capped lower than before to stay within token limits
+    return 16  # 60s–120s
 
 def extract_frames(video_path: Path, frames_dir: Path) -> list[Path]:
     """
@@ -486,6 +495,12 @@ def extract_frames(video_path: Path, frames_dir: Path) -> list[Path]:
 
     paths = sorted(frames_dir.glob("*.jpg"))
     paths = [p for p in paths if p.stat().st_size > 0]
+    # Hard cap: never send more than 20 frames to the vision model to stay within
+    # context limits. If we overshot (scene frames + interval frames), subsample.
+    MAX_FRAMES = 20
+    if len(paths) > MAX_FRAMES:
+        step = len(paths) / MAX_FRAMES
+        paths = [paths[round(i * step)] for i in range(MAX_FRAMES)]
     log.info("Extracted %d valid frames (incl. scene-change frames)", len(paths))
     return paths
 
@@ -626,7 +641,7 @@ def process_task(task: dict, tmpdir: Path) -> dict:
             executor.submit(generate_caption, style, description): style
             for style in styles
         }
-        for future in as_completed(future_to_style, timeout=None):
+        for future in as_completed(future_to_style):
             style = future_to_style[future]
             try:
                 captions[style] = future.result(timeout=CAPTION_TIMEOUT)
@@ -731,10 +746,15 @@ def main() -> None:
         except Exception:
             pass
 
-    OUTPUT_PATH.write_text(
-        json.dumps(results, indent=2, ensure_ascii=False),
-        encoding="utf-8",
-    )
+    try:
+        OUTPUT_PATH.write_text(
+            json.dumps(results, indent=2, ensure_ascii=False),
+            encoding="utf-8",
+        )
+    except OSError as exc:
+        log.error("Failed to write output file: %s", exc)
+        sys.exit(1)
+
     log.info("=== Done: %d result(s) written | total elapsed: %.0fs ===",
              len(results), elapsed())
     sys.exit(0)

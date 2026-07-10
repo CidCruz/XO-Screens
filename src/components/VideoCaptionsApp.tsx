@@ -1,8 +1,7 @@
 import { useState, useRef, useCallback } from 'react'
-import type { Note, CaptionHistoryEntry } from '../types'
-import type { CaptionTone, CaptionResults } from '../gemini'
+import type { Note, CaptionHistoryEntry, CaptionToneResult } from '../types'
+import type { CaptionTone, CaptionResults, ToneResult } from '../gemini'
 import { processVideoFile, processVideoURL } from '../gemini'
-import type { ToneResult } from '../gemini'
 import { loadCaptionHistory, addCaptionHistoryEntry, deleteCaptionHistoryEntry, clearCaptionHistory } from '../captionHistory'
 import { trackVideoCaptionGenerated, trackVideoFileProcessed, trackFeatureUsage } from '../usageTracking'
 
@@ -32,7 +31,7 @@ const TONE_ICONS: Record<string, React.ReactElement> = {
       <path d="M16 8.5c-.5-1-1.5-1.5-2.5-1" strokeWidth={1.5} />
     </svg>
   ),
-  'humorous-tech': (
+  humorous_tech: (
     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
       {/* Code / tech brackets */}
       <polyline points="16 18 22 12 16 6" />
@@ -40,7 +39,7 @@ const TONE_ICONS: Record<string, React.ReactElement> = {
       <line x1="12" y1="4" x2="12" y2="20" opacity={0.4} strokeWidth={1.5} />
     </svg>
   ),
-  'humorous-nontech': (
+  humorous_non_tech: (
     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
       {/* Laugh / party */}
       <circle cx="12" cy="12" r="10" />
@@ -52,17 +51,17 @@ const TONE_ICONS: Record<string, React.ReactElement> = {
 }
 
 const TONES: { id: CaptionTone; label: string; color: string; dotColor: string }[] = [
-  { id: 'formal',          label: 'Formal',           color: 'rgba(59,130,246,0.14)',  dotColor: 'rgba(59,130,246,0.9)'  },
-  { id: 'sarcastic',       label: 'Sarcastic',        color: 'rgba(239,68,68,0.14)',   dotColor: 'rgba(239,68,68,0.9)'   },
-  { id: 'humorous-tech',   label: 'Humorous Tech',    color: 'rgba(139,92,246,0.14)',  dotColor: 'rgba(139,92,246,0.9)'  },
-  { id: 'humorous-nontech',label: 'Humorous Non-Tech',color: 'rgba(245,158,11,0.14)',  dotColor: 'rgba(245,158,11,0.9)'  },
+  { id: 'formal',            label: 'Formal',           color: 'rgba(59,130,246,0.14)',  dotColor: 'rgba(59,130,246,0.9)'  },
+  { id: 'sarcastic',         label: 'Sarcastic',        color: 'rgba(239,68,68,0.14)',   dotColor: 'rgba(239,68,68,0.9)'   },
+  { id: 'humorous_tech',     label: 'Humorous Tech',    color: 'rgba(139,92,246,0.14)',  dotColor: 'rgba(139,92,246,0.9)'  },
+  { id: 'humorous_non_tech', label: 'Humorous Non-Tech',color: 'rgba(245,158,11,0.14)',  dotColor: 'rgba(245,158,11,0.9)'  },
 ]
 
 const TONE_NOTE_COLORS: Record<CaptionTone, string> = {
-  formal:              'rgba(59,130,246,0.14)',
-  sarcastic:           'rgba(239,68,68,0.14)',
-  'humorous-tech':     'rgba(139,92,246,0.14)',
-  'humorous-nontech':  'rgba(245,158,11,0.14)',
+  formal:            'rgba(59,130,246,0.14)',
+  sarcastic:         'rgba(239,68,68,0.14)',
+  humorous_tech:     'rgba(139,92,246,0.14)',
+  humorous_non_tech: 'rgba(245,158,11,0.14)',
 }
 
 const corners = [
@@ -332,7 +331,6 @@ export default function VideoCaptionsApp({ onClose: _onClose, onCornerDown }: Pr
 
   // View state
   const [activeTone, setActiveTone] = useState<CaptionTone>('formal')
-  const [activeTab, setActiveTab] = useState<'summary'>('summary')
   const [savedToNotes, setSavedToNotes] = useState(false)
   const [closestCorner, setClosestCorner] = useState<number | null>(null)
 
@@ -404,7 +402,7 @@ export default function VideoCaptionsApp({ onClose: _onClose, onCornerDown }: Pr
       trackVideoCaptionGenerated()
       trackVideoFileProcessed()
       trackFeatureUsage('video')
-      const updated = addCaptionHistoryEntry({ label, results: res })
+      const updated = addCaptionHistoryEntry({ label, results: res as unknown as Record<string, CaptionToneResult> })
       setHistory(updated)
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : 'Something went wrong.')
@@ -416,11 +414,10 @@ export default function VideoCaptionsApp({ onClose: _onClose, onCornerDown }: Pr
   // ── Load from history ────────────────────────────────────────────────────
 
   function handleLoadFromHistory(entry: CaptionHistoryEntry) {
-    setResults(entry.results as CaptionResults)
+    setResults(entry.results as unknown as CaptionResults)
     setCurrentLabel(entry.label)
     setStatus('done')
     setActiveTone('formal')
-    setActiveTab('summary')
     setSavedToNotes(false)
     setShowHistory(false)
   }

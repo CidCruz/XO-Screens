@@ -1507,20 +1507,20 @@ const VIDEO_TONES: { id: CaptionTone; label: string; icon: React.ReactElement; a
     icon: <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><path d="M8 15s1.5 2 4 2 4-2 4-2" /><circle cx="9" cy="10" r="1" fill="currentColor" /><circle cx="15" cy="10" r="1" fill="currentColor" /><path d="M8 8.5c.5-1 1.5-1.5 2.5-1" strokeWidth={1.5} /><path d="M16 8.5c-.5-1-1.5-1.5-2.5-1" strokeWidth={1.5} /></svg>,
   },
   {
-    id: 'humorous-tech', label: 'Humorous Tech', dot: 'rgba(139,92,246,0.9)', accent: 'rgba(139,92,246,0.12)', border: 'rgba(139,92,246,0.25)',
+    id: 'humorous_tech', label: 'Humorous Tech', dot: 'rgba(139,92,246,0.9)', accent: 'rgba(139,92,246,0.12)', border: 'rgba(139,92,246,0.25)',
     icon: <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><polyline points="16 18 22 12 16 6" /><polyline points="8 6 2 12 8 18" /><line x1="12" y1="4" x2="12" y2="20" opacity={0.4} strokeWidth={1.5} /></svg>,
   },
   {
-    id: 'humorous-nontech', label: 'Humorous Non-Tech', dot: 'rgba(245,158,11,0.9)', accent: 'rgba(245,158,11,0.12)', border: 'rgba(245,158,11,0.25)',
+    id: 'humorous_non_tech', label: 'Humorous Non-Tech', dot: 'rgba(245,158,11,0.9)', accent: 'rgba(245,158,11,0.12)', border: 'rgba(245,158,11,0.25)',
     icon: <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><path d="M8 13s1.5 3 4 3 4-3 4-3" /><line x1="9" y1="9" x2="9.01" y2="9" strokeWidth={3} strokeLinecap="round" /><line x1="15" y1="9" x2="15.01" y2="9" strokeWidth={3} strokeLinecap="round" /></svg>,
   },
 ]
 
 const TONE_NOTE_COLORS: Record<CaptionTone, string> = {
-  formal:              'rgba(59,130,246,0.14)',
-  sarcastic:           'rgba(239,68,68,0.14)',
-  'humorous-tech':     'rgba(139,92,246,0.14)',
-  'humorous-nontech':  'rgba(245,158,11,0.14)',
+  formal:            'rgba(59,130,246,0.14)',
+  sarcastic:         'rgba(239,68,68,0.14)',
+  humorous_tech:     'rgba(139,92,246,0.14)',
+  humorous_non_tech: 'rgba(245,158,11,0.14)',
 }
 
 function VSpinner() {

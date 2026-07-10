@@ -148,7 +148,8 @@ export interface ToolCallResult {
 
 // ─── Video Captions ───────────────────────────────────────────────────────────
 
-export type CaptionTone = 'formal' | 'sarcastic' | 'humorous-tech' | 'humorous-nontech'
+// Underscore variants match the Track 2 spec and agent.py exactly
+export type CaptionTone = 'formal' | 'sarcastic' | 'humorous_tech' | 'humorous_non_tech'
 
 export interface ToneResult {
   summary: string
@@ -157,29 +158,29 @@ export interface ToneResult {
 export interface CaptionResults {
   formal: ToneResult
   sarcastic: ToneResult
-  'humorous-tech': ToneResult
-  'humorous-nontech': ToneResult
+  humorous_tech: ToneResult
+  humorous_non_tech: ToneResult
 }
 
 const TONE_SYSTEM_PROMPTS: Record<CaptionTone, string> = {
   formal:
-    'You are a professional video summarisation assistant. Write in a clear, neutral, formal register. Be precise and factual about what is actually shown in the video. /no_think',
+    'You are a BBC documentary narrator writing professional video captions. Write in active voice, present tense. One establishing sentence (setting/who), then a sequence of what happens. NO bullet points. NO dramatic flourishes. Just precise, authoritative narration. /no_think',
   sarcastic:
-    'You are a witty, sarcastic video summarisation assistant. Use dry sarcasm and sardonic commentary — but you MUST accurately describe what is actually happening in the video. /no_think',
-  'humorous-tech':
-    'You are a tech-savvy comedian summarising videos for developers. Use programming jokes and geek humour — but you MUST accurately describe what is actually shown in the video. /no_think',
-  'humorous-nontech':
-    'You are a stand-up comedian summarising videos for a general audience. Keep it punny and light-hearted, no jargon — but you MUST accurately describe what is actually shown in the video. /no_think',
+    'You are a sarcastic narrator who loves pointing out the obvious with bone-dry wit. Use ironic understatement, subtle eye-rolls, and pointed commentary. FORBIDDEN: exclamation marks. REQUIRED: at least one moment where you imply the viewer already knows this is absurd. Stay accurate to the video but make every sentence land with a smirk. /no_think',
+  humorous_tech:
+    'You are a developer doing live commentary on a video for your tech Twitch stream. Sprinkle in: git merge conflicts, "works on my machine", Stack Overflow references, NullPointerExceptions, "it\'s a feature not a bug", code review memes. Keep it accurate but frame everything through a programmer\'s lens. /no_think',
+  humorous_non_tech:
+    'You\'re doing stand-up crowd work and the video is your heckler. Punny, observational, accessible humor — NO jargon. Channel the energy of "so THAT happened" or "well this is a vibe". Punch UP the absurdity, keep it light. Your audience is general, not technical. /no_think',
 }
 
 const SUMMARY_USER_PROMPT = (videoDescription: string) => `Video description:
 ${videoDescription}
 
-Write a one-paragraph summary of this video in your assigned tone.
+Write a caption (2–3 sentences) for this video in your assigned tone.
 
 You MUST respond with a single raw JSON object and nothing else. No markdown, no code fences, no explanation, no thinking.
 The JSON must have exactly one key:
-- "summary": a string containing one paragraph summarising the entire video in your assigned tone.
+- "summary": a string containing 2–3 sentences summarising the video in your assigned tone.
 
 Start your response with { and end with }. /no_think`
 
@@ -209,6 +210,15 @@ function parseToneResult(raw: string): ToneResult | null {
   return { summary: (parsed.summary as string).trim() }
 }
 
+// ─── Per-style temperatures (mirrors agent.py exactly) ────────────────────────
+// formal: low temp = factual, consistent. humorous: high temp = creative, varied.
+const STYLE_TEMPERATURES: Record<CaptionTone, number> = {
+  formal:            0.15,
+  sarcastic:         0.85,
+  humorous_tech:     0.88,
+  humorous_non_tech: 0.92,
+}
+
 // ─── Shared caption pass ──────────────────────────────────────────────────────
 
 async function runCaptionPass(
@@ -219,6 +229,7 @@ async function runCaptionPass(
   const tones = Object.keys(TONE_SYSTEM_PROMPTS) as CaptionTone[]
 
   await Promise.all(tones.map(async tone => {
+    const temperature = STYLE_TEMPERATURES[tone]
     let lastErr: unknown
     for (let attempt = 0; attempt < 4; attempt++) {
       try {
@@ -226,7 +237,7 @@ async function runCaptionPass(
           { role: 'system', content: TONE_SYSTEM_PROMPTS[tone] },
           { role: 'user', content: SUMMARY_USER_PROMPT(videoDescription) },
         ]
-        const choice = await callFW(msgs, GEMMA_MODELS.E4B, { temperature: 0.7 })
+        const choice = await callFW(msgs, GEMMA_MODELS.E4B, { temperature })
         const parsed = parseToneResult(choice.message.content ?? '')
         if (parsed) {
           toneResults[tone] = parsed
@@ -310,12 +321,24 @@ export async function processVideoURL(
   url: string,
   onProgress?: (tone: CaptionTone) => void,
 ): Promise<CaptionResults> {
+  // Try the Vite dev proxy first (works in `npm run dev`).
+  // In the production web build, fall back to fetching the URL directly — most
+  // video CDNs (including the hackathon GCS bucket) send permissive CORS headers.
+  let blob: Blob
   const proxyUrl = `/api/video-proxy?url=${encodeURIComponent(url)}`
-  const res = await fetch(proxyUrl)
-  if (res.status === 400) throw new Error('Not a valid URL.')
-  if (!res.ok) throw new Error(`Failed to fetch video: ${res.status}`)
-  const blob = await res.blob()
-  const videoFile = new File([blob], 'video', { type: blob.type || 'video/mp4' })
+  const proxyRes = await fetch(proxyUrl).catch(() => null)
+
+  if (proxyRes && proxyRes.ok) {
+    blob = await proxyRes.blob()
+  } else {
+    // Direct fetch — works when the server sends Access-Control-Allow-Origin: *
+    const directRes = await fetch(url)
+    if (!directRes.ok) throw new Error(`Failed to fetch video: ${directRes.status}`)
+    blob = await directRes.blob()
+  }
+
+  if (!blob || blob.size === 0) throw new Error('Downloaded video is empty.')
+
   const objectUrl = URL.createObjectURL(blob)
 
   let frameDataUrls: string[]
