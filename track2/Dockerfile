@@ -18,7 +18,7 @@
 #     -v "$(pwd)/test/output:/output" \
 #     xo-screens-track2:latest
 
-FROM --platform=linux/amd64 python:3.11-slim
+FROM python:3.11-slim
 
 # Disable healthcheck — we're a batch container, not a service
 HEALTHCHECK NONE
