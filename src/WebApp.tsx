@@ -1492,7 +1492,7 @@ function WebNotesInner({ onNoteChange }: { onNoteChange?: (note: Note | null) =>
 
 /* â”€â”€ Web Video Captions panel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 import { processVideoFile, processVideoURL } from './gemini'
-import type { CaptionTone, CaptionResults } from './gemini'
+import type { CaptionTone, CaptionResults, ProcessStep } from './gemini'
 import type { CaptionHistoryEntry } from './types'
 import { loadCaptionHistory, addCaptionHistoryEntry, deleteCaptionHistoryEntry, clearCaptionHistory } from './captionHistory'
 
@@ -1539,9 +1539,8 @@ function WebVideoPanel() {
   const [videoURL, setVideoURL] = useState('')
   const [dragOver, setDragOver] = useState(false)
   const [status, setStatus] = useState<'idle' | 'processing' | 'done' | 'error'>('idle')
-  const [processingTone, setProcessingTone] = useState<CaptionTone | null>(null)
-  const [uploadPhase, setUploadPhase] = useState<'uploading' | 'processing' | null>(null)
-  const [uploadPct, setUploadPct] = useState<number>(0)
+  const [currentStep, setCurrentStep] = useState<ProcessStep | null>(null)
+  const [doneTones, setDoneTones] = useState<Set<CaptionTone>>(new Set())
   const [errorMsg, setErrorMsg] = useState('')
   const [results, setResults] = useState<CaptionResults | null>(null)
   const [activeTone, setActiveTone] = useState<CaptionTone>('formal')
@@ -1557,23 +1556,21 @@ function WebVideoPanel() {
 
   async function handleProcess() {
     setStatus('processing'); setResults(null); setErrorMsg(''); setSavedToNotes(false)
-    setUploadPhase(null); setUploadPct(0)
+    setCurrentStep(null); setDoneTones(new Set())
     try {
       let res: CaptionResults
       let label: string
+      const onTone = (t: CaptionTone) => setDoneTones(prev => new Set(prev).add(t))
+      const onStep = (s: ProcessStep) => setCurrentStep(s)
       if (inputMode === 'file' && videoFile) {
-        res = await processVideoFile(
-          videoFile,
-          t => setProcessingTone(t),
-          (phase, pct) => { setUploadPhase(phase); if (pct !== undefined) setUploadPct(pct) },
-        )
+        res = await processVideoFile(videoFile, onTone, undefined, onStep)
         label = videoFile.name
       } else if (inputMode === 'url' && videoURL.trim()) {
-        res = await processVideoURL(videoURL.trim(), t => setProcessingTone(t))
+        res = await processVideoURL(videoURL.trim(), onTone, onStep)
         label = videoURL.trim()
       } else { throw new Error('No video source provided.') }
-      setResults(res); setStatus('done'); setProcessingTone(null)
-      setUploadPhase(null); setCurrentLabel(label)
+      setResults(res); setStatus('done'); setCurrentStep(null)
+      setCurrentLabel(label)
       const updated = addCaptionHistoryEntry({ label, results: res as unknown as Record<string, never> })
       setHistory(updated)
       trackVideoFileProcessed()
@@ -1582,7 +1579,7 @@ function WebVideoPanel() {
       for (let i = 0; i < toneCount; i++) trackVideoCaptionGenerated()
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : 'Something went wrong.')
-      setStatus('error'); setProcessingTone(null); setUploadPhase(null)
+      setStatus('error'); setCurrentStep(null)
     }
   }
 
@@ -1729,7 +1726,7 @@ function WebVideoPanel() {
             onMouseLeave={e => { if (canProcess) { (e.currentTarget as HTMLButtonElement).style.transform=''; (e.currentTarget as HTMLButtonElement).style.boxShadow='0 4px 24px rgba(238,111,83,0.35), inset 0 1px 0 rgba(255,255,255,0.15)' } }}
           >
             {status === 'processing'
-              ? <><VSpinner />{processingTone ? `Generating "${VIDEO_TONES.find(t => t.id === processingTone)?.label}"…` : 'Processing…'}</>
+              ? <><VSpinner />Processing…</>
               : <>
                   <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
                   {status === 'done' ? 'Re-generate Captions' : 'Generate Video Captions'}
@@ -1748,37 +1745,46 @@ function WebVideoPanel() {
           )}
 
           {/* Processing progress */}
-          {status === 'processing' && (
-            <div style={{ marginTop:12, display:'flex', flexDirection:'column', gap:6 }}>
-              {uploadPhase && (
-                <div style={{ padding:'8px 12px', borderRadius:10, background:'rgba(245,158,11,0.08)', border:'1px solid rgba(245,158,11,0.2)', display:'flex', flexDirection:'column', gap:5 }}>
-                  <div style={{ display:'flex', alignItems:'center', gap:7 }}>
-                    <VSpinner />
-                    <span style={{ fontSize:11, color:'rgba(245,158,11,0.9)', fontWeight:500 }}>
-                      {uploadPhase === 'uploading' ? `Uploading… ${uploadPct}%` : 'Fireworks AI is processing your video…'}
-                    </span>
+          {status === 'processing' && (() => {
+            const pct = !currentStep ? 5
+              : currentStep === 'frames' ? 15
+              : currentStep === 'vision' ? 35
+              : currentStep === 'synthesis' ? 60
+              : Math.min(99, Math.round(60 + (doneTones.size / VIDEO_TONES.length) * 40))
+            const label = !currentStep
+              ? (inputMode === 'url' ? 'Fetching video…' : 'Starting…')
+              : currentStep === 'frames' ? 'Extracting frames…'
+              : currentStep === 'vision' ? 'Analyzing frames…'
+              : currentStep === 'synthesis' ? 'Building description…'
+              : doneTones.size === 0 ? 'Generating captions…' : `Captions ${doneTones.size} / ${VIDEO_TONES.length}`
+            return (
+              <div style={{ marginTop:12, display:'flex', flexDirection:'column', gap:8 }}>
+                {/* Real progress bar */}
+                <div>
+                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:5 }}>
+                    <span style={{ fontSize:11, color:'rgba(255,255,255,0.45)', fontWeight:500 }}>{label}</span>
+                    <span style={{ fontSize:11, color:'rgba(238,111,83,0.8)', fontWeight:600 }}>{pct}%</span>
                   </div>
-                  {uploadPhase === 'uploading' && (
-                    <div style={{ height:3, borderRadius:99, background:'rgba(255,255,255,0.07)', overflow:'hidden' }}>
-                      <div style={{ height:'100%', borderRadius:99, background:'rgba(245,158,11,0.7)', width:`${uploadPct}%`, transition:'width 0.3s ease' }} />
-                    </div>
-                  )}
+                  <div style={{ height:5, borderRadius:99, background:'rgba(255,255,255,0.07)', overflow:'hidden' }}>
+                    <div style={{ height:'100%', borderRadius:99, background:'linear-gradient(90deg, #EBB159, #EE6F53)', width:`${pct}%`, transition:'width 0.5s cubic-bezier(0.4,0,0.2,1)', boxShadow:'0 0 8px rgba(238,111,83,0.5)' }} />
+                  </div>
                 </div>
-              )}
-              {VIDEO_TONES.map((t, i) => {
-                const curIdx = VIDEO_TONES.findIndex(x => x.id === processingTone)
-                const isDone = curIdx > i
-                const isCur = t.id === processingTone
-                return (
-                  <div key={t.id} style={{ display:'flex', alignItems:'center', gap:8, padding:'8px 12px', borderRadius:10, background: isCur ? t.accent : isDone ? 'rgba(16,185,129,0.07)' : 'rgba(255,255,255,0.03)', border:`1px solid ${isCur ? t.border : isDone ? 'rgba(16,185,129,0.2)' : 'rgba(255,255,255,0.06)'}`, transition:'all 0.2s' }}>
-                    <span style={{ display:'flex', color: isCur ? '#fff' : isDone ? 'rgba(16,185,129,0.8)' : 'rgba(255,255,255,0.25)' }}>{t.icon}</span>
-                    <span style={{ fontSize:12, color: isCur ? '#fff' : isDone ? 'rgba(16,185,129,0.8)' : 'rgba(255,255,255,0.3)', flex:1 }}>{t.label}</span>
-                    {isCur ? <VSpinner /> : isDone ? <svg width="13" height="13" fill="none" stroke="rgba(16,185,129,0.8)" viewBox="0 0 24 24"><polyline strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} points="20 6 9 17 4 12"/></svg> : <div style={{ width:8, height:8, borderRadius:'50%', background:'rgba(255,255,255,0.1)', border:'1px solid rgba(255,255,255,0.15)' }} />}
-                  </div>
-                )
-              })}
-            </div>
-          )}
+                {/* Tone pills — only during captions step */}
+                {currentStep === 'captions' && VIDEO_TONES.map(t => {
+                  const isDone = doneTones.has(t.id)
+                  return (
+                    <div key={t.id} style={{ display:'flex', alignItems:'center', gap:8, padding:'7px 12px', borderRadius:10, background: isDone ? 'rgba(16,185,129,0.07)' : t.accent, border:`1px solid ${isDone ? 'rgba(16,185,129,0.2)' : t.border}`, transition:'all 0.2s' }}>
+                      <span style={{ display:'flex', color: isDone ? 'rgba(16,185,129,0.8)' : t.dot }}>{t.icon}</span>
+                      <span style={{ fontSize:12, color: isDone ? 'rgba(16,185,129,0.8)' : 'rgba(255,255,255,0.6)', flex:1 }}>{t.label}</span>
+                      {isDone
+                        ? <svg width="13" height="13" fill="none" stroke="rgba(16,185,129,0.8)" viewBox="0 0 24 24"><polyline strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} points="20 6 9 17 4 12"/></svg>
+                        : <VSpinner />}
+                    </div>
+                  )
+                })}
+              </div>
+            )
+          })()}
 
           {/* Save to notes */}
           {status === 'done' && (
