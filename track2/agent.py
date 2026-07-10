@@ -66,8 +66,8 @@ except ImportError:
 API_KEY  = os.environ.get("FIREWORKS_API_KEY", "").strip()
 BASE_URL = os.environ.get("FIREWORKS_BASE_URL", "https://api.fireworks.ai/inference/v1").rstrip("/")
 
-INPUT_PATH  = Path("/input/tasks.json")
-OUTPUT_PATH = Path("/output/results.json")
+INPUT_PATH  = Path(os.environ.get("INPUT_PATH_OVERRIDE",  "/input/tasks.json"))
+OUTPUT_PATH = Path(os.environ.get("OUTPUT_PATH_OVERRIDE", "/output/results.json"))
 
 # ── Timing budget ─────────────────────────────────────────────────────────────
 # Hard wall-clock budget — leaves 80s buffer before the 10-min container limit.
@@ -133,7 +133,6 @@ def startup_checks() -> None:
     warnings = []
 
     # API key — warn rather than hard-exit: the harness injects this at runtime.
-    # We'll get a clear 401 from the API if it's still missing when we call.
     if not API_KEY:
         warnings.append("FIREWORKS_API_KEY is not set — calls will fail with 401")
 
@@ -150,10 +149,16 @@ def startup_checks() -> None:
     for w in warnings:
         log.warning("Startup warning: %s", w)
 
+    # In Docker, ffmpeg errors are fatal. Outside Docker (local dev), warn only.
+    in_docker = Path("/.dockerenv").exists()
     if errors:
         for e in errors:
-            log.error("Startup check failed: %s", e)
-        sys.exit(1)
+            if in_docker:
+                log.error("Startup check failed: %s", e)
+            else:
+                log.warning("Startup check (non-fatal outside Docker): %s", e)
+        if in_docker:
+            sys.exit(1)
 
     log.info("Startup checks passed")
     log.info("VISION_MODEL    : %s", VISION_MODEL)
@@ -221,50 +226,48 @@ def _validate_styles(requested) -> list[str]:
 
 STYLE_SYSTEM_PROMPTS = {
     "formal": (
-        "You are a BBC or National Geographic documentary narrator writing a full, detailed video summary. "
-        "Your output must be precise, factual, authoritative, and rich in detail. "
-        "Rules: active voice, present tense, no bullet points, no clichés, no filler phrases like 'we see' or 'the video shows'. "
+        "You are a BBC or National Geographic documentary narrator. "
+        "DO NOT show your reasoning, planning, drafting, or any thinking process. "
+        "Output ONLY the final caption text — nothing before it, nothing after it. "
+        "Write in active voice, present tense, no bullet points, no clichés, no filler phrases like 'we see' or 'the video shows'. "
+        "Your caption must be 5 to 8 sentences. "
         "Cover: (1) the exact setting — environment type, location, time of day, lighting; "
         "(2) every subject — precise appearance including clothing colours, physical features, distinguishing details; "
         "(3) the full chronological sequence of actions — what moves, in which direction, at what speed, how subjects interact, what changes, how it ends; "
         "(4) the atmosphere and overall mood; (5) any notable details like text, objects, or unusual elements. "
-        "CRITICAL: describe the complete arc of events from start to finish, not just the opening scene. "
         "Every sentence must contain at least one specific concrete detail — actual colour, actual object, actual movement direction. "
-        "Vague or generic sentences score zero. /no_think"
+        "Start writing the caption immediately. No preamble."
     ),
     "sarcastic": (
-        "You are a world-class sarcastic commentator with bone-dry wit writing a full, detailed video summary. "
-        "Your output treats the obvious as absurd and the mundane as baffling — but it must be packed with accurate detail. "
-        "Rules: NO exclamation marks (they kill the deadpan). NO 'literally'. NO 'actually' used sincerely. "
-        "Every sentence must land with a smirk AND contain a specific accurate detail from the video. "
-        "Cover: the setting, the subjects and their appearance, the full sequence of events from start to finish, and the overall vibe — all through your sarcastic lens. "
-        "CRITICAL: sarcasm about the wrong subject or a vague description scores zero. "
-        "The wit must be anchored to the specific colours, objects, movements, and sequence of events actually shown. "
-        "Do not just comment on the opening — track the whole video. /no_think"
+        "You are a world-class sarcastic commentator with bone-dry wit. "
+        "DO NOT show your reasoning, planning, drafting, or any thinking process. "
+        "Output ONLY the final caption text — nothing before it, nothing after it. "
+        "Rules: NO exclamation marks. NO 'literally'. NO 'actually' used sincerely. "
+        "Your caption must be 5 to 8 sentences. "
+        "Treat the obvious as absurd and the mundane as baffling — but anchor every sentence to a specific accurate detail. "
+        "Cover: the setting, subjects and their appearance, full sequence of events, overall vibe — all through your sarcastic lens. "
+        "Start writing the caption immediately. No preamble."
     ),
     "humorous_tech": (
-        "You are a senior developer doing live Twitch commentary on a random video, writing a full detailed summary for your dev audience. "
+        "You are a senior developer doing live Twitch commentary on a random video. "
+        "DO NOT show your reasoning, planning, drafting, or any thinking process. "
+        "Output ONLY the final caption text — nothing before it, nothing after it. "
         "Frame EVERYTHING through a programmer/tech lens — git commits, merge conflicts, Stack Overflow, 'works on my machine', "
-        "unit tests, deployment pipelines, NullPointerException, 'it's a feature not a bug', pull requests, "
-        "rubber duck debugging, O(n²) complexity, race conditions, memory leaks. "
-        "Your summary must be detailed: cover the setting, every subject and their appearance, "
-        "the full chronological sequence of actions, and the overall arc — all mapped to tech analogies. "
-        "CRITICAL: every tech reference must precisely map onto what is actually happening — "
-        "the specific motion, the specific subjects, the specific sequence. "
-        "Cover the full video, not just the opening frame. "
-        "Your dev audience will roast you if the analogy doesn't fit the actual action. /no_think"
+        "unit tests, deployment pipelines, NullPointerException, pull requests, rubber duck debugging, O(n²) complexity, race conditions. "
+        "Your caption must be 5 to 8 sentences. "
+        "Every tech reference must precisely map onto what is actually happening in the video. "
+        "Start writing the caption immediately. No preamble."
     ),
     "humorous_non_tech": (
-        "You are a stand-up comedian doing crowd work about a video, writing a full detailed summary — "
-        "no jargon, pure observational humor accessible to anyone. "
+        "You are a stand-up comedian doing crowd work about a video. "
+        "DO NOT show your reasoning, planning, drafting, or any thinking process. "
+        "Output ONLY the final caption text — nothing before it, nothing after it. "
+        "No jargon, pure observational humor accessible to anyone. "
         "Draw from: absurdist takes, relatable everyday observations, punny wordplay, "
-        "'main character energy', 'the audacity', 'nobody asked for this but here we are', dramatic narration of mundane events. "
-        "Your summary must be detailed: cover the setting, every subject and their appearance, "
-        "the full chronological sequence of events, and the overall vibe — all through your comedic lens. "
-        "CRITICAL: every joke must be grounded in specific accurate details — "
-        "actual colours, actual objects, actual movements, actual sequence of events. "
-        "Do not just riff on the opening frame — follow the full arc of the video. "
-        "Vague comedy filler with no connection to the actual content scores zero. /no_think"
+        "'main character energy', 'the audacity', 'nobody asked for this but here we are'. "
+        "Your caption must be 5 to 8 sentences. "
+        "Every joke must be grounded in specific accurate details from the video. "
+        "Start writing the caption immediately. No preamble."
     ),
 }
 
@@ -302,7 +305,7 @@ def build_describe_prompt() -> str:
     )
 
 def _caption_user_prompt(description: str, style: str) -> str:
-    """Per-style user prompt — forces grounding in specific visual details."""
+    """Per-style user prompt — grounded in visual details, no thinking output."""
     style_display = style.replace("_", " ")
     # Truncate description to ~3000 chars to stay within context limits
     if len(description) > 3000:
@@ -310,15 +313,12 @@ def _caption_user_prompt(description: str, style: str) -> str:
         description = description[:cut + 1] if cut > 1800 else description[:3000]
     return (
         f"Video description:\n{description}\n\n"
-        f"Using the video description above, write a detailed informative summary in the {style_display} tone. "
-        "The summary must be 5 to 8 sentences long. "
-        "Cover the exact setting, every subject's appearance (clothing colours, physical features), "
-        "the full sequence of actions from start to finish (what moves, in which direction, at what speed), "
-        "the key moment, how it ends, the atmosphere, and any notable details. "
-        "Every sentence must include at least one specific concrete detail such as an actual colour, object, or movement direction. "
-        "Do not describe only the opening scene — cover the entire video. "
-        "Do not use filler phrases like 'a video shows' or 'we can see'. "
-        "Do not add a title or preamble. Output the summary text directly. Nothing else. /no_think"
+        f"Write a {style_display} caption for this video. "
+        "5 to 8 sentences. "
+        "Include the exact setting, subjects' appearance, full sequence of actions from start to finish, key moment, how it ends, and atmosphere. "
+        "Every sentence must include at least one specific concrete detail — actual colour, object, or movement direction. "
+        "Do NOT output any reasoning, planning, drafting notes, bullet points, or thinking. "
+        "Output ONLY the final caption sentences. Start immediately."
     )
 
 # ── Caption output cleaning ───────────────────────────────────────────────────
@@ -338,12 +338,57 @@ _PREAMBLE_RE = re.compile(
 )
 
 def clean_caption(text: str) -> str:
-    """Strip <think> blocks, preamble phrases, and leading/trailing whitespace."""
+    """Strip <think> blocks, preamble phrases, planning/reasoning leakage, and artifacts."""
     # Remove thinking tags
     text = re.sub(r"<think>[\s\S]*?</think>", "", text, flags=re.IGNORECASE)
-    # Remove preamble
+
+    # Remove markdown bold/italic artifacts
+    text = re.sub(r"\*{1,3}(.*?)\*{1,3}", r"\1", text)
+
+    # If the model leaked planning/reasoning (contains "Let me", "I need to",
+    # "Key details", "Sentence 1", "Draft", numbered constraint lists etc.),
+    # try to extract just the final prose block at the end.
+    REASONING_MARKERS = [
+        r"^Let me ", r"^I need to ", r"^Key details", r"^Sentence \d",
+        r"^Draft:", r"^Check:", r"^Constraints:", r"^Now I need",
+        r"^The user wants", r"^\d+\.\s+Setting", r"^Let's draft",
+    ]
+    lines = text.strip().splitlines()
+    has_reasoning = any(
+        re.search(pattern, line.strip(), re.IGNORECASE)
+        for line in lines
+        for pattern in REASONING_MARKERS
+    )
+
+    if has_reasoning:
+        # Find the last contiguous block of actual prose sentences (no reasoning markers).
+        # Walk backwards from the end, collect lines that look like real sentences.
+        prose_lines = []
+        for line in reversed(lines):
+            stripped = line.strip()
+            if not stripped:
+                if prose_lines:
+                    break  # stop at blank line separating blocks
+                continue
+            # Stop if we hit a reasoning marker line
+            if any(re.search(p, stripped, re.IGNORECASE) for p in REASONING_MARKERS):
+                break
+            # Stop if it looks like a planning note (ends with colon, is a numbered list item)
+            if re.match(r"^\d+\.\s", stripped) or stripped.endswith(":"):
+                break
+            prose_lines.append(stripped)
+
+        if prose_lines:
+            text = " ".join(reversed(prose_lines))
+        else:
+            # Fallback: just take the last 3 sentences from the whole text
+            sentences = re.split(r'(?<=[.!?])\s+', text.strip())
+            sentences = [s for s in sentences if len(s) > 30]
+            text = " ".join(sentences[-5:]) if sentences else text
+
+    # Remove common preamble patterns
     text = _PREAMBLE_RE.sub("", text.strip())
-    # Remove leading dash or quote artifacts
+    # Remove leading dash, asterisk, or quote artifacts
     text = re.sub(r'^[\-\*"\s]+', "", text)
     return text.strip()
 
@@ -369,6 +414,7 @@ def call_fireworks(
         "messages": messages,
         "temperature": temperature,
         "max_tokens": max_tokens,
+        "thinking": {"type": "disabled"},
     }
 
     try:
@@ -479,6 +525,7 @@ def extract_frames(video_path: Path, frames_dir: Path) -> list[Path]:
     """
     Extract evenly-spaced JPEG frames plus scene-change frames.
     Uses ffmpeg select filter to capture visual transitions the fixed interval misses.
+    Accepts either a local file path or a URL (ffmpeg handles both natively).
     """
     frames_dir.mkdir(parents=True, exist_ok=True)
     duration = get_video_duration(video_path)
@@ -529,13 +576,92 @@ def extract_frames(video_path: Path, frames_dir: Path) -> list[Path]:
 
     paths = sorted(frames_dir.glob("*.jpg"))
     paths = [p for p in paths if p.stat().st_size > 0]
-    # Hard cap: never send more than 20 frames to the vision model to stay within
-    # context limits. If we overshot (scene frames + interval frames), subsample.
     MAX_FRAMES = 20
     if len(paths) > MAX_FRAMES:
         step = len(paths) / MAX_FRAMES
         paths = [paths[round(i * step)] for i in range(MAX_FRAMES)]
     log.info("Extracted %d valid frames (incl. scene-change frames)", len(paths))
+    return paths
+
+
+def get_video_duration_from_url(url: str) -> float:
+    """Get video duration directly from URL via ffprobe without downloading."""
+    cmd = [
+        "ffprobe", "-v", "quiet",
+        "-print_format", "json",
+        "-show_format",
+        url,
+    ]
+    try:
+        out = subprocess.check_output(cmd, stderr=subprocess.DEVNULL, timeout=30)
+        return float(json.loads(out)["format"]["duration"])
+    except Exception as exc:
+        log.warning("ffprobe URL probe failed (%s) — defaulting duration to 60s", exc)
+        return 60.0
+
+
+def extract_frames_from_url(url: str, frames_dir: Path) -> list[Path]:
+    """
+    Extract frames directly from a video URL using ffmpeg — no full download needed.
+    ffmpeg streams only the bytes it needs to decode the requested frames.
+    This is the primary path for all clips; local download is the fallback.
+    """
+    frames_dir.mkdir(parents=True, exist_ok=True)
+
+    # Probe duration directly from URL
+    duration = get_video_duration_from_url(url)
+    n_frames = adaptive_frame_count(duration)
+    log.info("Duration: %.1fs — target %d frames (streaming from URL)", duration, n_frames)
+
+    fps_val = n_frames / max(duration, 1.0)
+    output_pattern = str(frames_dir / "frame_%04d.jpg")
+
+    # Primary pass: evenly-spaced frames streamed directly from URL
+    cmd = [
+        "ffmpeg", "-y", "-nostdin",
+        "-i", url,
+        "-vf", (
+            f"fps={fps_val:.6f},"
+            f"scale={FRAME_WIDTH}:-2:flags=lanczos"
+        ),
+        "-vframes", str(n_frames),
+        "-q:v", "3",
+        output_pattern,
+    ]
+    try:
+        result = subprocess.run(cmd, capture_output=True, timeout=180)
+        if result.returncode != 0:
+            log.warning("ffmpeg URL stream exited %d: %s",
+                        result.returncode, result.stderr.decode(errors="replace")[-300:])
+    except subprocess.TimeoutExpired:
+        log.warning("ffmpeg URL stream timed out")
+
+    # Scene-change pass from URL
+    scene_pattern = str(frames_dir / "scene_%04d.jpg")
+    scene_cmd = [
+        "ffmpeg", "-y", "-nostdin",
+        "-i", url,
+        "-vf", (
+            f"select='gt(scene\\,0.35)',"
+            f"scale={FRAME_WIDTH}:-2:flags=lanczos"
+        ),
+        "-vframes", "4",
+        "-vsync", "vfr",
+        "-q:v", "3",
+        scene_pattern,
+    ]
+    try:
+        subprocess.run(scene_cmd, capture_output=True, timeout=90)
+    except (subprocess.TimeoutExpired, Exception) as exc:
+        log.warning("Scene-change URL pass failed: %s", exc)
+
+    paths = sorted(frames_dir.glob("*.jpg"))
+    paths = [p for p in paths if p.stat().st_size > 0]
+    MAX_FRAMES = 20
+    if len(paths) > MAX_FRAMES:
+        step = len(paths) / MAX_FRAMES
+        paths = [paths[round(i * step)] for i in range(MAX_FRAMES)]
+    log.info("Extracted %d valid frames from URL", len(paths))
     return paths
 
 # ── Frame encoding ────────────────────────────────────────────────────────────
@@ -629,24 +755,35 @@ def process_task(task: dict, tmpdir: Path) -> dict:
     log.info("[%s] Starting — styles: %s | budget remaining: %.0fs",
              task_id, styles, budget_remaining())
 
-    # 1. Download
-    video_path = tmpdir / f"{task_id}.mp4"
-    download_video(video_url, video_path)
-
-    # 2. Extract frames
+    # Try streaming frames directly from URL first (no full download needed).
+    # Falls back to full download only if URL streaming fails.
     frames_dir = tmpdir / f"{task_id}_frames"
-    frame_paths = extract_frames(video_path, frames_dir)
+    frame_paths = []
+
+    try:
+        log.info("[%s] Streaming frames from URL", task_id)
+        frame_paths = extract_frames_from_url(video_url, frames_dir)
+    except Exception as exc:
+        log.warning("[%s] URL streaming failed (%s) — falling back to full download", task_id, exc)
+
+    if not frame_paths:
+        # Fallback: download full file then extract
+        log.info("[%s] Falling back to full download", task_id)
+        video_path = tmpdir / f"{task_id}.mp4"
+        download_video(video_url, video_path)
+        frame_paths = extract_frames(video_path, frames_dir)
+        video_path.unlink(missing_ok=True)
 
     if not frame_paths:
         raise RuntimeError("No frames could be extracted from the video")
 
-    # 3. Encode frames
+    # Encode frames to base64
     frame_parts = encode_frames(frame_paths)
 
-    # 4. Clean up JPEG files — only the base64 payloads are needed now
+    # Clean up JPEG files — only base64 payloads needed now
     shutil.rmtree(frames_dir, ignore_errors=True)
 
-    # 5. Vision description pass
+    # Vision description pass
     log.info("[%s] Describing — %d frames, model: %s",
              task_id, len(frame_parts), VISION_MODEL.split("/")[-1])
     description = describe_video(frame_parts)
@@ -654,10 +791,7 @@ def process_task(task: dict, tmpdir: Path) -> dict:
 
     del frame_parts  # free memory
 
-    # 6. Clean up video file
-    video_path.unlink(missing_ok=True)
-
-    # 7. Caption pass — all requested styles in parallel
+    # Caption pass — all requested styles in parallel
     log.info("[%s] Generating %d captions | budget remaining: %.0fs",
              task_id, len(styles), budget_remaining())
     captions: dict[str, str] = {}
