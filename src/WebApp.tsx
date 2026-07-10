@@ -1744,8 +1744,281 @@ function WebVideoPanel() {
 
 import UsageTrackingApp from './components/UsageTrackingApp'
 
-function UsageTrackingPanel() {
+function UsageTrackingPanel_UNUSED() {
   return <UsageTrackingApp />
+}
+
+import {
+  loadUsageStats, calculateAverages, getMostUsedFeature,
+  formatDuration, exportUsageData, clearUsageData,
+} from './usageTracking'
+import type { DailyStat } from './usageTracking'
+
+function ActivityChartWeb({ dailyStats }: { dailyStats: DailyStat[] }) {
+  const last14: DailyStat[] = []
+  for (let i = 13; i >= 0; i--) {
+    const d = new Date()
+    d.setDate(d.getDate() - i)
+    const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
+    last14.push(dailyStats.find(s => s.date === key) ?? { date: key, messages: 0, notes: 0, captions: 0, timeSpent: 0 })
+  }
+  const maxVal = Math.max(...last14.map(s => s.messages + s.notes + s.captions), 1)
+  return (
+    <div style={{ display: 'flex', alignItems: 'flex-end', gap: 5, height: '100%' }}>
+      {last14.map((stat, i) => {
+        const total = stat.messages + stat.notes + stat.captions
+        const h = Math.max((total / maxVal) * 100, 3)
+        const isToday = i === 13
+        return (
+          <div key={stat.date} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+            <div
+              title={`${new Date(stat.date).toLocaleDateString()}: ${total}`}
+              style={{
+                height: `${h}%`, width: '100%', borderRadius: '4px 4px 0 0',
+                background: isToday
+                  ? 'linear-gradient(180deg,rgba(235,177,89,0.9),rgba(238,111,83,0.6))'
+                  : total > 0 ? 'rgba(235,177,89,0.25)' : 'rgba(255,255,255,0.05)',
+                transition: 'height 0.5s cubic-bezier(0.16,1,0.3,1)',
+              }}
+            />
+            <span style={{ fontSize: 8, color: isToday ? 'rgba(235,177,89,0.8)' : 'rgba(255,255,255,0.2)', fontWeight: isToday ? 700 : 400 }}>
+              {new Date(stat.date).toLocaleDateString('en-US',{weekday:'short'}).slice(0,1)}
+            </span>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function UsageTrackingPanel() {
+  const [stats, setStats] = useState(loadUsageStats)
+  const [showExport, setShowExport] = useState(false)
+  const [exportData, setExportData] = useState('')
+
+  useEffect(() => {
+    const handleUpdate = () => setStats(loadUsageStats())
+    window.addEventListener('xo-usage-updated', handleUpdate)
+    return () => window.removeEventListener('xo-usage-updated', handleUpdate)
+  }, [])
+
+  const averages = useMemo(() => calculateAverages(stats), [stats])
+  const mostUsed = useMemo(() => getMostUsedFeature(stats), [stats])
+  const totalInteractions = stats.chatMessagesUser + stats.notesCreated + stats.videoCaptionsGenerated
+
+  function handleExport() { setExportData(exportUsageData()); setShowExport(true) }
+  function handleClear() {
+    if (confirm('Clear all usage data? This cannot be undone.')) {
+      clearUsageData(); setStats(loadUsageStats())
+    }
+  }
+
+  const statRows = [
+    { label: 'Sessions',      value: stats.totalSessions },
+    { label: 'Time Spent',    value: formatDuration(stats.totalTimeSpent) },
+    { label: 'Messages',      value: stats.chatMessagesUser },
+    { label: 'AI Replies',    value: stats.chatMessagesAI },
+    { label: 'Tool Calls',    value: stats.chatToolCalls },
+    { label: 'Notes Created', value: stats.notesCreated },
+    { label: 'Words Written', value: Math.max(stats.notesWordCount, 0) },
+    { label: 'Captions',      value: stats.videoCaptionsGenerated },
+  ]
+
+  const featureRows = [
+    { key: 'chat',     label: 'Assistant', count: stats.featuresUsed.chat,     color: 'rgba(235,177,89,0.8)' },
+    { key: 'notes',    label: 'Notes',     count: stats.featuresUsed.notes,    color: 'rgba(236,144,86,0.8)' },
+    { key: 'video',    label: 'Video',     count: stats.featuresUsed.video,    color: 'rgba(238,111,83,0.8)' },
+    { key: 'settings', label: 'Settings',  count: stats.featuresUsed.settings, color: 'rgba(139,92,246,0.8)' },
+  ] as const
+  const featureTotal = Math.max(featureRows.reduce((s, f) => s + f.count, 0), 1)
+
+  return (
+    <div style={{
+      width: '100%', height: '100%', overflowY: 'auto',
+      display: 'flex', flexDirection: 'column',
+      alignItems: 'center', justifyContent: 'flex-start',
+      padding: '24px 24px 24px',
+      scrollbarWidth: 'none',
+    }}
+    >
+      {/* Page header */}
+      <div style={{ width: '100%', maxWidth: 720, marginBottom: 16, animation: 'fadeIn 0.4s ease both' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{
+              width: 40, height: 40, borderRadius: 13, flexShrink: 0,
+              background: 'linear-gradient(145deg, rgba(235,177,89,0.22), rgba(238,111,83,0.12))',
+              border: '1px solid rgba(235,177,89,0.3)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              boxShadow: '0 0 16px rgba(235,177,89,0.12)',
+            }}>
+              <svg width="18" height="18" fill="none" stroke="#EBB159" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+              </svg>
+            </div>
+            <div>
+              <h2 style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.03em', color: '#fff', lineHeight: 1.1, fontFamily: '"Syne", sans-serif' }}>Usage Tracking</h2>
+              <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)', marginTop: 3 }}>Your XO Screens activity at a glance</p>
+            </div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 99, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
+            <div style={{ width: 5, height: 5, borderRadius: '50%', background: 'rgba(235,177,89,0.9)', boxShadow: '0 0 6px rgba(235,177,89,0.7)' }} />
+            <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', fontWeight: 600, letterSpacing: '0.04em' }}>LIVE</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Row 1: 4 big stat tiles */}
+      <div style={{ width: '100%', maxWidth: 720, display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 10, marginBottom: 10, animation: 'fadeIn 0.4s 0.06s ease both' }}>
+        {[
+          { label: 'Sessions',  value: stats.totalSessions,          sub: formatDuration(stats.totalTimeSpent), color: 'rgba(235,177,89,0.9)',  glow: 'rgba(235,177,89,0.08)',  border: 'rgba(235,177,89,0.18)' },
+          { label: 'Messages',  value: stats.chatMessagesUser,       sub: `${stats.chatMessagesAI} AI replies`, color: 'rgba(236,144,86,0.9)',  glow: 'rgba(236,144,86,0.06)',  border: 'rgba(236,144,86,0.15)' },
+          { label: 'Notes',     value: stats.notesCreated,           sub: `${stats.notesEdited} edits`,         color: 'rgba(238,111,83,0.9)',  glow: 'rgba(238,111,83,0.06)',  border: 'rgba(238,111,83,0.15)' },
+          { label: 'Captions',  value: stats.videoCaptionsGenerated, sub: `${stats.videoFilesProcessed} videos`, color: 'rgba(139,92,246,0.9)', glow: 'rgba(139,92,246,0.06)',  border: 'rgba(139,92,246,0.15)' },
+        ].map(s => (
+          <div key={s.label} className="xo-bento-card" style={{ padding: '12px 14px 10px', background: s.glow, borderColor: s.border }}>
+            <span style={{ fontSize: 9, color: s.color, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', opacity: 0.8 }}>{s.label}</span>
+            <div style={{ fontSize: 26, fontWeight: 800, color: '#fff', lineHeight: 1.05, letterSpacing: '-0.04em', margin: '4px 0 3px', fontFamily: '"Syne", sans-serif' }}>{s.value}</div>
+            <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.28)' }}>{s.sub}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* Row 2: stat list + feature bars */}
+      <div style={{ width: '100%', maxWidth: 720, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10, animation: 'fadeIn 0.4s 0.1s ease both' }}>
+        <div className="xo-bento-card" style={{ padding: '14px 16px' }}>
+          <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.3)', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', display: 'block', marginBottom: 10 }}>All Stats</span>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {statRows.map(row => (
+              <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 8px', borderRadius: 7, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)' }}>
+                <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)' }}>{row.label}</span>
+                <span style={{ fontSize: 11, color: '#fff', fontWeight: 700, fontFamily: 'monospace' }}>{row.value}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div className="xo-bento-card" style={{ padding: '14px 16px' }}>
+            <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.3)', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', display: 'block', marginBottom: 10 }}>Feature Usage</span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {featureRows.map(f => {
+                const pct = Math.round((f.count / featureTotal) * 100)
+                const isTop = mostUsed === f.key
+                return (
+                  <div key={f.key}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                      <span style={{ fontSize: 11, color: isTop ? '#fff' : 'rgba(255,255,255,0.4)', display: 'flex', alignItems: 'center', gap: 5 }}>
+                        {isTop && <span style={{ width: 5, height: 5, borderRadius: '50%', background: f.color, display: 'inline-block', boxShadow: `0 0 6px ${f.color}` }} />}
+                        {f.label}
+                      </span>
+                      <span style={{ fontSize: 11, color: f.color, fontWeight: 700 }}>{pct}%</span>
+                    </div>
+                    <div style={{ height: 3, borderRadius: 99, background: 'rgba(255,255,255,0.06)', overflow: 'hidden' }}>
+                      <div style={{ height: '100%', borderRadius: 99, width: `${pct}%`, background: f.color, transition: 'width 0.6s cubic-bezier(0.16,1,0.3,1)' }} />
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+          <div className="xo-bento-card" style={{ padding: '14px 16px' }}>
+            <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.3)', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', display: 'block', marginBottom: 10 }}>Daily Averages</span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+              {[
+                { label: 'Messages / day',     value: averages.avgMessagesPerDay },
+                { label: 'Notes / day',        value: averages.avgNotesPerDay },
+                { label: 'Avg session time',   value: formatDuration(averages.avgTimePerSession) },
+                { label: 'Total interactions', value: totalInteractions },
+              ].map(a => (
+                <div key={a.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>{a.label}</span>
+                  <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', fontWeight: 700, fontFamily: 'monospace' }}>{a.value}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Row 3: activity chart */}
+      <div style={{ width: '100%', maxWidth: 720, marginBottom: 10, animation: 'fadeIn 0.4s 0.14s ease both' }}>
+        <div className="xo-bento-card" style={{ padding: '12px 16px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+            <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.3)', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Activity — Last 14 Days</span>
+            <div style={{ display: 'flex', gap: 12 }}>
+              {[{ dot: 'rgba(235,177,89,0.8)', label: 'Today' }, { dot: 'rgba(235,177,89,0.25)', label: 'Past' }].map(l => (
+                <div key={l.label} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <div style={{ width: 8, height: 8, borderRadius: 3, background: l.dot }} />
+                  <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.25)' }}>{l.label}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div style={{ height: 44 }}>
+            <ActivityChartWeb dailyStats={stats.dailyStats} />
+          </div>
+        </div>
+      </div>
+
+      {/* Row 4: dates + actions */}
+      <div style={{ width: '100%', maxWidth: 720, animation: 'fadeIn 0.4s 0.18s ease both' }}>
+        <div className="xo-bento-card" style={{ padding: '12px 16px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+            <div style={{ display: 'flex', gap: 28 }}>
+              {[
+                { label: 'First Used',  ts: stats.firstSessionDate },
+                { label: 'Last Active', ts: stats.lastSessionDate  },
+              ].map(d => (
+                <div key={d.label} style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                  <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.22)', fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase' }}>{d.label}</span>
+                  <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', fontFamily: 'monospace' }}>
+                    {new Date(d.ts).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                  </span>
+                </div>
+              ))}
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={handleExport} style={{ padding: '8px 16px', borderRadius: 10, border: '1px solid rgba(235,177,89,0.25)', background: 'rgba(235,177,89,0.08)', color: 'rgba(235,177,89,0.9)', fontSize: 11, fontWeight: 700, fontFamily: 'inherit', cursor: 'pointer', transition: 'all 0.15s' }}
+                onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(235,177,89,0.18)' }}
+                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(235,177,89,0.08)' }}
+              >Export</button>
+              <button onClick={handleClear} style={{ padding: '8px 16px', borderRadius: 10, border: '1px solid rgba(239,68,68,0.22)', background: 'rgba(239,68,68,0.07)', color: 'rgba(239,68,68,0.7)', fontSize: 11, fontWeight: 700, fontFamily: 'inherit', cursor: 'pointer', transition: 'all 0.15s' }}
+                onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(239,68,68,0.16)'; (e.currentTarget as HTMLButtonElement).style.color = '#f87171' }}
+                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(239,68,68,0.07)'; (e.currentTarget as HTMLButtonElement).style.color = 'rgba(239,68,68,0.7)' }}
+              >Clear Data</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Export modal */}
+      {showExport && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(12px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          onClick={() => setShowExport(false)}>
+          <div style={{ width: 480, borderRadius: 20, background: 'rgba(10,10,12,0.97)', border: '1px solid rgba(255,255,255,0.1)', padding: '24px', boxShadow: '0 32px 80px rgba(0,0,0,0.8)' }}
+            onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <span style={{ fontSize: 14, fontWeight: 700, color: '#fff' }}>Export Usage Data</span>
+              <button onClick={() => setShowExport(false)} style={{ width: 28, height: 28, borderRadius: 8, border: 'none', background: 'transparent', color: 'rgba(255,255,255,0.3)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = '#f87171'; (e.currentTarget as HTMLButtonElement).style.background = 'rgba(239,68,68,0.1)' }}
+                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = 'rgba(255,255,255,0.3)'; (e.currentTarget as HTMLButtonElement).style.background = 'transparent' }}
+              >
+                <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
+              </button>
+            </div>
+            <textarea readOnly value={exportData} style={{ width: '100%', height: 200, borderRadius: 12, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.6)', fontFamily: 'monospace', fontSize: 10, padding: '10px', resize: 'none', outline: 'none', boxSizing: 'border-box' }} />
+            <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+              <button onClick={() => navigator.clipboard.writeText(exportData)} style={{ flex: 1, padding: '10px', borderRadius: 10, border: '1px solid rgba(235,177,89,0.3)', background: 'rgba(235,177,89,0.1)', color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s' }}
+                onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(235,177,89,0.2)' }}
+                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(235,177,89,0.1)' }}
+              >Copy to Clipboard</button>
+              <button onClick={() => setShowExport(false)} style={{ padding: '10px 18px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.08)', background: 'transparent', color: 'rgba(255,255,255,0.35)', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
 }
 
 /* â”€â”€ Root WebApp component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
