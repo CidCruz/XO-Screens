@@ -120,7 +120,7 @@ DOWNLOAD_TIMEOUT = 150   # seconds per video download
 # API_TIMEOUT must be well below CAPTION_TIMEOUT / MAX_RETRIES so retries don't
 # blow past the future deadline. 25s × 3 attempts = 75s max, inside 90s future cap.
 API_TIMEOUT      = 25    # seconds per individual Fireworks caption API call
-VISION_TIMEOUT   = 90    # seconds for the vision description pass (large multimodal payload)
+VISION_TIMEOUT   = 120   # seconds for the vision description pass (large multimodal payload)
 CAPTION_TIMEOUT  = 90    # seconds per individual caption future (ThreadPoolExecutor)
 FRAME_WIDTH      = 896   # px — good balance of detail vs payload size
 MAX_VIDEO_BYTES  = 500 * 1024 * 1024  # 500 MB hard cap
@@ -511,15 +511,17 @@ def get_video_duration(video_path: Path) -> float:
 def adaptive_frame_count(duration: float) -> int:
     """Scale frame count with video duration for consistent temporal coverage.
 
-    Cap at 16 to avoid hitting vision model context limits — each 896px JPEG
-    encodes to ~50–80KB of base64, so 16 frames ≈ 1.1MB of image data.
-    When the global time budget is tight, cap at 8 to process faster.
+    Tuned for the eval set (30s–2min clips):
+      ≤ 30s  → 12 frames (denser sampling for short clips)
+      ≤ 60s  → 16 frames
+      ≤ 120s → 20 frames (max — cap at model context limit)
+    When time budget is tight, drop to 6 to stay within budget.
     """
     if is_time_tight():
         return 6
-    if duration <= 30:  return 8
-    if duration <= 60:  return 12
-    return 16  # 60s–120s
+    if duration <= 30:  return 12
+    if duration <= 60:  return 16
+    return 20  # 60s–120s — max coverage for longer clips
 
 def extract_frames(video_path: Path, frames_dir: Path) -> list[Path]:
     """
@@ -697,7 +699,7 @@ def describe_video(frame_parts: list[dict]) -> str:
         },
     ]
     description = call_fireworks(
-        messages, model=VISION_MODEL, max_tokens=3500, temperature=0.1, timeout=VISION_TIMEOUT,
+        messages, model=VISION_MODEL, max_tokens=4500, temperature=0.1, timeout=VISION_TIMEOUT,
     )
     # Strip thinking tags that vision models sometimes leak
     description = re.sub(r"<think>[\s\S]*?</think>", "", description, flags=re.IGNORECASE).strip()
