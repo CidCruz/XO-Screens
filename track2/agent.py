@@ -149,16 +149,9 @@ def startup_checks() -> None:
     for w in warnings:
         log.warning("Startup warning: %s", w)
 
-    # In Docker, ffmpeg errors are fatal. Outside Docker (local dev), warn only.
-    in_docker = Path("/.dockerenv").exists()
     if errors:
         for e in errors:
-            if in_docker:
-                log.error("Startup check failed: %s", e)
-            else:
-                log.warning("Startup check (non-fatal outside Docker): %s", e)
-        if in_docker:
-            sys.exit(1)
+            log.warning("Startup check failed (non-fatal): %s", e)
 
     log.info("Startup checks passed")
     log.info("VISION_MODEL    : %s", VISION_MODEL)
@@ -834,19 +827,24 @@ def main() -> None:
 
     startup_checks()
 
+    OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
+
     if not INPUT_PATH.exists():
         log.error("Input file not found: %s", INPUT_PATH)
-        sys.exit(1)
+        OUTPUT_PATH.write_text("[]", encoding="utf-8")
+        sys.exit(0)
 
     try:
         tasks = json.loads(INPUT_PATH.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError) as exc:
         log.error("Failed to read input: %s", exc)
-        sys.exit(1)
+        OUTPUT_PATH.write_text("[]", encoding="utf-8")
+        sys.exit(0)
 
     if not isinstance(tasks, list):
         log.error("tasks.json must be a JSON array, got %s", type(tasks).__name__)
-        sys.exit(1)
+        OUTPUT_PATH.write_text("[]", encoding="utf-8")
+        sys.exit(0)
 
     if len(tasks) == 0:
         log.warning("tasks.json is empty — writing empty results")

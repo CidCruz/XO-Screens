@@ -37,12 +37,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy agent source last — changing agent.py only rebuilds this layer
 COPY agent.py .
 
-# Create I/O mount points, run as non-root for security
-RUN mkdir -p /input /output && \
-    useradd -r -u 1001 -s /sbin/nologin agent && \
-    chown -R agent:agent /input /output /app
-
-USER agent
+# Create I/O mount points with open permissions so harness bind-mounts are writable
+RUN mkdir -p /input /output && chmod 777 /input /output
 
 # -u = unbuffered stdout so logs appear immediately in docker logs
 CMD ["python", "-u", "agent.py"]
