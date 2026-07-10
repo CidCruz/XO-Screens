@@ -93,12 +93,12 @@ def is_time_tight() -> bool:
 #   "Native multimodality enabling deeper semantic fusion across text, image, and video."
 #   Best available vision model for frame understanding. $0.30/M in, $1.20/M out.
 #
-# TEXT — accounts/fireworks/models/kimi-k2p5
+# TEXT — accounts/fireworks/models/kimi-k2p6
 #   Kimi K2.6 — Vision + Function-calling + Tunable, 262K context.
 #   Strong instruction following and creative writing. $0.95/M in, $4.00/M out.
 #   Used for the 4 parallel caption passes (description → styled captions).
 _DEFAULT_VISION_MODEL = "accounts/fireworks/models/minimax-m3"
-_DEFAULT_TEXT_MODEL   = "accounts/fireworks/models/kimi-k2p5"
+_DEFAULT_TEXT_MODEL   = "accounts/fireworks/models/kimi-k2p6"
 
 VISION_MODEL = os.environ.get("VISION_MODEL", _DEFAULT_VISION_MODEL).strip()
 TEXT_MODEL   = os.environ.get("TEXT_MODEL",   _DEFAULT_TEXT_MODEL).strip()
@@ -117,8 +117,11 @@ STYLES = ["formal", "sarcastic", "humorous_tech", "humorous_non_tech"]
 MAX_RETRIES      = 3
 RETRY_BACKOFF    = 1.5   # seconds base — exponential + jitter
 DOWNLOAD_TIMEOUT = 150   # seconds per video download
-API_TIMEOUT      = 75    # seconds per Fireworks API call
-CAPTION_TIMEOUT  = 90    # seconds per individual caption future
+# API_TIMEOUT must be well below CAPTION_TIMEOUT / MAX_RETRIES so retries don't
+# blow past the future deadline. 25s × 3 attempts = 75s max, inside 90s future cap.
+API_TIMEOUT      = 25    # seconds per individual Fireworks caption API call
+VISION_TIMEOUT   = 90    # seconds for the vision description pass (large multimodal payload)
+CAPTION_TIMEOUT  = 90    # seconds per individual caption future (ThreadPoolExecutor)
 FRAME_WIDTH      = 896   # px — good balance of detail vs payload size
 MAX_VIDEO_BYTES  = 500 * 1024 * 1024  # 500 MB hard cap
 
@@ -195,11 +198,15 @@ def _validate_url(url: str) -> str:
         raise ValueError("URL has no host")
     return url
 
-def _validate_styles(requested: list) -> list[str]:
+def _validate_styles(requested) -> list[str]:
     """
     Return only the styles that are both requested and known.
     Preserve original order. Drop unknown styles with a warning.
+    Handles None, non-list, and empty input gracefully.
     """
+    if not isinstance(requested, list):
+        log.warning("styles field is not a list (%s) — falling back to all 4", type(requested).__name__)
+        return list(STYLES)
     known = set(STYLES)
     valid = [s for s in requested if isinstance(s, str) and s in known]
     dropped = [s for s in requested if s not in known]
@@ -348,9 +355,11 @@ def call_fireworks(
     model: str,
     max_tokens: int = 512,
     temperature: float = 0.7,
+    timeout: int | None = None,
     attempt: int = 0,
 ) -> str:
     """Call Fireworks chat completions with exponential backoff + jitter retry."""
+    req_timeout = timeout if timeout is not None else API_TIMEOUT
     headers = {
         "Content-Type": "application/json",
         "Authorization": f"Bearer {API_KEY}",
@@ -367,15 +376,15 @@ def call_fireworks(
             f"{BASE_URL}/chat/completions",
             headers=headers,
             json=payload,
-            timeout=API_TIMEOUT,
+            timeout=req_timeout,
         )
         # If the model rejected thinking:disabled, retry without it (once)
         if resp.status_code == 400 and attempt == 0:
             err_body = resp.text
-            log.warning("API 400 on attempt 0 — retrying without thinking field: %s", err_body[:200])
+            log.warning("API 400 on attempt 0 — retrying: %s", err_body[:200])
             return call_fireworks(
                 messages, model=model, max_tokens=max_tokens,
-                temperature=temperature, attempt=attempt + 1,
+                temperature=temperature, timeout=timeout, attempt=attempt + 1,
             )
         if resp.status_code == 429 or resp.status_code >= 500:
             raise requests.HTTPError(response=resp)
@@ -392,7 +401,7 @@ def call_fireworks(
             time.sleep(wait)
             return call_fireworks(
                 messages, model=model, max_tokens=max_tokens,
-                temperature=temperature, attempt=attempt + 1,
+                temperature=temperature, timeout=timeout, attempt=attempt + 1,
             )
         raise RuntimeError(f"Fireworks API [{model.split('/')[-1]}] failed after {MAX_RETRIES} attempts: {exc}") from exc
 
@@ -458,7 +467,10 @@ def adaptive_frame_count(duration: float) -> int:
 
     Cap at 16 to avoid hitting vision model context limits — each 896px JPEG
     encodes to ~50–80KB of base64, so 16 frames ≈ 1.1MB of image data.
+    When the global time budget is tight, cap at 8 to process faster.
     """
+    if is_time_tight():
+        return 6
     if duration <= 30:  return 8
     if duration <= 60:  return 12
     return 16  # 60s–120s
@@ -545,6 +557,8 @@ def describe_video(frame_parts: list[dict]) -> str:
     """
     First pass: detailed narrative description from frames.
     Uses vision model with very low temperature for factual accuracy.
+    Uses VISION_TIMEOUT (90s) — longer than caption calls because the multimodal
+    payload (up to 20 base64 JPEGs) takes more time to upload and process.
     """
     messages = [
         {"role": "system", "content": DESCRIBE_SYSTEM},
@@ -556,11 +570,13 @@ def describe_video(frame_parts: list[dict]) -> str:
             ],
         },
     ]
-    description = call_fireworks(messages, model=VISION_MODEL, max_tokens=3500, temperature=0.1)
+    description = call_fireworks(
+        messages, model=VISION_MODEL, max_tokens=3500, temperature=0.1, timeout=VISION_TIMEOUT,
+    )
     # Strip thinking tags that vision models sometimes leak
     description = re.sub(r"<think>[\s\S]*?</think>", "", description, flags=re.IGNORECASE).strip()
     if not description:
-        log.warning("Vision model returned empty description — using URL as fallback context")
+        log.warning("Vision model returned empty description — using fallback context")
         description = "A video clip. Unable to extract detailed visual description."
     return description
 

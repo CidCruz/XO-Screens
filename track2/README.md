@@ -181,7 +181,7 @@ The agent never lets a timeout kill produce missing output.
 | Role | Default model | Why |
 |---|---|---|
 | Vision (Pass 1) | `accounts/fireworks/models/minimax-m3` | Native multimodal (text + image), 512K context. $0.30/M in, $1.20/M out. |
-| Text (Pass 2) | `accounts/fireworks/models/kimi-k2p5` | Strong instruction following and creative writing, 262K context. $0.95/M in, $4.00/M out. |
+| Text (Pass 2) | `accounts/fireworks/models/kimi-k2p6` | Strong instruction following and creative writing, 262K context. $0.95/M in, $4.00/M out. |
 
 Both can be overridden via environment variables without rebuilding the image.
 
@@ -194,7 +194,7 @@ Both can be overridden via environment variables without rebuilding the image.
 | `FIREWORKS_API_KEY` | **Yes** | — | Your Fireworks AI API key |
 | `FIREWORKS_BASE_URL` | No | `https://api.fireworks.ai/inference/v1` | Base URL for all API calls |
 | `VISION_MODEL` | No | `accounts/fireworks/models/minimax-m3` | Vision model for Pass 1 |
-| `TEXT_MODEL` | No | `accounts/fireworks/models/kimi-k2p5` | Text model for Pass 2 |
+| `TEXT_MODEL` | No | `accounts/fireworks/models/kimi-k2p6` | Text model for Pass 2 |
 | `TOTAL_BUDGET_SECS` | No | `520` | Global wall-clock budget before graceful exit |
 
 ---
