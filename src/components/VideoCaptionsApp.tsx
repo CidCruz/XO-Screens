@@ -325,7 +325,6 @@ export default function VideoCaptionsApp({ onClose: _onClose, onCornerDown }: Pr
   // Processing state
   const [status, setStatus] = useState<'idle' | 'processing' | 'done' | 'error'>('idle')
   const [doneTones, setDoneTones] = useState<Set<CaptionTone>>(new Set())
-  const [uploadPhase, setUploadPhase] = useState<'uploading' | 'processing' | null>(null)
   const [currentStep, setCurrentStep] = useState<ProcessStep | null>(null)
   const [errorMsg, setErrorMsg] = useState('')
   const [results, setResults] = useState<CaptionResults | null>(null)
@@ -378,7 +377,6 @@ export default function VideoCaptionsApp({ onClose: _onClose, onCornerDown }: Pr
     setErrorMsg('')
     setSavedToNotes(false)
     setDoneTones(new Set())
-    setUploadPhase(null)
     setCurrentStep(null)
     try {
       let res: CaptionResults
@@ -386,12 +384,7 @@ export default function VideoCaptionsApp({ onClose: _onClose, onCornerDown }: Pr
       const onToneDone = (t: CaptionTone) => setDoneTones(prev => new Set(prev).add(t))
       const onStep = (s: ProcessStep) => setCurrentStep(s)
       if (inputMode === 'file' && videoFile) {
-        res = await processVideoFile(
-          videoFile,
-          onToneDone,
-          (phase) => setUploadPhase(phase),
-          onStep,
-        )
+        res = await processVideoFile(videoFile, onToneDone, undefined, onStep)
         label = videoFile.name
       } else if (inputMode === 'url' && videoURL.trim()) {
         res = await processVideoURL(videoURL.trim(), onToneDone, onStep)
@@ -401,7 +394,6 @@ export default function VideoCaptionsApp({ onClose: _onClose, onCornerDown }: Pr
       }
       setResults(res)
       setStatus('done')
-      setUploadPhase(null)
       setCurrentStep(null)
       setCurrentLabel(label)
       trackVideoCaptionGenerated()
@@ -412,7 +404,7 @@ export default function VideoCaptionsApp({ onClose: _onClose, onCornerDown }: Pr
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : 'Something went wrong.')
       setStatus('error')
-      setUploadPhase(null)
+      setCurrentStep(null)
     }
   }
 
@@ -484,23 +476,25 @@ export default function VideoCaptionsApp({ onClose: _onClose, onCornerDown }: Pr
   const activeToneData = TONES.find(t => t.id === activeTone)!
   const activeResult   = results?.[activeTone] as ToneResult | undefined
 
-  // Real progress: frames=10%, vision=30%, synthesis=55%, captions=55%+(tone/4)*45%
+  // Steps: fetching(URL only)=5%, frames=15%, vision=35%, synthesis=60%, captions=60→60%+(n/4)*40%
   const progressPct = (() => {
-    if (!currentStep) return 5
-    if (currentStep === 'frames') return 10
-    if (currentStep === 'vision') return 30
-    if (currentStep === 'synthesis') return 55
-    // captions step: each completed tone adds 45/4 = ~11.25%
-    return Math.round(55 + (doneTones.size / TONES.length) * 45)
+    if (status !== 'processing') return 0
+    if (!currentStep) return 5   // fetching / starting
+    if (currentStep === 'frames') return 15
+    if (currentStep === 'vision') return 35
+    if (currentStep === 'synthesis') return 60
+    // captions: each done tone advances toward 100
+    return Math.min(99, Math.round(60 + (doneTones.size / TONES.length) * 40))
   })()
 
-  const STEP_LABELS: Record<ProcessStep, string> = {
-    frames:    'Extracting frames…',
-    vision:    'Analyzing video…',
-    synthesis: 'Building description…',
-    captions:  doneTones.size === 0 ? 'Generating captions…' : `Captions: ${doneTones.size} / ${TONES.length} done`,
-  }
-  const processingLabel = currentStep ? STEP_LABELS[currentStep] : 'Starting…'
+  const stepLabel = (() => {
+    if (status !== 'processing') return ''
+    if (!currentStep) return inputMode === 'url' ? 'Fetching video…' : 'Starting…'
+    if (currentStep === 'frames') return 'Extracting frames…'
+    if (currentStep === 'vision') return 'Analyzing frames…'
+    if (currentStep === 'synthesis') return 'Building description…'
+    return doneTones.size === 0 ? 'Generating captions…' : `Captions ${doneTones.size} / ${TONES.length}`
+  })()
 
   // ── Render ───────────────────────────────────────────────────────────────
 
@@ -689,7 +683,7 @@ export default function VideoCaptionsApp({ onClose: _onClose, onCornerDown }: Pr
             onMouseEnter={e => { if (canProcess) (e.currentTarget as HTMLButtonElement).style.background = 'rgba(139,92,246,0.9)' }}
             onMouseLeave={e => { if (canProcess) (e.currentTarget as HTMLButtonElement).style.background = 'rgba(139,92,246,0.75)' }}
           >
-            {status === 'processing' ? <><Spinner /> {processingLabel}</> : (
+            {status === 'processing' ? <><Spinner /> Processing…</> : (
               <>
                 <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
@@ -750,31 +744,23 @@ export default function VideoCaptionsApp({ onClose: _onClose, onCornerDown }: Pr
         {/* ── Processing progress indicator ── */}
         {status === 'processing' && (
           <div style={{ margin: '10px 16px 0', flexShrink: 0 }}>
-
-            {/* Real progress bar */}
-            <div style={{ marginBottom: 8 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
-                <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.45)', fontWeight: 500 }}>
-                  {processingLabel}
-                </span>
-                <span style={{ fontSize: 10, color: 'rgba(139,92,246,0.8)', fontWeight: 600 }}>
-                  {progressPct}%
-                </span>
-              </div>
-              <div style={{ height: 5, borderRadius: 99, background: 'rgba(255,255,255,0.07)', overflow: 'hidden' }}>
-                <div style={{
-                  height: '100%', borderRadius: 99,
-                  background: 'linear-gradient(90deg, rgba(139,92,246,0.8), rgba(99,102,241,0.9))',
-                  width: `${progressPct}%`,
-                  transition: 'width 0.5s cubic-bezier(0.4,0,0.2,1)',
-                  boxShadow: '0 0 8px rgba(139,92,246,0.5)',
-                }} />
-              </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
+              <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.45)', fontWeight: 500 }}>{stepLabel}</span>
+              <span style={{ fontSize: 10, color: 'rgba(139,92,246,0.8)', fontWeight: 600 }}>{progressPct}%</span>
+            </div>
+            <div style={{ height: 5, borderRadius: 99, background: 'rgba(255,255,255,0.07)', overflow: 'hidden' }}>
+              <div style={{
+                height: '100%', borderRadius: 99,
+                background: 'linear-gradient(90deg, rgba(139,92,246,0.8), rgba(99,102,241,0.9))',
+                width: `${progressPct}%`,
+                transition: 'width 0.5s cubic-bezier(0.4,0,0.2,1)',
+                boxShadow: '0 0 8px rgba(139,92,246,0.5)',
+              }} />
             </div>
 
-            {/* Tone pills — only visible during captions step */}
+            {/* Tone pills — only during captions step */}
             {currentStep === 'captions' && (
-              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
                 {TONES.map(t => {
                   const isDone = doneTones.has(t.id)
                   return (
@@ -786,11 +772,9 @@ export default function VideoCaptionsApp({ onClose: _onClose, onCornerDown }: Pr
                       border: `1px solid ${isDone ? 'rgba(16,185,129,0.25)' : 'rgba(255,255,255,0.07)'}`,
                       transition: 'all 0.2s',
                     }}>
-                      {isDone ? (
-                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
-                          <polyline points="20 6 9 17 4 12" />
-                        </svg>
-                      ) : <Spinner />}
+                      {isDone
+                        ? <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                        : <Spinner />}
                       {t.label}
                     </div>
                   )

@@ -430,27 +430,11 @@ export async function processVideoURL(
   onProgress?: (tone: CaptionTone) => void,
   onStep?: (step: ProcessStep) => void,
 ): Promise<CaptionResults> {
-  // Try the Vite dev proxy first (works in `npm run dev`).
-  // In the production web build, fall back to fetching the URL directly — most
-  // video CDNs (including the hackathon GCS bucket) send permissive CORS headers.
-  let blob: Blob
-  const proxyUrl = `/api/video-proxy?url=${encodeURIComponent(url)}`
-  const proxyRes = await fetch(proxyUrl).catch(() => null)
-
-  if (proxyRes && proxyRes.ok) {
-    blob = await proxyRes.blob()
-  } else {
-    // Direct fetch — works when the server sends Access-Control-Allow-Origin: *
-    const directRes = await fetch(url)
-    if (!directRes.ok) throw new Error(`Failed to fetch video: ${directRes.status}`)
-    blob = await directRes.blob()
-  }
-
-  if (!blob || blob.size === 0) throw new Error('Downloaded video is empty.')
-
-  const objectUrl = URL.createObjectURL(blob)
-
+  // Load the URL directly into a <video> element — no full download needed.
+  // The browser streams just enough to seek and capture frames.
+  // Falls back to proxy only if direct load fails (CORS-blocked URLs).
   onStep?.('frames')
+
   let frameDataUrls: string[]
   try {
     frameDataUrls = await new Promise<string[]>((resolve, reject) => {
@@ -458,14 +442,42 @@ export async function processVideoURL(
       video.preload = 'metadata'
       video.muted = true
       video.playsInline = true
-      video.src = objectUrl
-      video.addEventListener('error', () => reject(new Error('Video load failed')))
+      video.crossOrigin = 'anonymous'
+      video.src = url
+      video.addEventListener('error', () => reject(new Error('direct')))
       video.addEventListener('loadedmetadata', () => {
         captureFrames(video).then(resolve).catch(reject)
       })
     })
-  } finally {
-    URL.revokeObjectURL(objectUrl)
+  } catch (directErr) {
+    // Direct load failed (likely CORS) — fall back to proxy/blob download
+    const proxyUrl = `/api/video-proxy?url=${encodeURIComponent(url)}`
+    const proxyRes = await fetch(proxyUrl).catch(() => null)
+    let objectUrl: string
+    if (proxyRes && proxyRes.ok) {
+      objectUrl = URL.createObjectURL(await proxyRes.blob())
+    } else {
+      const directRes = await fetch(url)
+      if (!directRes.ok) throw new Error(`Failed to fetch video: ${directRes.status}`)
+      const blob = await directRes.blob()
+      if (!blob || blob.size === 0) throw new Error('Downloaded video is empty.')
+      objectUrl = URL.createObjectURL(blob)
+    }
+    try {
+      frameDataUrls = await new Promise<string[]>((resolve, reject) => {
+        const video = document.createElement('video')
+        video.preload = 'metadata'
+        video.muted = true
+        video.playsInline = true
+        video.src = objectUrl
+        video.addEventListener('error', () => reject(new Error('Video load failed')))
+        video.addEventListener('loadedmetadata', () => {
+          captureFrames(video).then(resolve).catch(reject)
+        })
+      })
+    } finally {
+      URL.revokeObjectURL(objectUrl)
+    }
   }
 
   if (frameDataUrls.length === 0) throw new Error('Could not extract frames from video.')
