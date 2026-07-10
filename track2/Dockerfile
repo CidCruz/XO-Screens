@@ -20,6 +20,8 @@
 
 FROM python:3.11-slim
 
+ENV PYTHONUNBUFFERED=1
+
 # Disable healthcheck — we're a batch container, not a service
 HEALTHCHECK NONE
 
@@ -31,14 +33,15 @@ RUN apt-get update && \
 WORKDIR /app
 
 # Install Python dependencies first (better layer caching)
-COPY requirements.txt .
+COPY requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy agent source last — changing agent.py only rebuilds this layer
-COPY agent.py .
+COPY agent.py ./agent.py
 
 # Create I/O mount points with open permissions so harness bind-mounts are writable
 RUN mkdir -p /input /output && chmod 777 /input /output
 
-# -u = unbuffered stdout so logs appear immediately in docker logs
-CMD ["python", "-u", "agent.py"]
+# Explicit entrypoint keeps the judge's container start command deterministic
+ENTRYPOINT ["python", "-u", "/app/agent.py"]
+CMD []

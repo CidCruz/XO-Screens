@@ -66,8 +66,30 @@ except ImportError:
 API_KEY  = os.environ.get("FIREWORKS_API_KEY", "").strip()
 BASE_URL = os.environ.get("FIREWORKS_BASE_URL", "https://api.fireworks.ai/inference/v1").rstrip("/")
 
-INPUT_PATH  = Path(os.environ.get("INPUT_PATH_OVERRIDE",  "/input/tasks.json"))
-OUTPUT_PATH = Path(os.environ.get("OUTPUT_PATH_OVERRIDE", "/output/results.json"))
+INPUT_PATH = Path("/input/tasks.json")
+OUTPUT_PATH = Path("/output/results.json")
+
+
+def resolve_paths() -> tuple[Path, Path]:
+    """Resolve input/output paths from environment overrides or common mount locations."""
+    input_override = os.environ.get("INPUT_PATH_OVERRIDE", "").strip()
+    output_override = os.environ.get("OUTPUT_PATH_OVERRIDE", "").strip()
+
+    input_path = Path(input_override) if input_override else None
+    output_path = Path(output_override) if output_override else None
+
+    if input_path is None:
+        for candidate in (Path("/input/tasks.json"), Path("/input/input.json")):
+            if candidate.exists():
+                input_path = candidate
+                break
+        if input_path is None:
+            input_path = Path("/input/tasks.json")
+
+    if output_path is None:
+        output_path = Path("/output/results.json")
+
+    return input_path, output_path
 
 # ── Timing budget ─────────────────────────────────────────────────────────────
 # Hard wall-clock budget — leaves 80s buffer before the 10-min container limit.
@@ -818,7 +840,10 @@ def process_task(task: dict, tmpdir: Path) -> dict:
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 
-def main() -> None:
+def main() -> int:
+    global INPUT_PATH, OUTPUT_PATH
+    INPUT_PATH, OUTPUT_PATH = resolve_paths()
+
     log.info("=== XO-Screens Video Captioning Agent (Track 2) ===")
     log.info("Budget: %ds | Vision: %s | Text: %s",
              TOTAL_BUDGET_SECS,
@@ -832,25 +857,25 @@ def main() -> None:
     if not INPUT_PATH.exists():
         log.error("Input file not found: %s", INPUT_PATH)
         OUTPUT_PATH.write_text("[]", encoding="utf-8")
-        sys.exit(0)
+        return 0
 
     try:
         tasks = json.loads(INPUT_PATH.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError) as exc:
         log.error("Failed to read input: %s", exc)
         OUTPUT_PATH.write_text("[]", encoding="utf-8")
-        sys.exit(0)
+        return 0
 
     if not isinstance(tasks, list):
         log.error("tasks.json must be a JSON array, got %s", type(tasks).__name__)
         OUTPUT_PATH.write_text("[]", encoding="utf-8")
-        sys.exit(0)
+        return 0
 
     if len(tasks) == 0:
         log.warning("tasks.json is empty — writing empty results")
         OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
         OUTPUT_PATH.write_text("[]", encoding="utf-8")
-        sys.exit(0)
+        return 0
 
     log.info("Tasks to process: %d", len(tasks))
     OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -940,8 +965,8 @@ def main() -> None:
 
     log.info("=== Done: %d result(s) written | total elapsed: %.0fs ===",
              len(results), elapsed())
-    sys.exit(0)
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
