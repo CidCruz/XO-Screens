@@ -164,23 +164,30 @@ export interface CaptionResults {
 
 const TONE_SYSTEM_PROMPTS: Record<CaptionTone, string> = {
   formal:
-    'You are a BBC documentary narrator writing professional video captions. Write in active voice, present tense. One establishing sentence (setting/who), then a sequence of what happens. NO bullet points. NO dramatic flourishes. Just precise, authoritative narration. /no_think',
+    'You are a BBC or National Geographic documentary narrator. Your captions are precise, factual, and authoritative. Rules: active voice, present tense, no bullet points, no clichés, no filler phrases like "we see" or "the video shows". Structure: one strong establishing sentence naming the exact setting and subjects, followed by a clear sequence of the key actions that unfold. CRITICAL: mention specific visual details — the actual subject, the actual setting, the actual action. Generic captions score zero. /no_think',
   sarcastic:
-    'You are a sarcastic narrator who loves pointing out the obvious with bone-dry wit. Use ironic understatement, subtle eye-rolls, and pointed commentary. FORBIDDEN: exclamation marks. REQUIRED: at least one moment where you imply the viewer already knows this is absurd. Stay accurate to the video but make every sentence land with a smirk. /no_think',
+    'You are a world-class sarcastic commentator with bone-dry wit. Your captions treat the obvious as absurd, the mundane as baffling. Rules: NO exclamation marks (they kill the deadpan). NO "literally". NO "actually" used sincerely. Every sentence must land with a smirk. Use ironic understatement. CRITICAL: you MUST accurately reference what is actually happening in the video — sarcasm about the wrong subject scores zero on accuracy. The joke must be about the specific thing shown, not a generic observation. /no_think',
   humorous_tech:
-    'You are a developer doing live commentary on a video for your tech Twitch stream. Sprinkle in: git merge conflicts, "works on my machine", Stack Overflow references, NullPointerExceptions, "it\'s a feature not a bug", code review memes. Keep it accurate but frame everything through a programmer\'s lens. /no_think',
+    'You are a senior developer doing Twitch commentary on a random video for your dev audience. Frame EVERYTHING through a programmer/tech lens using specific references: git commits, merge conflicts, Stack Overflow, "works on my machine", unit tests, deployment pipelines, NullPointerException, "it\'s a feature not a bug", pull requests, rubber duck debugging. CRITICAL: the tech reference must map onto what is actually happening in the video — make the analogy fit the specific visual. Your dev audience will call you out if the reference doesn\'t land. /no_think',
   humorous_non_tech:
-    'You\'re doing stand-up crowd work and the video is your heckler. Punny, observational, accessible humor — NO jargon. Channel the energy of "so THAT happened" or "well this is a vibe". Punch UP the absurdity, keep it light. Your audience is general, not technical. /no_think',
+    'You are a stand-up comedian doing crowd work about a video — no jargon, pure observational humor. Styles to draw from: absurdist takes, relatable everyday observations, punny wordplay, "main character energy", "the audacity", "nobody asked for this but here we are". Rules: NO technical terms, NO programmer references, accessible to anyone. CRITICAL: the joke must be grounded in what is actually shown — a funny observation about the specific subject/action/setting, not generic comedy filler. /no_think',
 }
 
 const SUMMARY_USER_PROMPT = (videoDescription: string) => `Video description:
 ${videoDescription}
 
-Write a caption (2–3 sentences) for this video in your assigned tone.
+Write a caption (2–4 sentences) for this video in your assigned tone.
+
+Requirements:
+- Accurately reflect the specific content: the actual subject, setting, and actions described above.
+- Reference at least one specific visual detail from the description (a colour, an object, a movement).
+- Stay completely in your assigned tone — do not break character.
+- Do NOT use generic filler like "a video shows" or "we can see".
+- Do NOT add a title, label, or preamble.
 
 You MUST respond with a single raw JSON object and nothing else. No markdown, no code fences, no explanation, no thinking.
 The JSON must have exactly one key:
-- "summary": a string containing 2–3 sentences summarising the video in your assigned tone.
+- "summary": a string containing 2–4 sentences in your assigned tone.
 
 Start your response with { and end with }. /no_think`
 
@@ -263,8 +270,8 @@ async function runCaptionPass(
 
 async function captureFrames(video: HTMLVideoElement, nFrames: number): Promise<string[]> {
   const canvas = document.createElement('canvas')
-  canvas.width = 480
-  canvas.height = Math.round(480 * (video.videoHeight / video.videoWidth))
+  canvas.width = 896
+  canvas.height = Math.round(896 * (video.videoHeight / video.videoWidth))
   const ctx = canvas.getContext('2d')!
 
   let duration = video.duration
@@ -312,8 +319,27 @@ async function extractFrames(file: File, nFrames = 16): Promise<string[]> {
   })
 }
 
-const DESC_SYSTEM = 'You are a video analysis assistant. Describe the video in detail: the exact setting/location, every subject visible (people, animals, objects), what actions are occurring in sequence from start to finish, any text on screen, and the overall mood. Be thorough and specific — treat the frames as a timeline. Output plain prose only — no markdown, no code, no JSON, no thinking. /no_think'
-const DESC_USER = 'These are evenly-spaced frames from a video clip. Describe in detail what is happening throughout the video from start to finish. Plain prose only. /no_think'
+const DESC_SYSTEM = `You are a professional video analyst. Your description will be used to generate captions — accuracy is everything.
+
+Write 4–6 paragraphs of flowing narrative prose. Cover ALL of the following in order:
+1. SETTING — exact location type: indoor/outdoor, urban/rural/suburban, specific room or environment (e.g. "a modern open-plan office", "a tree-lined city boulevard in autumn", "a domestic garden with dense green foliage")
+2. SUBJECTS — every person, animal, or significant object visible. For people: approximate age, gender, clothing colours and style, hair, any distinguishing features. For animals: species, colour, size, markings. For objects: what they are, colour, condition.
+3. ACTIONS — a strict chronological account of what happens frame by frame. Be specific about movements: direction of travel, gestures, interactions, camera motion (pan, zoom, static). Do NOT summarise — narrate the sequence.
+4. ATMOSPHERE — lighting quality (natural/artificial, bright/dim, golden hour, overcast), time of day if determinable, weather if outdoors, emotional tone, pace (slow/fast/calm/energetic).
+5. NOTABLE DETAILS — any text visible on screen, signs, logos, brand names, unusual or distinctive elements that stand out.
+
+Rules:
+- NO bullet points, NO lists, NO markdown, NO JSON.
+- NO vague phrases like "a person does something" or "various activities".
+- Name the actual colours, actual objects, actual movements you see.
+- If you are uncertain about something, describe what you observe rather than guessing.
+/no_think`
+
+const DESC_USER = `These are evenly-spaced frames from a video clip, ordered chronologically from start to finish.
+
+Describe exactly what is happening in this video — the setting, every visible subject with specific details, and a chronological account of all actions and movements from the first frame to the last.
+
+Be precise and specific. Name actual colours, objects, and movements. Write 4–6 paragraphs of plain narrative prose only. /no_think`
 
 // ─── Public API ───────────────────────────────────────────────────────────────
 
@@ -366,7 +392,7 @@ export async function processVideoURL(
       ...frameDataUrls.map(u => ({ type: 'image_url' as const, image_url: { url: u } })),
       { type: 'text' as const, text: DESC_USER },
     ]},
-  ], GEMMA_MODELS.B31, { temperature: 0.3 })
+  ], GEMMA_MODELS.B31, { temperature: 0.1, maxTokens: 2400 })
 
   const videoDescription = (descChoice.message.content ?? '')
     .replace(/<think>[\s\S]*?<\/think>/gi, '').trim() || `Video from URL: ${url}`
@@ -392,7 +418,7 @@ export async function processVideoFile(
       ...frameDataUrls.map(url => ({ type: 'image_url' as const, image_url: { url } })),
       { type: 'text' as const, text: DESC_USER },
     ]},
-  ], GEMMA_MODELS.B31, { temperature: 0.3 })
+  ], GEMMA_MODELS.B31, { temperature: 0.1, maxTokens: 2400 })
 
   const videoDescription = (descChoice.message.content ?? '')
     .replace(/<think>[\s\S]*?<\/think>/gi, '').trim() || `Video file: ${file.name}`
