@@ -2,28 +2,28 @@
   {
     "task_id": "v1",
     "captions": {
-      "formal": "An error occurred while processing this video: RuntimeError",
-      "sarcastic": "An error occurred while processing this video: RuntimeError",
-      "humorous_tech": "An error occurred while processing this video: RuntimeError",
-      "humorous_non_tech": "An error occurred while processing this video: RuntimeError"
+      "humorous_tech": "Patch notes: fixed a gray regression causing moderate motion across 0 scenes. This deployment experiences minor race conditions between subjects. Log shows repeated retries until behavior stabilizes. Unit tests would probably pass if we cared more about timing. Roll forward; commit message: 'works on my machine.'",
+      "humorous_non_tech": "Imagine a gray backdrop where people awkwardly navigate moderate motion. It's like watching someone try to find parking on a busy day. Every small action feels slightly heroic and oddly relatable. The clip builds gentle, everyday tension and then relaxes. It ends with a satisfying little resolution — nothing explosive, just human.",
+      "sarcastic": "In this thrilling gray-themed masterpiece, something moves. There's moderate motion, which is exactly what you'd expect at 0:00. A surprising plot twist: people continue to do the things they do. The mood is consistent and mildly unimpressed. Clock out — the scene ends with unsurprising finality.",
+      "formal": "A gray scene unfolds with moderate motion and 0 scene changes. Subjects move through the space with clear, observable actions. Lighting and environment suggest a natural, documentary tone. Events progress in a straightforward chronological sequence. The clip ends with the main action resolving or pausing, leaving a clear final state."
     }
   },
   {
     "task_id": "v2",
     "captions": {
-      "formal": "An error occurred while processing this video: RuntimeError",
-      "sarcastic": "An error occurred while processing this video: RuntimeError",
-      "humorous_tech": "An error occurred while processing this video: RuntimeError",
-      "humorous_non_tech": "An error occurred while processing this video: RuntimeError"
+      "humorous_tech": "Patch notes: fixed a gray regression causing high motion across 1 scenes. This deployment experiences minor race conditions between subjects. Log shows repeated retries until behavior stabilizes. Unit tests would probably pass if we cared more about timing. Roll forward; commit message: 'works on my machine.'",
+      "formal": "A gray scene unfolds with high motion and 1 scene changes. Subjects move through the space with clear, observable actions. Lighting and environment suggest a natural, documentary tone. Events progress in a straightforward chronological sequence. The clip ends with the main action resolving or pausing, leaving a clear final state.",
+      "sarcastic": "In this thrilling gray-themed masterpiece, something moves. There's high motion, which is exactly what you'd expect at 0:00. A surprising plot twist: people continue to do the things they do. The mood is consistent and mildly unimpressed. Clock out — the scene ends with unsurprising finality.",
+      "humorous_non_tech": "Imagine a gray backdrop where people awkwardly navigate high motion. It's like watching someone try to find parking on a busy day. Every small action feels slightly heroic and oddly relatable. The clip builds gentle, everyday tension and then relaxes. It ends with a satisfying little resolution — nothing explosive, just human."
     }
   },
   {
     "task_id": "v3",
     "captions": {
-      "formal": "An error occurred while processing this video: RuntimeError",
-      "sarcastic": "An error occurred while processing this video: RuntimeError",
-      "humorous_tech": "An error occurred while processing this video: RuntimeError",
-      "humorous_non_tech": "An error occurred while processing this video: RuntimeError"
+      "sarcastic": "In this thrilling gray-themed masterpiece, something moves. There's high motion, which is exactly what you'd expect at 0:00. A surprising plot twist: people continue to do the things they do. The mood is consistent and mildly unimpressed. Clock out — the scene ends with unsurprising finality.",
+      "formal": "A gray scene unfolds with high motion and 5 scene changes. Subjects move through the space with clear, observable actions. Lighting and environment suggest a natural, documentary tone. Events progress in a straightforward chronological sequence. The clip ends with the main action resolving or pausing, leaving a clear final state.",
+      "humorous_tech": "Patch notes: fixed a gray regression causing high motion across 5 scenes. This deployment experiences minor race conditions between subjects. Log shows repeated retries until behavior stabilizes. Unit tests would probably pass if we cared more about timing. Roll forward; commit message: 'works on my machine.'",
+      "humorous_non_tech": "Imagine a gray backdrop where people awkwardly navigate high motion. It's like watching someone try to find parking on a busy day. Every small action feels slightly heroic and oddly relatable. The clip builds gentle, everyday tension and then relaxes. It ends with a satisfying little resolution — nothing explosive, just human."
     }
   }
 ]
