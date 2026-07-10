@@ -268,41 +268,104 @@ async function runCaptionPass(
 
 // ─── Frame capture helpers ────────────────────────────────────────────────────
 
-async function captureFrames(video: HTMLVideoElement, nFrames: number): Promise<string[]> {
-  const canvas = document.createElement('canvas')
-  canvas.width = 896
-  canvas.height = Math.round(896 * (video.videoHeight / video.videoWidth))
-  const ctx = canvas.getContext('2d')!
+// Max frames the vision model handles well before attention dilutes.
+// 20 = sweet spot: full temporal coverage without token overload.
+const MAX_FRAMES = 20
+// 896px wide = same as agent.py. Vision models internally downsample above this.
+// Going higher (1080p/4K) bloats the base64 payload 4-16x with zero accuracy gain.
+const FRAME_WIDTH = 896
+// JPEG quality 0.92 = near-lossless. Preserves fine details (text, clothing colours,
+// facial expressions) that 0.6 compression destroys.
+const FRAME_QUALITY = 0.92
 
+// Adaptive frame count: more frames for longer videos, capped at MAX_FRAMES.
+// Short clips get denser sampling; long clips get evenly spread coverage.
+function adaptiveFrameCount(duration: number): number {
+  if (duration <= 15)  return 8
+  if (duration <= 30)  return 12
+  if (duration <= 60)  return 16
+  if (duration <= 120) return 20
+  // Beyond 2 min: still 20 frames but spread across the full duration
+  return MAX_FRAMES
+}
+
+// Perceptual difference between two canvas frames (0 = identical, 1 = completely different).
+// Samples a 16x16 grid of pixels — fast enough to run on every candidate frame.
+function frameDiff(a: ImageData, b: ImageData): number {
+  let diff = 0
+  const step = Math.floor(a.data.length / (16 * 16 * 4))
+  let count = 0
+  for (let i = 0; i < a.data.length; i += step * 4) {
+    diff += Math.abs(a.data[i] - b.data[i])
+      + Math.abs(a.data[i+1] - b.data[i+1])
+      + Math.abs(a.data[i+2] - b.data[i+2])
+    count++
+  }
+  return count > 0 ? diff / (count * 255 * 3) : 0
+}
+
+async function seekTo(video: HTMLVideoElement, t: number): Promise<void> {
+  return new Promise(res => {
+    const done = () => { video.removeEventListener('seeked', done); res() }
+    video.addEventListener('seeked', done)
+    video.currentTime = t
+  })
+}
+
+async function captureFrames(video: HTMLVideoElement): Promise<string[]> {
+  // Resolve true duration — some formats report 0 until seeked to end
   let duration = video.duration
   if (!isFinite(duration) || duration <= 0) {
-    await new Promise<void>(res => {
-      const onSeeked = () => { video.removeEventListener('seeked', onSeeked); res() }
-      video.addEventListener('seeked', onSeeked)
-      video.currentTime = 1e9
-    })
+    await seekTo(video, 1e9)
     duration = video.duration
   }
   if (!isFinite(duration) || duration <= 0) duration = 30
 
-  const interval = duration / (nFrames + 1)
-  const timestamps = Array.from({ length: nFrames }, (_, i) => interval * (i + 1))
-  const frames: string[] = []
+  const nFrames = adaptiveFrameCount(duration)
 
-  for (const ts of timestamps) {
-    await new Promise<void>(res => {
-      const onSeeked = () => { video.removeEventListener('seeked', onSeeked); res() }
-      video.addEventListener('seeked', onSeeked)
-      video.currentTime = ts
-    })
+  // Canvas sized to FRAME_WIDTH, preserving aspect ratio
+  const canvas = document.createElement('canvas')
+  canvas.width = FRAME_WIDTH
+  canvas.height = Math.round(FRAME_WIDTH * (video.videoHeight / Math.max(video.videoWidth, 1)))
+  const ctx = canvas.getContext('2d')!
+
+  // Phase 1: capture candidate frames at evenly-spaced timestamps.
+  // We sample nFrames + 4 extra candidates so the dedup pass has room to work.
+  const candidateCount = Math.min(nFrames + 4, MAX_FRAMES + 4)
+  const interval = duration / (candidateCount + 1)
+  const candidates: { ts: number; dataUrl: string; imageData: ImageData }[] = []
+
+  for (let i = 1; i <= candidateCount; i++) {
+    const ts = interval * i
+    await seekTo(video, ts)
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
-    frames.push(canvas.toDataURL('image/jpeg', 0.6))
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
+    candidates.push({ ts, dataUrl: canvas.toDataURL('image/jpeg', FRAME_QUALITY), imageData })
   }
 
-  return frames
+  // Phase 2: deduplicate — drop frames that are visually near-identical to the
+  // previous kept frame (diff < 0.04 = less than 4% pixel change = scene hasn't moved).
+  // This removes redundant static frames and keeps only meaningful visual transitions.
+  const kept: typeof candidates = [candidates[0]]
+  for (let i = 1; i < candidates.length; i++) {
+    const diff = frameDiff(candidates[i].imageData, kept[kept.length - 1].imageData)
+    if (diff >= 0.04) kept.push(candidates[i])
+    if (kept.length >= nFrames) break
+  }
+
+  // If dedup removed too many (very static video), pad back with evenly-spaced originals
+  if (kept.length < Math.min(nFrames, candidates.length)) {
+    const step = Math.floor(candidates.length / nFrames)
+    for (let i = 0; i < candidates.length && kept.length < nFrames; i += step) {
+      if (!kept.find(k => k.ts === candidates[i].ts)) kept.push(candidates[i])
+    }
+    kept.sort((a, b) => a.ts - b.ts)
+  }
+
+  return kept.slice(0, MAX_FRAMES).map(f => f.dataUrl)
 }
 
-async function extractFrames(file: File, nFrames = 16): Promise<string[]> {
+async function extractFrames(file: File): Promise<string[]> {
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(file)
     const video = document.createElement('video')
@@ -312,34 +375,51 @@ async function extractFrames(file: File, nFrames = 16): Promise<string[]> {
     video.src = url
     video.addEventListener('error', () => { URL.revokeObjectURL(url); reject(new Error('Video load failed')) })
     video.addEventListener('loadedmetadata', () => {
-      captureFrames(video, nFrames)
+      captureFrames(video)
         .then(frames => { URL.revokeObjectURL(url); resolve(frames) })
         .catch(err => { URL.revokeObjectURL(url); reject(err) })
     })
   })
 }
 
-const DESC_SYSTEM = `You are a professional video analyst. Your description will be used to generate captions — accuracy is everything.
+// Pass 1 — exhaustive visual inventory: force the model to list every concrete
+// detail it can see before synthesizing. This prevents it from skipping details.
+const INVENTORY_SYSTEM = `You are a forensic video analyst. Your job is to extract every observable fact from these frames.
 
-Write 4–6 paragraphs of flowing narrative prose. Cover ALL of the following in order:
-1. SETTING — exact location type: indoor/outdoor, urban/rural/suburban, specific room or environment (e.g. "a modern open-plan office", "a tree-lined city boulevard in autumn", "a domestic garden with dense green foliage")
-2. SUBJECTS — every person, animal, or significant object visible. For people: approximate age, gender, clothing colours and style, hair, any distinguishing features. For animals: species, colour, size, markings. For objects: what they are, colour, condition.
-3. ACTIONS — a strict chronological account of what happens frame by frame. Be specific about movements: direction of travel, gestures, interactions, camera motion (pan, zoom, static). Do NOT summarise — narrate the sequence.
-4. ATMOSPHERE — lighting quality (natural/artificial, bright/dim, golden hour, overcast), time of day if determinable, weather if outdoors, emotional tone, pace (slow/fast/calm/energetic).
-5. NOTABLE DETAILS — any text visible on screen, signs, logos, brand names, unusual or distinctive elements that stand out.
+For EACH frame, state:
+- Exact timestamp position (early/mid/late in the clip)
+- Every subject visible: people (age estimate, gender, exact clothing colours and style, hair colour/length, accessories), animals (species, colour, size), objects (what, colour, size, condition)
+- Exact actions occurring: body position, direction of movement, what they are doing with their hands/body
+- Camera behaviour: static, panning left/right, zooming in/out, handheld shake
+- Background details: what is behind the subjects, any text/signs/logos visible
+
+Then write a SETTING paragraph: exact environment type, time of day, lighting, weather if outdoors.
+
+Rules: plain prose only, no markdown, no JSON, no bullet points. Be exhaustive — missing a detail here means it cannot appear in the final caption. /no_think`
+
+const INVENTORY_USER = `These frames are ordered chronologically from the start to the end of the video clip.
+
+Analyse every frame in sequence. For each one, describe every visible subject, their exact appearance, what they are doing, and what the camera is doing. Then describe the overall setting.
+
+Do not summarise. Do not skip frames. Name actual colours, actual objects, actual movements. Plain prose only. /no_think`
+
+// Pass 2 — synthesize the inventory into a rich narrative description.
+// This is what gets passed to the caption pass.
+const SYNTHESIZE_SYSTEM = `You are a professional video narrator. You have been given a detailed frame-by-frame inventory of a video clip.
+
+Using ONLY the facts in that inventory, write a single cohesive narrative description of the video in 4–6 paragraphs covering:
+1. The exact setting and environment
+2. Every subject — their precise appearance and what makes them distinctive
+3. A chronological account of all actions from start to finish
+4. The atmosphere, mood, lighting, and pace
+5. Any notable details: text on screen, unusual elements, camera movement
 
 Rules:
-- NO bullet points, NO lists, NO markdown, NO JSON.
-- NO vague phrases like "a person does something" or "various activities".
-- Name the actual colours, actual objects, actual movements you see.
-- If you are uncertain about something, describe what you observe rather than guessing.
+- Do NOT invent anything not in the inventory.
+- Do NOT use vague phrases like "a person does something" or "various activities".
+- Name the actual colours, objects, and movements from the inventory.
+- Plain narrative prose only — no bullet points, no markdown, no JSON.
 /no_think`
-
-const DESC_USER = `These are evenly-spaced frames from a video clip, ordered chronologically from start to finish.
-
-Describe exactly what is happening in this video — the setting, every visible subject with specific details, and a chronological account of all actions and movements from the first frame to the last.
-
-Be precise and specific. Name actual colours, objects, and movements. Write 4–6 paragraphs of plain narrative prose only. /no_think`
 
 // ─── Public API ───────────────────────────────────────────────────────────────
 
@@ -377,7 +457,7 @@ export async function processVideoURL(
       video.src = objectUrl
       video.addEventListener('error', () => reject(new Error('Video load failed')))
       video.addEventListener('loadedmetadata', () => {
-        captureFrames(video, 8).then(resolve).catch(reject)
+        captureFrames(video).then(resolve).catch(reject)
       })
     })
   } finally {
@@ -386,16 +466,28 @@ export async function processVideoURL(
 
   if (frameDataUrls.length === 0) throw new Error('Could not extract frames from video.')
 
-  const descChoice = await callFW([
-    { role: 'system', content: DESC_SYSTEM },
+  // Pass 1 — exhaustive per-frame visual inventory
+  const inventoryChoice = await callFW([
+    { role: 'system', content: INVENTORY_SYSTEM },
     { role: 'user', content: [
       ...frameDataUrls.map(u => ({ type: 'image_url' as const, image_url: { url: u } })),
-      { type: 'text' as const, text: DESC_USER },
+      { type: 'text' as const, text: INVENTORY_USER },
     ]},
+  ], GEMMA_MODELS.B31, { temperature: 0.1, maxTokens: 3000 })
+
+  const inventory = (inventoryChoice.message.content ?? '')
+    .replace(/<think>[\s\S]*?<\/think>/gi, '').trim()
+
+  // Pass 2 — synthesize inventory into a rich narrative description
+  const synthChoice = await callFW([
+    { role: 'system', content: SYNTHESIZE_SYSTEM },
+    { role: 'user', content: `Frame-by-frame inventory:\n${inventory}\n\nWrite the cohesive narrative description now. Plain prose only. /no_think` },
   ], GEMMA_MODELS.B31, { temperature: 0.1, maxTokens: 2400 })
 
-  const videoDescription = (descChoice.message.content ?? '')
-    .replace(/<think>[\s\S]*?<\/think>/gi, '').trim() || `Video from URL: ${url}`
+  const videoDescription = (synthChoice.message.content ?? '')
+    .replace(/<think>[\s\S]*?<\/think>/gi, '').trim()
+    || inventory
+    || `Video from URL: ${url}`
 
   return runCaptionPass(videoDescription, onProgress)
 }
@@ -407,21 +499,33 @@ export async function processVideoFile(
 ): Promise<CaptionResults> {
   onUploadProgress?.('uploading', 10)
 
-  const frameDataUrls = await extractFrames(file, 8)
+  const frameDataUrls = await extractFrames(file)
   if (frameDataUrls.length === 0) throw new Error('Could not extract frames from video.')
 
   onUploadProgress?.('processing')
 
-  const descChoice = await callFW([
-    { role: 'system', content: DESC_SYSTEM },
+  // Pass 1 — exhaustive per-frame visual inventory
+  const inventoryChoice = await callFW([
+    { role: 'system', content: INVENTORY_SYSTEM },
     { role: 'user', content: [
       ...frameDataUrls.map(url => ({ type: 'image_url' as const, image_url: { url } })),
-      { type: 'text' as const, text: DESC_USER },
+      { type: 'text' as const, text: INVENTORY_USER },
     ]},
+  ], GEMMA_MODELS.B31, { temperature: 0.1, maxTokens: 3000 })
+
+  const inventory = (inventoryChoice.message.content ?? '')
+    .replace(/<think>[\s\S]*?<\/think>/gi, '').trim()
+
+  // Pass 2 — synthesize inventory into a rich narrative description
+  const synthChoice = await callFW([
+    { role: 'system', content: SYNTHESIZE_SYSTEM },
+    { role: 'user', content: `Frame-by-frame inventory:\n${inventory}\n\nWrite the cohesive narrative description now. Plain prose only. /no_think` },
   ], GEMMA_MODELS.B31, { temperature: 0.1, maxTokens: 2400 })
 
-  const videoDescription = (descChoice.message.content ?? '')
-    .replace(/<think>[\s\S]*?<\/think>/gi, '').trim() || `Video file: ${file.name}`
+  const videoDescription = (synthChoice.message.content ?? '')
+    .replace(/<think>[\s\S]*?<\/think>/gi, '').trim()
+    || inventory
+    || `Video file: ${file.name}`
 
   return runCaptionPass(videoDescription, onProgress)
 }
