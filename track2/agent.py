@@ -4,8 +4,8 @@ XO-Screens | AMD Developer Hackathon: ACT II
 
 Pipeline:
   1. Read /input/tasks.json
-  2. For each video: download → extract frames (scene-aware) + transcribe audio (Whisper tiny)
-  3. First pass  — describe video from frames + transcript (vision model: Qwen3-VL-32B)
+  2. For each video: download → extract frames (scene-aware)
+  3. First pass  — describe video from frames (vision model: MiniMax M3)
   4. Second pass — generate captions in all requested styles with per-style temperature
   5. Write /output/results.json
   6. Exit 0
@@ -22,8 +22,6 @@ Environment variables:
   FIREWORKS_BASE_URL  — optional: base URL override
   VISION_MODEL        — optional: override vision model
   TEXT_MODEL          — optional: override caption model
-  WHISPER_MODEL       — optional: whisper model size (default: tiny)
-  ENABLE_WHISPER      — optional: set to "false" to skip audio transcription (faster)
   TOTAL_BUDGET_SECS   — optional: global wall-clock budget in seconds (default: 520)
 """
 
@@ -87,12 +85,6 @@ def is_time_tight() -> bool:
     """True when less than 120s remain — triggers fallbacks."""
     return budget_remaining() < 120
 
-# ── Whisper config ────────────────────────────────────────────────────────────
-# Default: tiny — ~4-10s per clip on CPU vs ~30-90s for base.
-# Set ENABLE_WHISPER=false to skip audio entirely (faster but less accurate).
-WHISPER_MODEL_SIZE = os.environ.get("WHISPER_MODEL", "tiny").strip()
-ENABLE_WHISPER     = os.environ.get("ENABLE_WHISPER", "true").strip().lower() != "false"
-
 # ── Model selection ───────────────────────────────────────────────────────────
 # Models confirmed available on Fireworks serverless (from account model list).
 #
@@ -130,19 +122,6 @@ CAPTION_TIMEOUT  = 90    # seconds per individual caption future
 FRAME_WIDTH      = 896   # px — good balance of detail vs payload size
 MAX_VIDEO_BYTES  = 500 * 1024 * 1024  # 500 MB hard cap
 
-# ── Whisper loader ────────────────────────────────────────────────────────────
-
-_whisper_model = None
-
-def get_whisper_model():
-    global _whisper_model
-    if _whisper_model is None:
-        import whisper
-        log.info("Loading Whisper model: %s", WHISPER_MODEL_SIZE)
-        _whisper_model = whisper.load_model(WHISPER_MODEL_SIZE)
-        log.info("Whisper model loaded")
-    return _whisper_model
-
 # ── Startup checks ────────────────────────────────────────────────────────────
 
 def startup_checks() -> None:
@@ -177,13 +156,7 @@ def startup_checks() -> None:
     log.info("VISION_MODEL    : %s", VISION_MODEL)
     log.info("TEXT_MODEL      : %s", TEXT_MODEL)
     log.info("BASE_URL        : %s", BASE_URL)
-    log.info("WHISPER_MODEL   : %s", WHISPER_MODEL_SIZE)
-    log.info("ENABLE_WHISPER  : %s", ENABLE_WHISPER)
     log.info("TOTAL_BUDGET    : %ds", TOTAL_BUDGET_SECS)
-
-    # Pre-load Whisper at startup so the first task doesn't pay the load penalty
-    if ENABLE_WHISPER:
-        get_whisper_model()
 
 # ── HTTP session ──────────────────────────────────────────────────────────────
 
@@ -302,26 +275,20 @@ DESCRIBE_SYSTEM = (
     "5. KEY MOMENT: the most significant or climactic moment in the video\n"
     "6. RESOLUTION: how the video ends — final state, final positions, final action\n"
     "7. ATMOSPHERE: mood, energy level, pace, emotional tone\n"
-    "8. NOTABLE DETAILS: any text on screen, signs, brand names, unusual elements, audio cues if transcript provided\n"
+    "8. NOTABLE DETAILS: any text on screen, signs, brand names, or unusual elements\n"
     "Be exhaustive and specific. Every sentence must contain at least one concrete detail — actual colour, actual object, actual direction of movement. "
     "Vague descriptions like 'a person does something' are useless and score zero. "
     "Write 6–8 paragraphs of narrative prose. /no_think"
 )
 
-def build_describe_prompt(transcript: str) -> str:
-    transcript_section = (
-        f"\n\nAudio transcript (verbatim from Whisper):\n{transcript.strip()}"
-        if transcript.strip()
-        else "\n\nAudio transcript: [silent or no speech detected]"
-    )
+def build_describe_prompt() -> str:
     return (
         "These frames are ordered chronologically from the very start to the very end of the video clip."
-        + transcript_section + "\n\n"
-        "Analyse every frame in sequence and write an exhaustive narrative description covering: "
+        "\n\nAnalyse every frame in sequence and write an exhaustive narrative description covering: "
         "the exact setting and environment, every visible subject with complete appearance details (clothing colours, physical features, expressions), "
         "the full chronological sequence of all actions from start to finish (what moves, in which direction, at what speed, how subjects interact), "
         "the key climactic moment, how the video ends, the atmosphere and mood, "
-        "and any text, signs, or audio cues visible. "
+        "and any text or signs visible. "
         "Every sentence must contain at least one specific concrete detail. "
         "Do not describe only the opening frame — cover the entire video. "
         "Write 6–8 paragraphs of narrative prose. /no_think"
@@ -559,29 +526,6 @@ def extract_frames(video_path: Path, frames_dir: Path) -> list[Path]:
     log.info("Extracted %d valid frames (incl. scene-change frames)", len(paths))
     return paths
 
-# ── Audio transcription ───────────────────────────────────────────────────────
-
-def transcribe_audio(video_path: Path) -> str:
-    """
-    Transcribe audio with Whisper tiny. Hard timeout via subprocess if it hangs.
-    Returns empty string on any failure — never blocks the pipeline.
-    """
-    if not ENABLE_WHISPER:
-        return ""
-    if is_time_tight():
-        log.warning("Budget tight — skipping audio transcription")
-        return ""
-    try:
-        model = get_whisper_model()
-        log.info("Transcribing audio: %s", video_path.name)
-        result = model.transcribe(str(video_path), fp16=False, language=None)
-        transcript = result.get("text", "").strip()
-        log.info("Transcript (%d chars): %.100s...", len(transcript), transcript)
-        return transcript
-    except Exception as exc:
-        log.warning("Audio transcription failed: %s — continuing without transcript", exc)
-        return ""
-
 # ── Frame encoding ────────────────────────────────────────────────────────────
 
 def encode_frames(frame_paths: list[Path]) -> list[dict]:
@@ -597,9 +541,9 @@ def encode_frames(frame_paths: list[Path]) -> list[dict]:
 
 # ── Two-pass captioning ───────────────────────────────────────────────────────
 
-def describe_video(frame_parts: list[dict], transcript: str) -> str:
+def describe_video(frame_parts: list[dict]) -> str:
     """
-    First pass: detailed narrative description from frames + transcript.
+    First pass: detailed narrative description from frames.
     Uses vision model with very low temperature for factual accuracy.
     """
     messages = [
@@ -608,7 +552,7 @@ def describe_video(frame_parts: list[dict], transcript: str) -> str:
             "role": "user",
             "content": [
                 *frame_parts,
-                {"type": "text", "text": build_describe_prompt(transcript)},
+                {"type": "text", "text": build_describe_prompt()},
             ],
         },
     ]
@@ -673,13 +617,9 @@ def process_task(task: dict, tmpdir: Path) -> dict:
     video_path = tmpdir / f"{task_id}.mp4"
     download_video(video_url, video_path)
 
-    # 2. Extract frames + transcribe audio in parallel
+    # 2. Extract frames
     frames_dir = tmpdir / f"{task_id}_frames"
-    with ThreadPoolExecutor(max_workers=2) as ex:
-        frames_future     = ex.submit(extract_frames, video_path, frames_dir)
-        transcript_future = ex.submit(transcribe_audio, video_path)
-        frame_paths = frames_future.result()
-        transcript  = transcript_future.result()
+    frame_paths = extract_frames(video_path, frames_dir)
 
     if not frame_paths:
         raise RuntimeError("No frames could be extracted from the video")
@@ -691,9 +631,9 @@ def process_task(task: dict, tmpdir: Path) -> dict:
     shutil.rmtree(frames_dir, ignore_errors=True)
 
     # 5. Vision description pass
-    log.info("[%s] Describing — %d frames, transcript %d chars, model: %s",
-             task_id, len(frame_parts), len(transcript), VISION_MODEL.split("/")[-1])
-    description = describe_video(frame_parts, transcript)
+    log.info("[%s] Describing — %d frames, model: %s",
+             task_id, len(frame_parts), VISION_MODEL.split("/")[-1])
+    description = describe_video(frame_parts)
     log.info("[%s] Description preview: %.120s...", task_id, description)
 
     del frame_parts  # free memory
@@ -735,10 +675,8 @@ def process_task(task: dict, tmpdir: Path) -> dict:
 
 def main() -> None:
     log.info("=== XO-Screens Video Captioning Agent (Track 2) ===")
-    log.info("Budget: %ds | Whisper: %s (%s) | Vision: %s | Text: %s",
+    log.info("Budget: %ds | Vision: %s | Text: %s",
              TOTAL_BUDGET_SECS,
-             WHISPER_MODEL_SIZE if ENABLE_WHISPER else "disabled",
-             "enabled" if ENABLE_WHISPER else "disabled",
              VISION_MODEL.split("/")[-1],
              TEXT_MODEL.split("/")[-1])
 

@@ -5,7 +5,7 @@
 #   PULL_ERROR     — FROM --platform=linux/amd64, build with --platform linux/amd64
 #   RUNTIME_ERROR  — every exception caught; always exits 0 with valid JSON output
 #   OUTPUT_MISSING — output written immediately on startup, flushed after every task
-#   TIMEOUT        — 520s budget watchdog; ffmpeg/API hard timeouts; Whisper pre-cached
+#   TIMEOUT        — 520s budget watchdog; ffmpeg/API hard timeouts
 #   MISSING_TASKS  — results pre-seeded for all tasks before processing starts
 #
 # Build (linux/amd64 required by judging VM):
@@ -33,11 +33,6 @@ WORKDIR /app
 # Install Python dependencies first (better layer caching)
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
-
-# Pre-download Whisper tiny model weights into the image layer.
-# This means zero network activity at evaluation time and no cold-start penalty.
-# tiny = ~75MB on disk, ~4-10s per clip on CPU.
-RUN python -c "import whisper; whisper.load_model('tiny'); print('Whisper tiny cached OK')"
 
 # Copy agent source last — changing agent.py only rebuilds this layer
 COPY agent.py .
