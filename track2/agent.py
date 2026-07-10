@@ -4,7 +4,7 @@ XO-Screens | AMD Developer Hackathon: ACT II
 
 Pipeline:
   1. Read /input/tasks.json
-  2. For each video: download → extract frames (scene-aware)
+  2. For each video: download → extract frames (scene-aware, ffmpeg)
   3. First pass  — describe video from frames (vision model: MiniMax M3)
   4. Second pass — generate captions in all requested styles with per-style temperature
   5. Write /output/results.json
@@ -71,7 +71,7 @@ OUTPUT_PATH = Path("/output/results.json")
 
 # ── Timing budget ─────────────────────────────────────────────────────────────
 # Hard wall-clock budget — leaves 80s buffer before the 10-min container limit.
-# If we're running low, whisper is skipped and frame count is reduced.
+# If we're running low, remaining tasks get fallback captions instead of processing.
 TOTAL_BUDGET_SECS = int(os.environ.get("TOTAL_BUDGET_SECS", "520"))
 _START_TIME = time.monotonic()
 
@@ -82,7 +82,7 @@ def budget_remaining() -> float:
     return TOTAL_BUDGET_SECS - elapsed()
 
 def is_time_tight() -> bool:
-    """True when less than 120s remain — triggers fallbacks."""
+    """True when less than 120s remain — triggers fallbacks (reduced frame count)."""
     return budget_remaining() < 120
 
 # ── Model selection ───────────────────────────────────────────────────────────
