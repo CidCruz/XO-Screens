@@ -322,6 +322,109 @@ import {
   initSessions, newSession, upsertSession, saveSessions, deriveTitleFromMessage, deleteSession,
 } from './chatHistory'
 
+// ── Markdown renderer ──────────────────────────────────────────────────────────
+import React from 'react'
+function renderMarkdown(text: string): React.ReactNode {
+  const lines = text.split('\n')
+  const elements: React.ReactNode[] = []
+  let i = 0
+
+  function inlineFormat(line: string): React.ReactNode {
+    const parts: React.ReactNode[] = []
+    const rx = /(\*\*(.+?)\*\*|__(.+?)__|`([^`]+)`)/g
+    let last = 0; let m: RegExpExecArray | null; let key = 0
+    while ((m = rx.exec(line)) !== null) {
+      if (m.index > last) parts.push(line.slice(last, m.index))
+      if (m[2] !== undefined) parts.push(<strong key={key++}>{m[2]}</strong>)
+      else if (m[3] !== undefined) parts.push(<strong key={key++}>{m[3]}</strong>)
+      else if (m[4] !== undefined) parts.push(<code key={key++} style={{ background:'rgba(255,255,255,0.1)', borderRadius:4, padding:'1px 5px', fontFamily:'monospace', fontSize:'0.9em' }}>{m[4]}</code>)
+      last = m.index + m[0].length
+    }
+    if (last < line.length) parts.push(line.slice(last))
+    return parts.length === 1 && typeof parts[0] === 'string' ? parts[0] : <>{parts}</>
+  }
+
+  while (i < lines.length) {
+    const line = lines[i]
+    if (line.trim() === '') { elements.push(<div key={i} style={{ height:6 }} />); i++; continue }
+    const hMatch = line.match(/^(#{1,3})\s+(.+)/)
+    if (hMatch) {
+      const fs = hMatch[1].length === 1 ? 15 : hMatch[1].length === 2 ? 13 : 12
+      elements.push(<div key={i} style={{ fontWeight:700, fontSize:fs, color:'#fff', marginTop:8, marginBottom:3 }}>{inlineFormat(hMatch[2])}</div>)
+      i++; continue
+    }
+    if (/^[\-\*•]\s+/.test(line)) {
+      const bullets: React.ReactNode[] = []
+      while (i < lines.length && /^[\-\*•]\s+/.test(lines[i])) {
+        bullets.push(<div key={i} style={{ display:'flex', gap:6, alignItems:'flex-start', marginBottom:2 }}><span style={{ color:'rgba(235,177,89,0.7)', flexShrink:0 }}>·</span><span>{inlineFormat(lines[i].replace(/^[\-\*•]\s+/, ''))}</span></div>)
+        i++
+      }
+      elements.push(<div key={`ul${i}`} style={{ marginTop:4, marginBottom:4 }}>{bullets}</div>)
+      continue
+    }
+    if (/^\d+\.\s+/.test(line)) {
+      const items: React.ReactNode[] = []; let n = 1
+      while (i < lines.length && /^\d+\.\s+/.test(lines[i])) {
+        items.push(<div key={i} style={{ display:'flex', gap:6, alignItems:'flex-start', marginBottom:2 }}><span style={{ color:'rgba(235,177,89,0.7)', flexShrink:0, minWidth:14 }}>{n}.</span><span>{inlineFormat(lines[i].replace(/^\d+\.\s+/, ''))}</span></div>)
+        i++; n++
+      }
+      elements.push(<div key={`ol${i}`} style={{ marginTop:4, marginBottom:4 }}>{items}</div>)
+      continue
+    }
+    if (line.trim().startsWith('```')) {
+      const codeLines: string[] = []; i++
+      while (i < lines.length && !lines[i].trim().startsWith('```')) { codeLines.push(lines[i]); i++ }
+      i++
+      elements.push(<pre key={i} style={{ background:'rgba(255,255,255,0.06)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:8, padding:'10px 12px', fontFamily:'monospace', fontSize:11, color:'rgba(255,255,255,0.8)', overflowX:'auto', margin:'6px 0', whiteSpace:'pre-wrap', wordBreak:'break-word' }}>{codeLines.join('\n')}</pre>)
+      continue
+    }
+    if (/^[-=]{3,}$/.test(line.trim())) {
+      elements.push(<div key={i} style={{ height:1, background:'rgba(255,255,255,0.1)', margin:'8px 0' }} />); i++; continue
+    }
+    // Table: line starts and ends with |
+    if (/^\|.+\|$/.test(line.trim())) {
+      const tableLines: string[] = []
+      while (i < lines.length && /^\|.+\|$/.test(lines[i].trim())) {
+        tableLines.push(lines[i]); i++
+      }
+      // Parse: first row = headers, second row = separator (skip), rest = body
+      const parseRow = (r: string) => r.trim().replace(/^\||\|$/g, '').split('|').map(c => c.trim())
+      const headers = parseRow(tableLines[0])
+      const bodyRows = tableLines.slice(2) // skip separator row
+      elements.push(
+        <div key={`tbl${i}`} style={{ margin:'8px 0', overflowX:'auto' }}>
+          <table style={{ width:'100%', borderCollapse:'collapse', fontSize:11 }}>
+            <thead>
+              <tr>
+                {headers.map((h, ci) => (
+                  <th key={ci} style={{ padding:'5px 10px', textAlign:'left', color:'rgba(235,177,89,0.85)', fontWeight:700, borderBottom:'1px solid rgba(255,255,255,0.1)', whiteSpace:'nowrap' }}>
+                    {inlineFormat(h)}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {bodyRows.map((row, ri) => (
+                <tr key={ri} style={{ background: ri % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent' }}>
+                  {parseRow(row).map((cell, ci) => (
+                    <td key={ci} style={{ padding:'5px 10px', color:'rgba(255,255,255,0.7)', borderBottom:'1px solid rgba(255,255,255,0.05)' }}>
+                      {inlineFormat(cell)}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )
+      continue
+    }
+    elements.push(<div key={i} style={{ marginBottom:2, lineHeight:1.6 }}>{inlineFormat(line)}</div>)
+    i++
+  }
+  return <>{elements}</>
+}
+
 // Capability groups "” mirrors overlay ChatBox exactly
 const WEB_CAP_GROUPS = [
   {
@@ -749,7 +852,7 @@ function WebChatPanel({ activeNote, appControl }: WebChatPanelProps) {
                       </div>
                     )}
                     <div style={{ maxWidth:'76%', display:'flex', flexDirection:'column', gap:4, alignItems: isUser ? 'flex-end' : 'flex-start' }}>
-                      <div className={isUser ? 'web-msg-user' : 'web-msg-ai'}>{msg.content}</div>
+                      <div className={isUser ? 'web-msg-user' : 'web-msg-ai'}>{isUser ? msg.content : renderMarkdown(msg.content)}</div>
                       <div style={{ fontSize:10, color:'rgba(255,255,255,0.2)', paddingLeft: isUser ? 0 : 4, paddingRight: isUser ? 4 : 0 }}>
                         {new Date(msg.timestamp).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' })}
                       </div>

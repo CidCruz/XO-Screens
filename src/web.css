@@ -422,7 +422,11 @@ body {
   border-radius: 20px 20px 5px 20px;
   padding: 13px 18px;
   font-size: 14px; line-height: 1.72;
-  max-width: 75%; word-break: break-word;
+  max-width: 75%;
+  width: fit-content;
+  min-width: 0;
+  word-break: normal;
+  overflow-wrap: break-word;
   box-shadow:
     0 2px 20px rgba(238,111,83,0.14),
     inset 0 1px 0 rgba(255,255,255,0.08);
@@ -433,7 +437,10 @@ body {
   border: 1px solid rgba(255,255,255,0.08);
   color: rgba(255,255,255,0.85);
   font-size: 14px; line-height: 1.78;
-  max-width: 86%; word-break: break-word;
+  max-width: 86%;
+  width: fit-content;
+  word-break: normal;
+  overflow-wrap: break-word;
   padding: 13px 18px;
   border-radius: 5px 20px 20px 20px;
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
