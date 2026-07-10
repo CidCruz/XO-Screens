@@ -423,9 +423,12 @@ Rules:
 
 // ─── Public API ───────────────────────────────────────────────────────────────
 
+export type ProcessStep = 'frames' | 'vision' | 'synthesis' | 'captions'
+
 export async function processVideoURL(
   url: string,
   onProgress?: (tone: CaptionTone) => void,
+  onStep?: (step: ProcessStep) => void,
 ): Promise<CaptionResults> {
   // Try the Vite dev proxy first (works in `npm run dev`).
   // In the production web build, fall back to fetching the URL directly — most
@@ -447,6 +450,7 @@ export async function processVideoURL(
 
   const objectUrl = URL.createObjectURL(blob)
 
+  onStep?.('frames')
   let frameDataUrls: string[]
   try {
     frameDataUrls = await new Promise<string[]>((resolve, reject) => {
@@ -466,6 +470,7 @@ export async function processVideoURL(
 
   if (frameDataUrls.length === 0) throw new Error('Could not extract frames from video.')
 
+  onStep?.('vision')
   // Pass 1 — exhaustive per-frame visual inventory
   const inventoryChoice = await callFW([
     { role: 'system', content: INVENTORY_SYSTEM },
@@ -478,6 +483,7 @@ export async function processVideoURL(
   const inventory = (inventoryChoice.message.content ?? '')
     .replace(/<think>[\s\S]*?<\/think>/gi, '').trim()
 
+  onStep?.('synthesis')
   // Pass 2 — synthesize inventory into a rich narrative description
   const synthChoice = await callFW([
     { role: 'system', content: SYNTHESIZE_SYSTEM },
@@ -489,6 +495,7 @@ export async function processVideoURL(
     || inventory
     || `Video from URL: ${url}`
 
+  onStep?.('captions')
   return runCaptionPass(videoDescription, onProgress)
 }
 
@@ -496,12 +503,15 @@ export async function processVideoFile(
   file: File,
   onProgress?: (tone: CaptionTone) => void,
   onUploadProgress?: (phase: 'uploading' | 'processing', pct?: number) => void,
+  onStep?: (step: ProcessStep) => void,
 ): Promise<CaptionResults> {
+  onStep?.('frames')
   onUploadProgress?.('uploading', 10)
 
   const frameDataUrls = await extractFrames(file)
   if (frameDataUrls.length === 0) throw new Error('Could not extract frames from video.')
 
+  onStep?.('vision')
   onUploadProgress?.('processing')
 
   // Pass 1 — exhaustive per-frame visual inventory
@@ -516,6 +526,7 @@ export async function processVideoFile(
   const inventory = (inventoryChoice.message.content ?? '')
     .replace(/<think>[\s\S]*?<\/think>/gi, '').trim()
 
+  onStep?.('synthesis')
   // Pass 2 — synthesize inventory into a rich narrative description
   const synthChoice = await callFW([
     { role: 'system', content: SYNTHESIZE_SYSTEM },
@@ -527,6 +538,7 @@ export async function processVideoFile(
     || inventory
     || `Video file: ${file.name}`
 
+  onStep?.('captions')
   return runCaptionPass(videoDescription, onProgress)
 }
 
