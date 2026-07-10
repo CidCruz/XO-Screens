@@ -12,7 +12,6 @@ import {
 
 /* â”€â”€ Nav items â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 const APPS: AppItem[] = [
-  { id: 'home',     label: 'Home'            },
   { id: 'chat',     label: 'Assistant'       },
   { id: 'notes',    label: 'Notes'           },
   { id: 'video',    label: 'Video Summarizer'  },
@@ -24,13 +23,6 @@ const APPS: AppItem[] = [
 function NavIcon({ id }: { id: string }) {
   const s = 'width:20px;height:20px'
   switch (id) {
-    case 'home':
-      return (
-        <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
-            d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-        </svg>
-      )
     case 'chat':
       return (
         <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -96,7 +88,7 @@ function Sidebar({ activeId, onSelect }: SidebarProps) {
       <div className="web-island-divider" />
 
       {/* Nav buttons */}
-      {APPS.map((app, i) => (
+      {APPS.map((app) => (
         <div key={app.id} style={{ display: 'contents' }}>
           <button
             className={`web-island-btn${activeId === app.id ? ' active' : ''}`}
@@ -105,7 +97,6 @@ function Sidebar({ activeId, onSelect }: SidebarProps) {
             <NavIcon id={app.id} />
             <span className="web-tooltip">{app.label}</span>
           </button>
-          {i === 0 && <div className="web-island-divider" />}
         </div>
       ))}
 
@@ -119,207 +110,6 @@ function Sidebar({ activeId, onSelect }: SidebarProps) {
   )
 }
 
-/* â”€â”€ Home / welcome panel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
-function HomePanel({ onNavigate }: { onNavigate: (id: string) => void }) {
-  const tracks = [
-    {
-      num: '01',
-      label: 'Track 1',
-      title: 'General-Purpose AI Agent',
-      desc: '8-category agent: factual knowledge, math, sentiment, summarisation, NER, code debug, logic, and code generation "” all via Fireworks AI.',
-      chips: ['Factual', 'Math', 'Code', 'Logic', 'NER'],
-      color: 'rgba(235,177,89,0.95)',
-      glow: 'rgba(235,177,89,0.07)',
-      border: 'rgba(235,177,89,0.22)',
-      iconBg: 'rgba(235,177,89,0.1)',
-      navId: 'chat',
-      icon: (
-        <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
-            d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-        </svg>
-      ),
-    },
-    {
-      num: '02',
-      label: 'Track 2',
-      title: 'Video Captioning Agent',
-      desc: 'Watch a video clip and generate captions in 4 styles: Formal, Sarcastic, Humorous Tech, and Humorous Non-Tech.',
-      chips: ['Formal', 'Sarcastic', 'Humorous Tech', 'Non-Tech'],
-      color: 'rgba(236,144,86,0.95)',
-      glow: 'rgba(236,144,86,0.07)',
-      border: 'rgba(236,144,86,0.22)',
-      iconBg: 'rgba(236,144,86,0.1)',
-      navId: 'video',
-      icon: (
-        <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
-            d="M15 10l4.553-2.276A1 1 0 0121 8.723v6.554a1 1 0 01-1.447.894L15 14M4 8a2 2 0 012-2h9a2 2 0 012 2v8a2 2 0 01-2 2H6a2 2 0 01-2-2V8z" />
-        </svg>
-      ),
-    },
-    {
-      num: '03',
-      label: 'Track 3',
-      title: 'XO Screens \u2014 Unicorn (Real-Time Screen Reading)',
-      desc: 'Full AI productivity workspace: chat assistant, smart notes, video summarizer, and usage tracking \u2014 all powered by AMD compute.',
-      chips: [] as string[],
-      cta: true,
-      color: 'rgba(238,111,83,0.95)',
-      glow: 'rgba(238,111,83,0.07)',
-      border: 'rgba(238,111,83,0.22)',
-      iconBg: 'rgba(238,111,83,0.1)',
-      navId: 'chat',
-      icon: (
-        <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
-            d="M13 10V3L4 14h7v7l9-11h-7z" />
-        </svg>
-      ),
-    },
-  ]
-
-  return (
-    <div className="xo-home" style={{ overflowY: 'auto', alignItems: 'center' }}>
-      {/* Badge */}
-      <div style={{ marginBottom: 18, animation: 'fadeIn 0.5s ease both' }}>
-        <span className="web-hero-badge">
-          <span className="web-hero-badge-dot" />
-          AMD Developer Hackathon · ACT II
-        </span>
-      </div>
-
-      {/* Title */}
-      <h1 className="xo-hero-title" style={{ textAlign: 'center', animation: 'fadeIn 0.5s 0.05s ease both' }}>
-        XO Screens.
-      </h1>
-
-      {/* Subtitle */}
-      <p className="xo-hero-sub" style={{ animation: 'fadeIn 0.5s 0.1s ease both' }}>
-        Competing across all three tracks. One platform, three submissions.
-      </p>
-
-      {/* Track cards */}
-      <div style={{
-        display: 'flex', flexDirection: 'column', gap: 10,
-        width: '100%', maxWidth: 600,
-        animation: 'fadeIn 0.5s 0.15s ease both',
-      }}>
-        {tracks.map((t, i) => (
-          <button
-            key={t.num}
-            onClick={() => onNavigate(t.navId)}
-            style={{
-              display: 'flex', alignItems: 'flex-start', gap: 16,
-              padding: '16px 18px', borderRadius: 16, cursor: 'pointer',
-              background: t.glow, border: `1px solid ${t.border}`,
-              transition: 'all 0.2s cubic-bezier(0.16,1,0.3,1)', textAlign: 'left',
-              animation: `fadeIn 0.4s ${0.1 + i * 0.07}s ease both`,
-            }}
-            onMouseEnter={e => {
-              const el = e.currentTarget as HTMLButtonElement
-              el.style.transform = 'translateY(-2px)'
-              el.style.boxShadow = `0 16px 48px ${t.glow}, 0 0 0 1px ${t.border}`
-            }}
-            onMouseLeave={e => {
-              const el = e.currentTarget as HTMLButtonElement
-              el.style.transform = ''
-              el.style.boxShadow = ''
-            }}
-          >
-            {/* Track number */}
-            <div style={{
-              fontFamily: '"Syne", sans-serif',
-              fontSize: 11, fontWeight: 800, color: t.color,
-              letterSpacing: '0.06em', flexShrink: 0, paddingTop: 2,
-              opacity: 0.7,
-            }}>{t.num}</div>
-
-            {/* Icon */}
-            <div style={{
-              width: 38, height: 38, borderRadius: 11, flexShrink: 0,
-              background: t.iconBg, border: `1px solid ${t.border}`,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              color: t.color,
-            }}>
-              {t.icon}
-            </div>
-
-            {/* Content */}
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                <span style={{
-                  fontSize: 9, fontWeight: 700, letterSpacing: '0.08em',
-                  textTransform: 'uppercase', color: t.color,
-                  background: t.iconBg, border: `1px solid ${t.border}`,
-                  padding: '2px 7px', borderRadius: 5,
-                }}>{t.label}</span>
-                <span style={{ fontSize: 13, fontWeight: 700, color: '#fff', letterSpacing: '-0.01em' }}>
-                  {t.num === '03'
-                    ? <><span>XO Screens — Unicorn</span><span style={{ opacity: 0.35, fontWeight: 500 }}> (Real-Time Screen Reading)</span></>
-                    : t.title}
-                </span>
-              </div>
-              <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.38)', lineHeight: 1.6, margin: '0 0 10px' }}>{t.desc}</p>
-              {/* Download CTA for Track 3 */}
-              {t.cta && (
-                <div style={{
-                  display: 'inline-flex', alignItems: 'center', gap: 6,
-                  fontSize: 10, fontWeight: 600, letterSpacing: '0.04em',
-                  color: 'rgba(238,111,83,0.85)',
-                  background: 'rgba(238,111,83,0.08)',
-                  border: '1px solid rgba(238,111,83,0.2)',
-                  padding: '4px 10px', borderRadius: 6,
-                  marginBottom: 10,
-                }}>
-                  <svg width="10" height="10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5}
-                      d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3" />
-                  </svg>
-                  Download App for more Features
-                </div>
-              )}
-              {/* Chips */}
-              <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
-                {t.chips.map(chip => (
-                  <span key={chip} style={{
-                    fontSize: 9, fontWeight: 600, letterSpacing: '0.05em',
-                    padding: '2px 8px', borderRadius: 5,
-                    background: 'rgba(255,255,255,0.05)',
-                    border: '1px solid rgba(255,255,255,0.09)',
-                    color: 'rgba(255,255,255,0.35)',
-                  }}>{chip}</span>
-                ))}
-              </div>
-            </div>
-
-            {/* Arrow */}
-            <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"
-              style={{ color: 'rgba(255,255,255,0.18)', flexShrink: 0, marginTop: 12 }}>
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-            </svg>
-          </button>
-        ))}
-      </div>
-
-      {/* Footer */}
-      <div style={{ marginTop: 28, display: 'flex', alignItems: 'center', gap: 16, animation: 'fadeIn 0.5s 0.35s ease both' }}>
-        {[
-          { label: 'Fireworks AI', dot: 'rgba(235,177,89,0.85)' },
-          { label: 'AMD Compute', dot: 'rgba(238,111,83,0.85)' },
-          { label: 'DeepSeek V4', dot: 'rgba(236,144,86,0.85)' },
-        ].map(f => (
-          <div key={f.label} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-            <span style={{ width: 4, height: 4, borderRadius: '50%', background: f.dot, display: 'inline-block' }} />
-            <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.22)', fontWeight: 500, letterSpacing: '0.04em' }}>{f.label}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
-
-/* â”€â”€ Settings panel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 function SettingsPanel() {
   const [keyLocked, setKeyLocked] = useState(() => !!localStorage.getItem('xo-fireworks-api-key'))
   const [newKey, setNewKey]       = useState('')
@@ -518,51 +308,6 @@ function SettingsPanel() {
           <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
             <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'rgba(139,92,246,0.85)', boxShadow: '0 0 6px rgba(139,92,246,0.6)' }} />
             <span style={{ fontSize: 10, color: 'rgba(139,92,246,0.7)', fontWeight: 600 }}>localStorage</span>
-          </div>
-        </div>
-      </div>
-
-      {/* ── Download Unicorn — full-width CTA card ── */}
-      <div style={{ width: '100%', maxWidth: 720, animation: 'fadeIn 0.4s 0.18s ease both' }}>
-        <div className="xo-bento-card" style={{ padding: '24px 28px', background: 'linear-gradient(135deg, rgba(235,177,89,0.07) 0%, rgba(238,111,83,0.07) 100%)', borderColor: 'rgba(235,177,89,0.2)' }}>
-          <div style={{ position: 'absolute', inset: 0, borderRadius: 'inherit', overflow: 'hidden', pointerEvents: 'none' }}>
-            <div style={{ position: 'absolute', width: 300, height: 300, borderRadius: '50%', background: 'radial-gradient(circle, rgba(235,177,89,0.1) 0%, transparent 65%)', top: -120, right: -60, filter: 'blur(28px)' }} />
-            <div style={{ position: 'absolute', width: 200, height: 200, borderRadius: '50%', background: 'radial-gradient(circle, rgba(238,111,83,0.08) 0%, transparent 70%)', bottom: -80, left: 40, filter: 'blur(20px)' }} />
-          </div>
-          <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 20 }}>
-            {/* Icon */}
-            <div style={{ width: 52, height: 52, borderRadius: 16, flexShrink: 0, background: 'linear-gradient(145deg, rgba(235,177,89,0.22), rgba(238,111,83,0.14))', border: '1px solid rgba(235,177,89,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 24px rgba(235,177,89,0.18)' }}>
-              <svg width="22" height="22" fill="none" stroke="url(#dl-grad2)" viewBox="0 0 24 24">
-                <defs><linearGradient id="dl-grad2" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#EBB159"/><stop offset="100%" stopColor="#EE6F53"/></linearGradient></defs>
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3"/>
-              </svg>
-            </div>
-            {/* Text */}
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                <span style={{ fontFamily: '"Syne", sans-serif', fontSize: 15, fontWeight: 800, background: 'linear-gradient(135deg, #EBB159, #EE6F53)', WebkitBackgroundClip: 'text', backgroundClip: 'text', WebkitTextFillColor: 'transparent', color: 'transparent', letterSpacing: '-0.02em' }}>Unicorn Version</span>
-                <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'rgba(238,111,83,0.8)', background: 'rgba(238,111,83,0.1)', border: '1px solid rgba(238,111,83,0.22)', padding: '2px 7px', borderRadius: 5 }}>Desktop</span>
-              </div>
-              <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', lineHeight: 1.6, margin: 0 }}>
-                Real-time screen reading, AI overlay &amp; full productivity suite — powered by AMD compute.
-              </p>
-            </div>
-            {/* CTA */}
-            <a href="https://github.com/your-org/xo-screens/releases/latest" target="_blank" rel="noreferrer" style={{ textDecoration: 'none', flexShrink: 0 }}>
-              <button
-                style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '11px 20px', borderRadius: 12, border: '1px solid rgba(235,177,89,0.35)', background: 'rgba(235,177,89,0.1)', color: '#fff', fontSize: 12, fontWeight: 700, fontFamily: 'inherit', cursor: 'pointer', transition: 'all 0.2s cubic-bezier(0.16,1,0.3,1)', whiteSpace: 'nowrap' }}
-                onMouseEnter={e => { const b = e.currentTarget as HTMLButtonElement; b.style.background = 'rgba(235,177,89,0.2)'; b.style.borderColor = 'rgba(235,177,89,0.6)'; b.style.transform = 'translateY(-1px)'; b.style.boxShadow = '0 8px 28px rgba(238,111,83,0.2)' }}
-                onMouseLeave={e => { const b = e.currentTarget as HTMLButtonElement; b.style.background = 'rgba(235,177,89,0.1)'; b.style.borderColor = 'rgba(235,177,89,0.35)'; b.style.transform = ''; b.style.boxShadow = '' }}
-              >
-                <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3"/>
-                </svg>
-                Download
-                <svg width="10" height="10" fill="none" stroke="rgba(235,177,89,0.6)" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
-                </svg>
-              </button>
-            </a>
           </div>
         </div>
       </div>
@@ -2005,7 +1750,7 @@ function UsageTrackingPanel() {
 
 /* â”€â”€ Root WebApp component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 export default function WebApp() {
-  const [activeId, setActiveId] = useState('home')
+  const [activeId, setActiveId] = useState('chat')
   const [activeNote, setActiveNote] = useState<Note | null>(null)
 
   // Start a session on mount and track feature navigation
@@ -2086,7 +1831,7 @@ export default function WebApp() {
       case 'video':   return <WebVideoPanel />
       case 'usage':   return <UsageTrackingPanel />
       case 'settings':return <SettingsPanel />
-      default:        return <HomePanel onNavigate={handleNavigate} />
+      default:        return <WebChatPanel activeNote={activeNote} appControl={appControl} />
     }
   }
 
