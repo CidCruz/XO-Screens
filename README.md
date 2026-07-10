@@ -9,7 +9,7 @@ Make sure you have these ready:
 - Node.js 18+ and npm
 - Docker (if you want to run Track 2 in a container)
 - Python 3 and pip (if you want to run Track 2 locally without Docker)
-- A Fireworks AI API key
+- A Fireworks AI API key (you can also enter it directly in the app via the built-in BYOK feature)
 
 ## What this project includes
 
@@ -33,7 +33,7 @@ npm run dev          # browser UI at http://localhost:5174/index.web.html
 npm run dev:desktop  # desktop overlay using index.html
 ```
 
-Optional: set a Fireworks API key in a root `.env` file:
+Optional: if you do not want to use the app's built-in BYOK feature, you can also set the key in a root `.env` file:
 
 ```bash
 VITE_FIREWORKS_API_KEY=your_key
