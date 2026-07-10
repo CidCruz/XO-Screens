@@ -13,7 +13,7 @@ Make sure you have these ready:
 
 ## What this project includes
 
-- Track 1: a React + Electron app with an AI chat overlay, notes, and a built-in video summarization feature.
+- App UI: a React + Electron experience with an AI chat overlay, notes, and a built-in video summarization feature.
 - Track 2: a separate captioning pipeline that generates four stylized captions from video input. This is different from the app's in-app summarization feature.
 
 ## How to try it
