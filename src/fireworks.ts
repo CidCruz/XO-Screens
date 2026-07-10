@@ -79,9 +79,10 @@ async function callFW(
     maxTokens?: number
     tools?: FWToolDeclaration[]
     attempt?: number
+    responseFormat?: 'json_object'
   },
 ): Promise<FWChoice> {
-  const { temperature = 0.7, maxTokens, tools, attempt = 0 } = options ?? {}
+  const { temperature = 0.7, maxTokens, tools, attempt = 0, responseFormat } = options ?? {}
 
   const body: Record<string, unknown> = {
     model,
@@ -89,6 +90,7 @@ async function callFW(
     temperature,
   }
   if (maxTokens !== undefined) body.max_tokens = maxTokens
+  if (responseFormat) body.response_format = { type: responseFormat }
   if (tools && tools.length > 0) {
     body.tools = tools.map(t => ({ type: 'function', function: t }))
     body.tool_choice = 'auto'
@@ -175,11 +177,13 @@ const TONE_SYSTEM_PROMPTS: Record<CaptionTone, string> = {
 
 // Truncate description to ~3000 chars so the full prompt stays well within context limits.
 // The synthesis pass already distilled the key facts — we don't need the raw 6000-token inventory here.
-function truncateDescription(desc: string, maxChars = 3000): string {
+function truncateDescription(desc: string, maxChars = 3500): string {
   if (desc.length <= maxChars) return desc
-  // Cut at a sentence boundary near the limit
-  const cut = desc.lastIndexOf('. ', maxChars)
-  return cut > maxChars * 0.7 ? desc.slice(0, cut + 1) : desc.slice(0, maxChars)
+  // Try sentence boundary first, then word boundary
+  const sentenceCut = desc.lastIndexOf('. ', maxChars)
+  if (sentenceCut > maxChars * 0.6) return desc.slice(0, sentenceCut + 1)
+  const wordCut = desc.lastIndexOf(' ', maxChars)
+  return wordCut > 0 ? desc.slice(0, wordCut) : desc.slice(0, maxChars)
 }
 
 const SUMMARY_USER_PROMPT = (videoDescription: string) => {
@@ -245,9 +249,9 @@ function parseToneResult(raw: string): ToneResult | null {
 // formal: low temp = factual, consistent. humorous: high temp = creative, varied.
 const STYLE_TEMPERATURES: Record<CaptionTone, number> = {
   formal:            0.15,
-  sarcastic:         0.85,
-  humorous_tech:     0.88,
-  humorous_non_tech: 0.92,
+  sarcastic:         0.75,
+  humorous_tech:     0.78,
+  humorous_non_tech: 0.80,
 }
 
 // ─── Shared caption pass ──────────────────────────────────────────────────────
@@ -268,7 +272,7 @@ async function runCaptionPass(
           { role: 'system', content: TONE_SYSTEM_PROMPTS[tone] },
           { role: 'user', content: SUMMARY_USER_PROMPT(videoDescription) },
         ]
-        const choice = await callFW(msgs, GEMMA_MODELS.E4B, { temperature, maxTokens: 2000 })
+        const choice = await callFW(msgs, GEMMA_MODELS.E4B, { temperature, maxTokens: 2000, responseFormat: 'json_object' })
         const raw = choice.message.content ?? ''
         const parsed = parseToneResult(raw)
         // Reject if it echoed placeholder text from the prompt
