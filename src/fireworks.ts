@@ -30,8 +30,8 @@ function getApiKey(): string {
 export const FW_MODELS = {
   /** DeepSeek V4 Pro — best for chat, reasoning, tool-calling */
   CHAT:   'accounts/fireworks/models/deepseek-v4-pro',
-  /** Qwen3 Plus — vision-capable, non-reasoning, used for video captions */
-  VISION: 'accounts/fireworks/models/qwen3p7-plus',
+  /** Minimax M3 — native multimodal vision, used for video frame analysis */
+  VISION: 'accounts/fireworks/models/minimax-m3',
 } as const
 
 // Legacy aliases so nothing else in the codebase breaks

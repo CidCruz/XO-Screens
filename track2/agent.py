@@ -94,18 +94,19 @@ WHISPER_MODEL_SIZE = os.environ.get("WHISPER_MODEL", "tiny").strip()
 ENABLE_WHISPER     = os.environ.get("ENABLE_WHISPER", "true").strip().lower() != "false"
 
 # ── Model selection ───────────────────────────────────────────────────────────
-# Both models are confirmed live on Fireworks serverless as of July 2026.
+# Models confirmed available on Fireworks serverless (from account model list).
 #
-# VISION — qwen3-vl-32b-instruct:
-#   Best vision-language model on Fireworks serverless. Handles multi-frame
-#   image inputs, strong spatial reasoning and scene description.
+# VISION — accounts/fireworks/models/minimax-m3
+#   MiniMax M3 — Native multimodal (text + image + video), 512K context.
+#   "Native multimodality enabling deeper semantic fusion across text, image, and video."
+#   Best available vision model for frame understanding. $0.30/M in, $1.20/M out.
 #
-# TEXT — llama4-maverick-instruct-basic:
-#   The "-basic" suffix = free serverless tier of Llama 4 Maverick.
-#   NOT deprecated — confirmed active in Fireworks catalogue July 2026.
-#   Strong instruction-following, great for styled creative writing.
-_DEFAULT_VISION_MODEL = "accounts/fireworks/models/qwen3-vl-32b-instruct"
-_DEFAULT_TEXT_MODEL   = "accounts/fireworks/models/llama4-maverick-instruct-basic"
+# TEXT — accounts/fireworks/models/kimi-k2p5
+#   Kimi K2.6 — Vision + Function-calling + Tunable, 262K context.
+#   Strong instruction following and creative writing. $0.95/M in, $4.00/M out.
+#   Used for the 4 parallel caption passes (description → styled captions).
+_DEFAULT_VISION_MODEL = "accounts/fireworks/models/minimax-m3"
+_DEFAULT_TEXT_MODEL   = "accounts/fireworks/models/kimi-k2p5"
 
 VISION_MODEL = os.environ.get("VISION_MODEL", _DEFAULT_VISION_MODEL).strip()
 TEXT_MODEL   = os.environ.get("TEXT_MODEL",   _DEFAULT_TEXT_MODEL).strip()
@@ -241,71 +242,97 @@ def _validate_styles(requested: list) -> list[str]:
 
 STYLE_SYSTEM_PROMPTS = {
     "formal": (
-        "You are a BBC documentary narrator writing professional video captions. "
-        "Write in active voice, present tense where appropriate, with clear factual statements. "
-        "Structure: one establishing sentence (setting/who), then a sequence of what happens. "
-        "NO bullet points. NO dramatic flourishes. Just precise, authoritative narration. /no_think"
+        "You are a professional documentary narrator. "
+        "Your captions are precise, factual, and authoritative — like BBC or National Geographic. "
+        "Rules: active voice, present tense, no bullet points, no clichés, no filler phrases like 'we see' or 'the video shows'. "
+        "Structure: one strong establishing sentence naming the exact setting and subjects, "
+        "followed by a clear sequence of the key actions that unfold. "
+        "CRITICAL: mention specific visual details from the description — the actual subject, "
+        "the actual setting, the actual action. Generic captions score zero. /no_think"
     ),
     "sarcastic": (
-        "You are a sarcastic narrator who loves pointing out the obvious with bone-dry wit. "
-        "Use ironic understatement, subtle eye-rolls, and pointed commentary. "
-        "FORBIDDEN: exclamation marks, 'literally', 'actually' used straight. "
-        "REQUIRED: at least one moment where you imply the viewer already knows this is absurd. "
-        "Stay accurate to the video but make every sentence land with a smirk. /no_think"
+        "You are a world-class sarcastic commentator with bone-dry wit. "
+        "Your captions treat the obvious as absurd, the mundane as baffling. "
+        "Rules: NO exclamation marks (they kill the deadpan). NO 'literally'. NO 'actually' used sincerely. "
+        "Every sentence must land with a smirk. Use ironic understatement. "
+        "CRITICAL: you MUST accurately reference what is actually happening in the video — "
+        "sarcasm about the wrong subject scores zero on accuracy. "
+        "The joke should be about the specific thing shown, not a generic observation. /no_think"
     ),
     "humorous_tech": (
-        "You are a developer doing live commentary on a video for your tech Twitch stream. "
-        "Sprinkle in: git merge conflicts, 'works on my machine', Stack Overflow references, "
-        "NullPointerExceptions, 'it's a feature not a bug', code review memes. "
-        "Keep it accurate but frame everything through a programmer's lens. "
-        "Your audience are devs who will catch the references. /no_think"
+        "You are a senior developer doing Twitch commentary on a random video for your dev audience. "
+        "Frame EVERYTHING through a programmer/tech lens using specific references: "
+        "git commits, merge conflicts, Stack Overflow, 'works on my machine', unit tests, "
+        "deployment pipelines, NullPointerException, 'it's a feature not a bug', pull requests, "
+        "rubber duck debugging, '10x engineer', legacy code. "
+        "CRITICAL: the tech references must map onto what is actually happening in the video — "
+        "don't just drop random tech phrases. Make the analogy fit the specific visual. "
+        "Your dev audience will call you out if the reference doesn't land. /no_think"
     ),
     "humorous_non_tech": (
-        "You're doing stand-up crowd work and the video is your heckler. "
-        "Punny, observational, accessible humor — NO jargon. "
-        "Channel the energy of 'so THAT happened' or 'well this is a vibe'. "
-        "Punch UP the absurdity, keep it light. Your audience is general, not technical. /no_think"
+        "You are a stand-up comedian doing crowd work about a video — no jargon, pure observational humor. "
+        "Styles to draw from: absurdist takes, relatable everyday observations, punny wordplay, "
+        "'main character energy', 'the audacity', 'nobody asked for this but here we are'. "
+        "Rules: NO technical terms, NO programmer references, accessible to anyone aged 15-70. "
+        "CRITICAL: the joke must be grounded in what is actually shown — "
+        "a funny observation about the specific subject/action/setting, not generic comedy filler. /no_think"
     ),
 }
 
 # ── Description system prompt (rewritten for narrative prose) ────────────────
 
 DESCRIBE_SYSTEM = (
-    "You are a video description assistant. Write in flowing narrative prose "
-    "as if describing a scene to someone who cannot see it. Cover setting, subjects, "
-    "actions from start to finish, any dialogue/narration, visible text, and overall mood. "
-    "Write 3–5 paragraphs. NO bullet points. NO checklists. Pure narrative. /no_think"
+    "You are a professional video analyst. Your job is to produce a detailed, accurate description "
+    "of a video clip that will be used to generate captions. "
+    "Write in flowing narrative prose — NO bullet points, NO lists, NO markdown. "
+    "Your description must cover ALL of the following:\n"
+    "1. SETTING: exact location type (indoor/outdoor, urban/rural, specific room type, etc.)\n"
+    "2. SUBJECTS: every person, animal, or significant object visible — describe appearance, age if visible, clothing\n"
+    "3. ACTIONS: a chronological sequence of what happens — be specific about movements and interactions\n"
+    "4. ATMOSPHERE: lighting, time of day, weather, emotional tone, pace\n"
+    "5. AUDIO CUES: if a transcript is provided, integrate what is said or heard\n"
+    "6. NOTABLE DETAILS: anything distinctive — signs, text on screen, unusual elements\n"
+    "Be thorough and specific. Vague descriptions like 'a person does something' are useless. "
+    "Write 4–6 paragraphs. /no_think"
 )
 
 def build_describe_prompt(transcript: str) -> str:
     transcript_section = (
-        f"\n\nAudio transcript:\n{transcript.strip()}"
+        f"\n\nAudio transcript (verbatim from Whisper):\n{transcript.strip()}"
         if transcript.strip()
-        else "\n\nAudio transcript: [no speech detected]"
+        else "\n\nAudio transcript: [silent or no speech detected]"
     )
     return (
-        "These frames are sampled evenly from a video clip (30s to 2 minutes long)."
+        "These are evenly-spaced frames from a video clip (30 seconds to 2 minutes long)."
         + transcript_section + "\n\n"
-        "Describe the video in narrative prose. What do you see from start to finish? "
-        "Who or what is present? What actions unfold? What is the mood? "
-        "Write 3–5 paragraphs of flowing description. This will be used to generate captions. /no_think"
+        "Write a detailed, accurate description of this video covering: "
+        "the exact setting, every visible subject (with specific details about appearance and clothing), "
+        "a chronological account of all actions, the atmosphere and mood, "
+        "and any text or audio cues visible. "
+        "Be SPECIFIC — name the actual objects, colours, and actions you see. "
+        "Do not be vague. Write 4–6 paragraphs of narrative prose. /no_think"
     )
 
 def _caption_user_prompt(description: str, style: str) -> str:
-    """Per-style user prompt with length guidance."""
+    """Per-style user prompt — forces grounding in specific visual details."""
     length_guide = {
         "formal":            "2–4 sentences",
-        "sarcastic":         "1–3 punchy sentences",
+        "sarcastic":         "2–3 punchy sentences",
         "humorous_tech":     "2–3 sentences",
         "humorous_non_tech": "2–3 sentences",
     }
-    # Human-readable style name for the prompt
     style_display = style.replace("_", " ")
     return (
         f"Video description:\n{description}\n\n"
-        f"Write a caption in {style_display} style ({length_guide.get(style, '2–4 sentences')}).\n"
-        "Be accurate to the video content. Stay fully in your assigned tone. "
-        "Return ONLY the caption text — no labels, no preamble, no JSON, no thinking tags. /no_think"
+        f"Write a {style_display} caption ({length_guide.get(style, '2–4 sentences')}).\n\n"
+        "Requirements:\n"
+        "- Accurately reflect the specific content of the video (the actual subject, setting, and action)\n"
+        f"- Stay completely in the {style_display} tone — do not break character\n"
+        "- Reference at least one specific visual detail from the description\n"
+        "- Do NOT use generic filler like 'a video shows' or 'we can see'\n"
+        "- Do NOT add a title, label, or preamble — output the caption text only\n"
+        "- Do NOT include thinking tags, markdown, or JSON\n\n"
+        "Output the caption directly. Nothing else. /no_think"
     )
 
 # ── Caption output cleaning ───────────────────────────────────────────────────
@@ -573,7 +600,7 @@ def describe_video(frame_parts: list[dict], transcript: str) -> str:
             ],
         },
     ]
-    description = call_fireworks(messages, model=VISION_MODEL, max_tokens=1800, temperature=0.1)
+    description = call_fireworks(messages, model=VISION_MODEL, max_tokens=2400, temperature=0.1)
     # Strip thinking tags that vision models sometimes leak
     description = re.sub(r"<think>[\s\S]*?</think>", "", description, flags=re.IGNORECASE).strip()
     if not description:
@@ -593,13 +620,13 @@ def generate_caption(style: str, description: str) -> str:
         {"role": "system", "content": STYLE_SYSTEM_PROMPTS[style]},
         {"role": "user", "content": _caption_user_prompt(description, style)},
     ]
-    raw = call_fireworks(messages, model=TEXT_MODEL, max_tokens=400, temperature=temp)
+    raw = call_fireworks(messages, model=TEXT_MODEL, max_tokens=500, temperature=temp)
     caption = clean_caption(raw)
 
-    # Retry once if the result is empty or suspiciously short (< 20 chars)
-    if len(caption) < 20:
+    # Retry once if the result is empty or suspiciously short (< 30 chars)
+    if len(caption) < 30:
         log.warning("[%s] Caption too short (%d chars) — retrying with higher temperature", style, len(caption))
-        raw = call_fireworks(messages, model=TEXT_MODEL, max_tokens=400, temperature=min(temp + 0.1, 1.0))
+        raw = call_fireworks(messages, model=TEXT_MODEL, max_tokens=500, temperature=min(temp + 0.1, 1.0))
         caption = clean_caption(raw)
 
     return caption if caption else f"A video clip in {style} context."
