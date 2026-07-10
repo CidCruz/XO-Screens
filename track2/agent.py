@@ -111,13 +111,12 @@ _DEFAULT_TEXT_MODEL   = "accounts/fireworks/models/kimi-k2p5"
 VISION_MODEL = os.environ.get("VISION_MODEL", _DEFAULT_VISION_MODEL).strip()
 TEXT_MODEL   = os.environ.get("TEXT_MODEL",   _DEFAULT_TEXT_MODEL).strip()
 
-# ── Per-style temperature — critical for style match score ───────────────────
-# formal: low temp = factual, consistent. humorous: high temp = creative, varied.
+# ── Per-style temperature ────────────────────────────────────────────────────
 STYLE_TEMPERATURES: dict[str, float] = {
     "formal":            0.15,
-    "sarcastic":         0.85,
-    "humorous_tech":     0.88,
-    "humorous_non_tech": 0.92,
+    "sarcastic":         0.75,
+    "humorous_tech":     0.78,
+    "humorous_non_tech": 0.80,
 }
 
 STYLES = ["formal", "sarcastic", "humorous_tech", "humorous_non_tech"]
@@ -242,58 +241,71 @@ def _validate_styles(requested: list) -> list[str]:
 
 STYLE_SYSTEM_PROMPTS = {
     "formal": (
-        "You are a professional documentary narrator. "
-        "Your captions are precise, factual, and authoritative — like BBC or National Geographic. "
+        "You are a BBC or National Geographic documentary narrator writing a full, detailed video summary. "
+        "Your output must be precise, factual, authoritative, and rich in detail. "
         "Rules: active voice, present tense, no bullet points, no clichés, no filler phrases like 'we see' or 'the video shows'. "
-        "Structure: one strong establishing sentence naming the exact setting and subjects, "
-        "followed by a clear sequence of the key actions that unfold. "
-        "CRITICAL: mention specific visual details from the description — the actual subject, "
-        "the actual setting, the actual action. Generic captions score zero. /no_think"
+        "Cover: (1) the exact setting — environment type, location, time of day, lighting; "
+        "(2) every subject — precise appearance including clothing colours, physical features, distinguishing details; "
+        "(3) the full chronological sequence of actions — what moves, in which direction, at what speed, how subjects interact, what changes, how it ends; "
+        "(4) the atmosphere and overall mood; (5) any notable details like text, objects, or unusual elements. "
+        "CRITICAL: describe the complete arc of events from start to finish, not just the opening scene. "
+        "Every sentence must contain at least one specific concrete detail — actual colour, actual object, actual movement direction. "
+        "Vague or generic sentences score zero. /no_think"
     ),
     "sarcastic": (
-        "You are a world-class sarcastic commentator with bone-dry wit. "
-        "Your captions treat the obvious as absurd, the mundane as baffling. "
+        "You are a world-class sarcastic commentator with bone-dry wit writing a full, detailed video summary. "
+        "Your output treats the obvious as absurd and the mundane as baffling — but it must be packed with accurate detail. "
         "Rules: NO exclamation marks (they kill the deadpan). NO 'literally'. NO 'actually' used sincerely. "
-        "Every sentence must land with a smirk. Use ironic understatement. "
-        "CRITICAL: you MUST accurately reference what is actually happening in the video — "
-        "sarcasm about the wrong subject scores zero on accuracy. "
-        "The joke should be about the specific thing shown, not a generic observation. /no_think"
+        "Every sentence must land with a smirk AND contain a specific accurate detail from the video. "
+        "Cover: the setting, the subjects and their appearance, the full sequence of events from start to finish, and the overall vibe — all through your sarcastic lens. "
+        "CRITICAL: sarcasm about the wrong subject or a vague description scores zero. "
+        "The wit must be anchored to the specific colours, objects, movements, and sequence of events actually shown. "
+        "Do not just comment on the opening — track the whole video. /no_think"
     ),
     "humorous_tech": (
-        "You are a senior developer doing Twitch commentary on a random video for your dev audience. "
-        "Frame EVERYTHING through a programmer/tech lens using specific references: "
-        "git commits, merge conflicts, Stack Overflow, 'works on my machine', unit tests, "
-        "deployment pipelines, NullPointerException, 'it's a feature not a bug', pull requests, "
-        "rubber duck debugging, '10x engineer', legacy code. "
-        "CRITICAL: the tech references must map onto what is actually happening in the video — "
-        "don't just drop random tech phrases. Make the analogy fit the specific visual. "
-        "Your dev audience will call you out if the reference doesn't land. /no_think"
+        "You are a senior developer doing live Twitch commentary on a random video, writing a full detailed summary for your dev audience. "
+        "Frame EVERYTHING through a programmer/tech lens — git commits, merge conflicts, Stack Overflow, 'works on my machine', "
+        "unit tests, deployment pipelines, NullPointerException, 'it's a feature not a bug', pull requests, "
+        "rubber duck debugging, O(n²) complexity, race conditions, memory leaks. "
+        "Your summary must be detailed: cover the setting, every subject and their appearance, "
+        "the full chronological sequence of actions, and the overall arc — all mapped to tech analogies. "
+        "CRITICAL: every tech reference must precisely map onto what is actually happening — "
+        "the specific motion, the specific subjects, the specific sequence. "
+        "Cover the full video, not just the opening frame. "
+        "Your dev audience will roast you if the analogy doesn't fit the actual action. /no_think"
     ),
     "humorous_non_tech": (
-        "You are a stand-up comedian doing crowd work about a video — no jargon, pure observational humor. "
-        "Styles to draw from: absurdist takes, relatable everyday observations, punny wordplay, "
-        "'main character energy', 'the audacity', 'nobody asked for this but here we are'. "
-        "Rules: NO technical terms, NO programmer references, accessible to anyone aged 15-70. "
-        "CRITICAL: the joke must be grounded in what is actually shown — "
-        "a funny observation about the specific subject/action/setting, not generic comedy filler. /no_think"
+        "You are a stand-up comedian doing crowd work about a video, writing a full detailed summary — "
+        "no jargon, pure observational humor accessible to anyone. "
+        "Draw from: absurdist takes, relatable everyday observations, punny wordplay, "
+        "'main character energy', 'the audacity', 'nobody asked for this but here we are', dramatic narration of mundane events. "
+        "Your summary must be detailed: cover the setting, every subject and their appearance, "
+        "the full chronological sequence of events, and the overall vibe — all through your comedic lens. "
+        "CRITICAL: every joke must be grounded in specific accurate details — "
+        "actual colours, actual objects, actual movements, actual sequence of events. "
+        "Do not just riff on the opening frame — follow the full arc of the video. "
+        "Vague comedy filler with no connection to the actual content scores zero. /no_think"
     ),
 }
 
 # ── Description system prompt (rewritten for narrative prose) ────────────────
 
 DESCRIBE_SYSTEM = (
-    "You are a professional video analyst. Your job is to produce a detailed, accurate description "
-    "of a video clip that will be used to generate captions. "
+    "You are a forensic video analyst and documentary narrator. "
+    "Your job is to produce an exhaustive, accurate description of a video clip that will be used to generate detailed captions. "
     "Write in flowing narrative prose — NO bullet points, NO lists, NO markdown. "
-    "Your description must cover ALL of the following:\n"
-    "1. SETTING: exact location type (indoor/outdoor, urban/rural, specific room type, etc.)\n"
-    "2. SUBJECTS: every person, animal, or significant object visible — describe appearance, age if visible, clothing\n"
-    "3. ACTIONS: a chronological sequence of what happens — be specific about movements and interactions\n"
-    "4. ATMOSPHERE: lighting, time of day, weather, emotional tone, pace\n"
-    "5. AUDIO CUES: if a transcript is provided, integrate what is said or heard\n"
-    "6. NOTABLE DETAILS: anything distinctive — signs, text on screen, unusual elements\n"
-    "Be thorough and specific. Vague descriptions like 'a person does something' are useless. "
-    "Write 4–6 paragraphs. /no_think"
+    "Your description must cover ALL of the following in detail:\n"
+    "1. SETTING: exact location type (indoor/outdoor, urban/rural, specific room/environment), time of day, lighting conditions, weather if outdoors, dominant colours\n"
+    "2. SUBJECTS: every person (estimated age, clothing with exact colours and style, hair, accessories, facial expression), animal (species, colours, size), or significant object\n"
+    "3. OPENING STATE: what is happening at the very start — initial positions and first movements\n"
+    "4. CHRONOLOGICAL ACTIONS: every significant movement from start to finish — who moves, in which direction, at what speed, how subjects interact, what changes progressively\n"
+    "5. KEY MOMENT: the most significant or climactic moment in the video\n"
+    "6. RESOLUTION: how the video ends — final state, final positions, final action\n"
+    "7. ATMOSPHERE: mood, energy level, pace, emotional tone\n"
+    "8. NOTABLE DETAILS: any text on screen, signs, brand names, unusual elements, audio cues if transcript provided\n"
+    "Be exhaustive and specific. Every sentence must contain at least one concrete detail — actual colour, actual object, actual direction of movement. "
+    "Vague descriptions like 'a person does something' are useless and score zero. "
+    "Write 6–8 paragraphs of narrative prose. /no_think"
 )
 
 def build_describe_prompt(transcript: str) -> str:
@@ -303,36 +315,36 @@ def build_describe_prompt(transcript: str) -> str:
         else "\n\nAudio transcript: [silent or no speech detected]"
     )
     return (
-        "These are evenly-spaced frames from a video clip (30 seconds to 2 minutes long)."
+        "These frames are ordered chronologically from the very start to the very end of the video clip."
         + transcript_section + "\n\n"
-        "Write a detailed, accurate description of this video covering: "
-        "the exact setting, every visible subject (with specific details about appearance and clothing), "
-        "a chronological account of all actions, the atmosphere and mood, "
-        "and any text or audio cues visible. "
-        "Be SPECIFIC — name the actual objects, colours, and actions you see. "
-        "Do not be vague. Write 4–6 paragraphs of narrative prose. /no_think"
+        "Analyse every frame in sequence and write an exhaustive narrative description covering: "
+        "the exact setting and environment, every visible subject with complete appearance details (clothing colours, physical features, expressions), "
+        "the full chronological sequence of all actions from start to finish (what moves, in which direction, at what speed, how subjects interact), "
+        "the key climactic moment, how the video ends, the atmosphere and mood, "
+        "and any text, signs, or audio cues visible. "
+        "Every sentence must contain at least one specific concrete detail. "
+        "Do not describe only the opening frame — cover the entire video. "
+        "Write 6–8 paragraphs of narrative prose. /no_think"
     )
 
 def _caption_user_prompt(description: str, style: str) -> str:
     """Per-style user prompt — forces grounding in specific visual details."""
-    length_guide = {
-        "formal":            "2–4 sentences",
-        "sarcastic":         "2–3 punchy sentences",
-        "humorous_tech":     "2–3 sentences",
-        "humorous_non_tech": "2–3 sentences",
-    }
     style_display = style.replace("_", " ")
+    # Truncate description to ~3000 chars to stay within context limits
+    if len(description) > 3000:
+        cut = description.rfind('. ', 0, 3000)
+        description = description[:cut + 1] if cut > 1800 else description[:3000]
     return (
         f"Video description:\n{description}\n\n"
-        f"Write a {style_display} caption ({length_guide.get(style, '2–4 sentences')}).\n\n"
-        "Requirements:\n"
-        "- Accurately reflect the specific content of the video (the actual subject, setting, and action)\n"
-        f"- Stay completely in the {style_display} tone — do not break character\n"
-        "- Reference at least one specific visual detail from the description\n"
-        "- Do NOT use generic filler like 'a video shows' or 'we can see'\n"
-        "- Do NOT add a title, label, or preamble — output the caption text only\n"
-        "- Do NOT include thinking tags, markdown, or JSON\n\n"
-        "Output the caption directly. Nothing else. /no_think"
+        f"Using the video description above, write a detailed informative summary in the {style_display} tone. "
+        "The summary must be 5 to 8 sentences long. "
+        "Cover the exact setting, every subject's appearance (clothing colours, physical features), "
+        "the full sequence of actions from start to finish (what moves, in which direction, at what speed), "
+        "the key moment, how it ends, the atmosphere, and any notable details. "
+        "Every sentence must include at least one specific concrete detail such as an actual colour, object, or movement direction. "
+        "Do not describe only the opening scene — cover the entire video. "
+        "Do not use filler phrases like 'a video shows' or 'we can see'. "
+        "Do not add a title or preamble. Output the summary text directly. Nothing else. /no_think"
     )
 
 # ── Caption output cleaning ───────────────────────────────────────────────────
@@ -600,7 +612,7 @@ def describe_video(frame_parts: list[dict], transcript: str) -> str:
             ],
         },
     ]
-    description = call_fireworks(messages, model=VISION_MODEL, max_tokens=2400, temperature=0.1)
+    description = call_fireworks(messages, model=VISION_MODEL, max_tokens=3500, temperature=0.1)
     # Strip thinking tags that vision models sometimes leak
     description = re.sub(r"<think>[\s\S]*?</think>", "", description, flags=re.IGNORECASE).strip()
     if not description:
@@ -613,23 +625,38 @@ def generate_caption(style: str, description: str) -> str:
     """
     Second pass: styled caption from description only — no frames, text model.
     Per-style temperature for optimal accuracy/creativity balance.
-    Retries once with slightly higher temperature if the output is empty.
+    Retries up to 5 times, detecting placeholder/empty responses.
     """
     temp = STYLE_TEMPERATURES.get(style, 0.7)
     messages = [
         {"role": "system", "content": STYLE_SYSTEM_PROMPTS[style]},
         {"role": "user", "content": _caption_user_prompt(description, style)},
     ]
-    raw = call_fireworks(messages, model=TEXT_MODEL, max_tokens=500, temperature=temp)
-    caption = clean_caption(raw)
 
-    # Retry once if the result is empty or suspiciously short (< 30 chars)
-    if len(caption) < 30:
-        log.warning("[%s] Caption too short (%d chars) — retrying with higher temperature", style, len(caption))
-        raw = call_fireworks(messages, model=TEXT_MODEL, max_tokens=500, temperature=min(temp + 0.1, 1.0))
-        caption = clean_caption(raw)
+    _PLACEHOLDER_RE = re.compile(
+        r"caption text only|output the caption|nothing else|your \d[^.]*sentence|summary here",
+        re.IGNORECASE,
+    )
 
-    return caption if caption else f"A video clip in {style} context."
+    last_caption = ""
+    for attempt in range(5):
+        try:
+            raw = call_fireworks(messages, model=TEXT_MODEL, max_tokens=800, temperature=temp)
+            caption = clean_caption(raw)
+            # Reject if empty, too short, or echoing prompt instructions
+            if len(caption) >= 40 and not _PLACEHOLDER_RE.search(caption):
+                return caption
+            last_caption = caption
+            log.warning("[%s] Attempt %d: caption invalid (%d chars) — retrying",
+                        style, attempt + 1, len(caption))
+        except Exception as exc:
+            log.warning("[%s] Attempt %d failed: %s", style, attempt + 1, exc)
+        # Slight temperature nudge on retry to break out of bad patterns
+        temp = min(temp + 0.05, 0.95)
+        time.sleep(1.0 * (attempt + 1))
+
+    # All attempts exhausted — return best we got, or a safe fallback
+    return last_caption if len(last_caption) >= 20 else f"A video clip presented in {style.replace('_', ' ')} style."
 
 # ── Process one task ──────────────────────────────────────────────────────────
 
