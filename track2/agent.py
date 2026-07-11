@@ -239,11 +239,9 @@ RULES:
 - The captions MUST be highly accurate to the video content. Mention specific colors, objects, movements, and resolutions. Generic captions will score ZERO.
 - You MUST output ONLY valid JSON.
 - The JSON object must contain keys EXACTLY matching the requested styles.
-- First, you MUST include a "visual_analysis" key where you do an internal, objective chronological breakdown of the video's details.
 
 Example JSON output structure:
 {
-  "visual_analysis": "The video starts with...",
   "formal": "The video shows...",
   "sarcastic": "Oh look, another...",
   "humorous_tech": "This is what a merge conflict looks like in real life...",
