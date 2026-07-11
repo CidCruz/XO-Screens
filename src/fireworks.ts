@@ -1,16 +1,24 @@
 /**
  * fireworks.ts
  *
- * All AI inference routed through Fireworks AI using the OpenAI-compatible API.
+ * AI inference with Gemini 2.5 Flash as PRIMARY, Fireworks AI as FALLBACK.
  *
- * Model routing strategy:
- *   CHAT   (deepseek-v4-pro)  — all text chat, tool-calling, reasoning
- *   VISION (qwen3p7-plus)     — video captioning, multimodal tasks
+ * Routing:
+ *   1. Try Gemini 2.5 Flash (best quality, vision + text)
+ *   2. On GeminiQuotaError / GeminiUnavailableError / no key → fall back to Fireworks
  *
- * GEMMA_MODELS aliases kept for backward compatibility with existing imports.
+ * GEMMA_MODELS aliases kept for backward compatibility.
  */
 
 import type { Message } from './types'
+import {
+  callGeminiText,
+  callGeminiVision,
+  callGeminiChat,
+  hasGeminiKey,
+  GeminiQuotaError,
+  GeminiUnavailableError,
+} from './gemini-native'
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 
@@ -42,6 +50,21 @@ export const GEMMA_MODELS = {
 } as const
 
 export type GemmaModel = typeof FW_MODELS[keyof typeof FW_MODELS]
+
+// ─── Gemini fallback flag ────────────────────────────────────────────────────
+// Once Gemini quota is hit in this session, skip it and go straight to Fireworks.
+let _geminiQuotaHit = false
+
+function shouldUseGemini(): boolean {
+  return !_geminiQuotaHit && hasGeminiKey()
+}
+
+function handleGeminiError(err: unknown): void {
+  if (err instanceof GeminiQuotaError) {
+    _geminiQuotaHit = true
+    console.warn('[XO] Gemini quota exhausted — switching to Fireworks for this session')
+  }
+}
 
 // ─── Core fetch helper ────────────────────────────────────────────────────────
 
@@ -268,14 +291,31 @@ async function runCaptionPass(
     let lastErr: unknown
     for (let attempt = 0; attempt < 5; attempt++) {
       try {
-        const msgs: FWMessage[] = [
-          { role: 'system', content: TONE_SYSTEM_PROMPTS[tone] },
-          { role: 'user', content: SUMMARY_USER_PROMPT(videoDescription) },
-        ]
-        const choice = await callFW(msgs, GEMMA_MODELS.E4B, { temperature, maxTokens: 2000, responseFormat: 'json_object' })
-        const raw = choice.message.content ?? ''
+        let raw: string
+        if (shouldUseGemini()) {
+          try {
+            raw = await callGeminiText(
+              TONE_SYSTEM_PROMPTS[tone],
+              SUMMARY_USER_PROMPT(videoDescription),
+              { temperature, maxTokens: 2000, jsonMode: true },
+            )
+          } catch (gErr) {
+            handleGeminiError(gErr)
+            if (!(gErr instanceof GeminiUnavailableError) && !(gErr instanceof GeminiQuotaError)) throw gErr
+            const choice = await callFW([
+              { role: 'system', content: TONE_SYSTEM_PROMPTS[tone] },
+              { role: 'user', content: SUMMARY_USER_PROMPT(videoDescription) },
+            ], GEMMA_MODELS.E4B, { temperature, maxTokens: 2000, responseFormat: 'json_object' })
+            raw = choice.message.content ?? ''
+          }
+        } else {
+          const choice = await callFW([
+            { role: 'system', content: TONE_SYSTEM_PROMPTS[tone] },
+            { role: 'user', content: SUMMARY_USER_PROMPT(videoDescription) },
+          ], GEMMA_MODELS.E4B, { temperature, maxTokens: 2000, responseFormat: 'json_object' })
+          raw = choice.message.content ?? ''
+        }
         const parsed = parseToneResult(raw)
-        // Reject if it echoed placeholder text from the prompt
         if (parsed && !/your\s+\d[^.]*sentence|summary here|WRITE YOUR ACTUAL/i.test(parsed.summary)) {
           toneResults[tone] = parsed
           onProgress?.(tone)
@@ -573,29 +613,42 @@ export async function processVideoURL(
   if (frameDataUrls.length === 0) throw new Error('Could not extract frames from video.')
 
   onStep?.('vision')
-  // Pass 1 — exhaustive per-frame visual inventory
-  const inventoryChoice = await callFW([
-    { role: 'system', content: INVENTORY_SYSTEM },
-    { role: 'user', content: [
-      ...frameDataUrls.map(u => ({ type: 'image_url' as const, image_url: { url: u } })),
-      { type: 'text' as const, text: INVENTORY_USER },
-    ]},
-  ], GEMMA_MODELS.B31, { temperature: 0.1, maxTokens: 6000 })
-
-  const inventory = (inventoryChoice.message.content ?? '')
-    .replace(/<think>[\s\S]*?<\/think>/gi, '').trim()
+  // Pass 1 — exhaustive per-frame visual inventory (Gemini primary, Fireworks fallback)
+  let inventory: string
+  try {
+    if (shouldUseGemini()) {
+      inventory = await callGeminiVision(INVENTORY_SYSTEM, frameDataUrls, INVENTORY_USER, { temperature: 0.1, maxTokens: 6000 })
+    } else throw new GeminiUnavailableError('skipped')
+  } catch (err) {
+    handleGeminiError(err)
+    if (!(err instanceof GeminiUnavailableError) && !(err instanceof GeminiQuotaError)) throw err
+    const ic = await callFW([
+      { role: 'system', content: INVENTORY_SYSTEM },
+      { role: 'user', content: [
+        ...frameDataUrls.map(u => ({ type: 'image_url' as const, image_url: { url: u } })),
+        { type: 'text' as const, text: INVENTORY_USER },
+      ]},
+    ], GEMMA_MODELS.B31, { temperature: 0.1, maxTokens: 6000 })
+    inventory = (ic.message.content ?? '').replace(/<think>[\s\S]*?<\/think>/gi, '').trim()
+  }
 
   onStep?.('synthesis')
-  // Pass 2 — synthesize inventory into a rich narrative description
-  const synthChoice = await callFW([
-    { role: 'system', content: SYNTHESIZE_SYSTEM },
-    { role: 'user', content: `Frame-by-frame inventory with full motion tracking and appearance details:\n\n${inventory}\n\nNow write the complete 7–10 paragraph narrative description covering all required sections. Every sentence must contain specific concrete details. Plain prose only. /no_think` },
-  ], GEMMA_MODELS.B31, { temperature: 0.1, maxTokens: 4000 })
-
-  const videoDescription = (synthChoice.message.content ?? '')
-    .replace(/<think>[\s\S]*?<\/think>/gi, '').trim()
-    || inventory
-    || `Video from URL: ${url}`
+  const synthMsg = `Frame-by-frame inventory with full motion tracking and appearance details:\n\n${inventory}\n\nNow write the complete 7–10 paragraph narrative description covering all required sections. Every sentence must contain specific concrete details. Plain prose only. /no_think`
+  let videoDescription: string
+  try {
+    if (shouldUseGemini()) {
+      videoDescription = await callGeminiText(SYNTHESIZE_SYSTEM, synthMsg, { temperature: 0.1, maxTokens: 4000 })
+    } else throw new GeminiUnavailableError('skipped')
+  } catch (err) {
+    handleGeminiError(err)
+    if (!(err instanceof GeminiUnavailableError) && !(err instanceof GeminiQuotaError)) throw err
+    const sc = await callFW([
+      { role: 'system', content: SYNTHESIZE_SYSTEM },
+      { role: 'user', content: synthMsg },
+    ], GEMMA_MODELS.B31, { temperature: 0.1, maxTokens: 4000 })
+    videoDescription = (sc.message.content ?? '').replace(/<think>[\s\S]*?<\/think>/gi, '').trim()
+  }
+  videoDescription = videoDescription || inventory || `Video from URL: ${url}`
 
   onStep?.('captions')
   return runCaptionPass(videoDescription, onProgress)
@@ -616,29 +669,42 @@ export async function processVideoFile(
   onStep?.('vision')
   onUploadProgress?.('processing')
 
-  // Pass 1 — exhaustive per-frame visual inventory
-  const inventoryChoice = await callFW([
-    { role: 'system', content: INVENTORY_SYSTEM },
-    { role: 'user', content: [
-      ...frameDataUrls.map(url => ({ type: 'image_url' as const, image_url: { url } })),
-      { type: 'text' as const, text: INVENTORY_USER },
-    ]},
-  ], GEMMA_MODELS.B31, { temperature: 0.1, maxTokens: 6000 })
-
-  const inventory = (inventoryChoice.message.content ?? '')
-    .replace(/<think>[\s\S]*?<\/think>/gi, '').trim()
+  // Pass 1 — exhaustive per-frame visual inventory (Gemini primary, Fireworks fallback)
+  let inventory2: string
+  try {
+    if (shouldUseGemini()) {
+      inventory2 = await callGeminiVision(INVENTORY_SYSTEM, frameDataUrls, INVENTORY_USER, { temperature: 0.1, maxTokens: 6000 })
+    } else throw new GeminiUnavailableError('skipped')
+  } catch (err) {
+    handleGeminiError(err)
+    if (!(err instanceof GeminiUnavailableError) && !(err instanceof GeminiQuotaError)) throw err
+    const ic = await callFW([
+      { role: 'system', content: INVENTORY_SYSTEM },
+      { role: 'user', content: [
+        ...frameDataUrls.map(url => ({ type: 'image_url' as const, image_url: { url } })),
+        { type: 'text' as const, text: INVENTORY_USER },
+      ]},
+    ], GEMMA_MODELS.B31, { temperature: 0.1, maxTokens: 6000 })
+    inventory2 = (ic.message.content ?? '').replace(/<think>[\s\S]*?<\/think>/gi, '').trim()
+  }
 
   onStep?.('synthesis')
-  // Pass 2 — synthesize inventory into a rich narrative description
-  const synthChoice = await callFW([
-    { role: 'system', content: SYNTHESIZE_SYSTEM },
-    { role: 'user', content: `Frame-by-frame inventory with full motion tracking and appearance details:\n\n${inventory}\n\nNow write the complete 7–10 paragraph narrative description covering all required sections. Every sentence must contain specific concrete details. Plain prose only. /no_think` },
-  ], GEMMA_MODELS.B31, { temperature: 0.1, maxTokens: 4000 })
-
-  const videoDescription = (synthChoice.message.content ?? '')
-    .replace(/<think>[\s\S]*?<\/think>/gi, '').trim()
-    || inventory
-    || `Video file: ${file.name}`
+  const synthMsg2 = `Frame-by-frame inventory with full motion tracking and appearance details:\n\n${inventory2}\n\nNow write the complete 7–10 paragraph narrative description covering all required sections. Every sentence must contain specific concrete details. Plain prose only. /no_think`
+  let videoDescription2: string
+  try {
+    if (shouldUseGemini()) {
+      videoDescription2 = await callGeminiText(SYNTHESIZE_SYSTEM, synthMsg2, { temperature: 0.1, maxTokens: 4000 })
+    } else throw new GeminiUnavailableError('skipped')
+  } catch (err) {
+    handleGeminiError(err)
+    if (!(err instanceof GeminiUnavailableError) && !(err instanceof GeminiQuotaError)) throw err
+    const sc = await callFW([
+      { role: 'system', content: SYNTHESIZE_SYSTEM },
+      { role: 'user', content: synthMsg2 },
+    ], GEMMA_MODELS.B31, { temperature: 0.1, maxTokens: 4000 })
+    videoDescription2 = (sc.message.content ?? '').replace(/<think>[\s\S]*?<\/think>/gi, '').trim()
+  }
+  const videoDescription = videoDescription2 || inventory2 || `Video file: ${file.name}`
 
   onStep?.('captions')
   return runCaptionPass(videoDescription, onProgress)
@@ -651,13 +717,26 @@ export async function sendMessage(
   userMessage: string,
   systemPrompt?: string,
 ): Promise<string> {
+  const sys = systemPrompt ?? 'You are XO, an intelligent desktop AI assistant. Be concise, helpful, and friendly.'
+  if (shouldUseGemini()) {
+    try {
+      return await callGeminiChat(
+        sys,
+        messages.map(m => ({ role: m.role as 'user' | 'assistant', content: m.content })),
+        userMessage,
+        { temperature: 0.9 },
+      )
+    } catch (err) {
+      handleGeminiError(err)
+      if (!(err instanceof GeminiUnavailableError) && !(err instanceof GeminiQuotaError)) throw err
+    }
+  }
   const fwMsgs: FWMessage[] = []
-  if (systemPrompt) fwMsgs.push({ role: 'system', content: systemPrompt })
+  if (sys) fwMsgs.push({ role: 'system', content: sys })
   for (const m of messages) {
     fwMsgs.push({ role: m.role === 'assistant' ? 'assistant' : 'user', content: m.content })
   }
   fwMsgs.push({ role: 'user', content: userMessage })
-
   const choice = await callFW(fwMsgs, GEMMA_MODELS.E4B, { temperature: 0.9 })
   return choice.message.content ?? 'No response.'
 }

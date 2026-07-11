@@ -35,8 +35,30 @@ interface SettingsWidgetProps {
 function SettingsWidget({ onClose, onCornerDown }: SettingsWidgetProps) {
   const [closestCorner, setClosestCorner] = useState<number | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
-  // true  = a key is already stored and we're in "locked" view
-  // false = no key yet, or user chose to replace/delete
+
+  // Gemini key state
+  const [geminiLocked, setGeminiLocked] = useState(() => !!localStorage.getItem('xo-gemini-api-key'))
+  const [newGeminiKey, setNewGeminiKey] = useState('')
+  const [geminiSaved, setGeminiSaved] = useState(false)
+
+  function handleGeminiSave() {
+    const trimmed = newGeminiKey.trim()
+    if (!trimmed) return
+    localStorage.setItem('xo-gemini-api-key', trimmed)
+    setNewGeminiKey('')
+    setGeminiLocked(true)
+    setGeminiSaved(true)
+    setTimeout(() => setGeminiSaved(false), 2000)
+  }
+
+  function handleGeminiDelete() {
+    localStorage.removeItem('xo-gemini-api-key')
+    setNewGeminiKey('')
+    setGeminiLocked(false)
+    setGeminiSaved(false)
+  }
+
+  // Fireworks key state
   const [keyLocked, setKeyLocked] = useState(() => !!localStorage.getItem('xo-fireworks-api-key'))
   const [newKey, setNewKey] = useState('')
   const [saved, setSaved] = useState(false)
@@ -119,10 +141,62 @@ function SettingsWidget({ onClose, onCornerDown }: SettingsWidgetProps) {
         {/* Body */}
         <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 14 }}>
 
-          {/* Fireworks AI section */}
+          {/* Gemini AI section — PRIMARY */}
           <div>
-            <div style={{ fontSize: 9, fontWeight: 700, color: 'rgba(255,255,255,0.3)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 8 }}>
+            <div style={{ fontSize: 9, fontWeight: 700, color: 'rgba(255,255,255,0.3)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+              Gemini 2.5 Flash
+              <span style={{ fontSize: 8, fontWeight: 700, color: 'rgba(74,222,128,0.8)', background: 'rgba(74,222,128,0.1)', border: '1px solid rgba(74,222,128,0.25)', borderRadius: 4, padding: '1px 5px', letterSpacing: '0.06em' }}>PRIMARY</span>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {geminiLocked ? (
+                <>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(74,222,128,0.08)', border: '1px solid rgba(74,222,128,0.2)', borderRadius: 10, padding: '9px 12px' }}>
+                    <svg width="12" height="12" fill="none" stroke="rgba(74,222,128,0.7)" viewBox="0 0 24 24" style={{ flexShrink: 0 }}>
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                    </svg>
+                    <span style={{ fontSize: 11, fontFamily: 'monospace', color: 'rgba(74,222,128,0.8)', flex: 1, letterSpacing: '0.05em' }}>AQ.••••••••••••••••••••</span>
+                    {geminiSaved && <span style={{ fontSize: 10, color: 'rgba(74,222,128,0.7)', fontWeight: 600 }}>✓ Saved</span>}
+                  </div>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <button data-no-drag onClick={() => { setGeminiLocked(false); setNewGeminiKey('') }} style={{ flex: 1, padding: '8px', borderRadius: 10, border: '1px solid rgba(74,222,128,0.3)', background: 'rgba(74,222,128,0.1)', color: 'rgba(74,222,128,0.9)', fontSize: 11, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer', transition: 'all 0.2s' }}
+                      onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(74,222,128,0.2)' }}
+                      onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(74,222,128,0.1)' }}
+                    >Replace Key</button>
+                    <button data-no-drag onClick={handleGeminiDelete} style={{ flex: 1, padding: '8px', borderRadius: 10, border: '1px solid rgba(239,68,68,0.25)', background: 'rgba(239,68,68,0.08)', color: 'rgba(239,68,68,0.7)', fontSize: 11, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer', transition: 'all 0.2s' }}
+                      onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(239,68,68,0.18)'; (e.currentTarget as HTMLButtonElement).style.color = '#f87171' }}
+                      onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(239,68,68,0.08)'; (e.currentTarget as HTMLButtonElement).style.color = 'rgba(239,68,68,0.7)' }}
+                    >Delete Key</button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <input data-no-drag type="password" value={newGeminiKey} onChange={e => setNewGeminiKey(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleGeminiSave()}
+                    placeholder="AQ.••••••••••••••••••••" spellCheck={false} autoComplete="off"
+                    style={{ width: '100%', boxSizing: 'border-box', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, padding: '9px 12px', color: '#fff', fontSize: 11, fontFamily: 'monospace', outline: 'none' }}
+                    onFocus={e => { e.currentTarget.style.borderColor = 'rgba(74,222,128,0.5)' }}
+                    onBlur={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)' }}
+                  />
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <button data-no-drag onClick={handleGeminiSave} disabled={!newGeminiKey.trim()} style={{ flex: 1, padding: '8px', borderRadius: 10, border: 'none', cursor: newGeminiKey.trim() ? 'pointer' : 'default', background: newGeminiKey.trim() ? 'rgba(74,222,128,0.55)' : 'rgba(74,222,128,0.15)', color: newGeminiKey.trim() ? '#fff' : 'rgba(255,255,255,0.3)', fontSize: 11, fontWeight: 600, fontFamily: 'inherit', transition: 'all 0.2s' }}>Save Gemini Key</button>
+                    {localStorage.getItem('xo-gemini-api-key') && (
+                      <button data-no-drag onClick={() => { setGeminiLocked(true); setNewGeminiKey('') }} style={{ padding: '8px 12px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.1)', background: 'transparent', color: 'rgba(255,255,255,0.35)', fontSize: 11, fontWeight: 500, fontFamily: 'inherit', cursor: 'pointer', transition: 'all 0.2s' }}>Cancel</button>
+                    )}
+                  </div>
+                </>
+              )}
+              <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.2)', lineHeight: 1.6 }}>
+                Get your key at{' '}
+                <a href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer" style={{ color: 'rgba(74,222,128,0.7)', textDecoration: 'none' }}>aistudio.google.com</a>
+                . Used first — Fireworks is the automatic fallback.
+              </div>
+            </div>
+          </div>
+
+          {/* Fireworks AI section — FALLBACK */}
+          <div>
+            <div style={{ fontSize: 9, fontWeight: 700, color: 'rgba(255,255,255,0.3)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
               Fireworks AI
+              <span style={{ fontSize: 8, fontWeight: 700, color: 'rgba(139,92,246,0.8)', background: 'rgba(139,92,246,0.1)', border: '1px solid rgba(139,92,246,0.25)', borderRadius: 4, padding: '1px 5px', letterSpacing: '0.06em' }}>FALLBACK</span>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
 
@@ -230,7 +304,7 @@ function SettingsWidget({ onClose, onCornerDown }: SettingsWidgetProps) {
               {[
                 { label: 'Version',   value: '0.0.0' },
                 { label: 'Mode',      value: 'Desktop Overlay' },
-                { label: 'Provider',  value: 'Fireworks AI' },
+                { label: 'Provider',  value: 'Gemini 2.5 Flash + Fireworks' },
                 { label: 'Platform',  value: xo.platform ?? 'electron' },
               ].map(row => (
                 <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

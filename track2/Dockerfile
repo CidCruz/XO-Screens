@@ -14,6 +14,7 @@
 # Run locally:
 #   docker run --rm \
 #     -e FIREWORKS_API_KEY=your_key \
+#     -e GEMINI_API_KEY=your_key \
 #     -v "$(pwd)/test/input:/input:ro" \
 #     -v "$(pwd)/test/output:/output" \
 #     xo-screens-track2:latest
@@ -21,7 +22,6 @@
 FROM python:3.11-slim
 
 ENV PYTHONUNBUFFERED=1
-ENV FIREWORKS_API_KEY=fw_HE16hSARy1JVny34MeXA4f
 
 # Disable healthcheck — we're a batch container, not a service
 HEALTHCHECK NONE

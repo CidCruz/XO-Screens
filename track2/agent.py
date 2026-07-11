@@ -5,8 +5,8 @@ XO-Screens | AMD Developer Hackathon: ACT II
 Pipeline:
   1. Read /input/tasks.json
   2. For each video: download → extract frames (scene-aware, ffmpeg)
-  3. First pass  — describe video from frames (vision model: MiniMax M3)
-  4. Second pass — generate captions in all requested styles with per-style temperature
+  3. First pass  — describe video from frames (Gemini 2.5 Flash vision PRIMARY, MiniMax M3 fallback)
+  4. Second pass — generate captions in all requested styles (Gemini 2.5 Flash PRIMARY, Kimi K2.6 fallback)
   5. Write /output/results.json
   6. Exit 0
 
@@ -18,10 +18,11 @@ Disqualification guards built in:
   MISSING_TASKS  → every input task gets an output entry, even on error or budget exhaustion
 
 Environment variables:
-  FIREWORKS_API_KEY   — required: your Fireworks AI API key
-  FIREWORKS_BASE_URL  — optional: base URL override
-  VISION_MODEL        — optional: override vision model
-  TEXT_MODEL          — optional: override caption model
+  GEMINI_API_KEY      — PRIMARY: Google Gemini 2.5 Flash (vision + text)
+  FIREWORKS_API_KEY   — FALLBACK: Fireworks AI (used when Gemini quota exhausted or key absent)
+  FIREWORKS_BASE_URL  — optional: Fireworks base URL override
+  VISION_MODEL        — optional: override Fireworks vision model
+  TEXT_MODEL          — optional: override Fireworks text model
   TOTAL_BUDGET_SECS   — optional: global wall-clock budget in seconds (default: 520)
 """
 
@@ -57,7 +58,7 @@ logging.basicConfig(
 )
 log = logging.getLogger("track2")
 
-# ── Config ────────────────────────────────────────────────────────────────────
+# ── Config ───────────────────────────────────────────────────────────────────
 
 # Load .env only for local development (not in the submitted Docker container)
 try:
@@ -66,9 +67,21 @@ try:
 except ImportError:
     pass
 
-_HARDCODED_KEY = "fw_HE16hSARy1JVny34MeXA4f"
-API_KEY  = os.environ.get("FIREWORKS_API_KEY", "").strip() or _HARDCODED_KEY
-BASE_URL = os.environ.get("FIREWORKS_BASE_URL", "https://api.fireworks.ai/inference/v1").rstrip("/")
+# Don't use hardcoded keys that might not work in evaluation environment
+_HARDCODED_FW_KEY = None  # Removed hardcoded key to force user to provide their own
+_HARDCODED_GEMINI_KEY = None  # Removed hardcoded key to force user to provide their own
+
+API_KEY      = os.environ.get("FIREWORKS_API_KEY", "").strip()
+GEMINI_KEY   = os.environ.get("GEMINI_API_KEY", "").strip()
+BASE_URL     = os.environ.get("FIREWORKS_BASE_URL", "https://api.fireworks.ai/inference/v1").rstrip("/")
+GEMINI_BASE  = "https://generativelanguage.googleapis.com/v1beta"
+GEMINI_MODEL = "gemini-2.5-flash"
+
+# Session-level flag: once Gemini quota is hit, skip it for remaining tasks
+_gemini_quota_hit = False
+
+def gemini_available() -> bool:
+    return bool(GEMINI_KEY) and not _gemini_quota_hit
 
 INPUT_PATH = Path("/input/tasks.json")
 OUTPUT_PATH = Path("/output/results.json")
@@ -158,9 +171,14 @@ def startup_checks() -> None:
     errors = []
     warnings = []
 
+    if GEMINI_KEY:
+        log.info("Gemini 2.5 Flash: ENABLED (primary inference engine)")
+    else:
+        warnings.append("GEMINI_API_KEY is not set — using Fireworks only")
+
     # API key — warn rather than hard-exit: the harness injects this at runtime.
     if not API_KEY:
-        warnings.append("FIREWORKS_API_KEY is not set — calls will fail with 401")
+        warnings.append("FIREWORKS_API_KEY is not set — fallback calls will fail with 401")
 
     for tool in ["ffmpeg", "ffprobe"]:
         try:
@@ -180,8 +198,10 @@ def startup_checks() -> None:
             log.warning("Startup check failed (non-fatal): %s", e)
 
     log.info("Startup checks passed")
-    log.info("VISION_MODEL    : %s", VISION_MODEL)
-    log.info("TEXT_MODEL      : %s", TEXT_MODEL)
+    log.info("PRIMARY         : Gemini 2.5 Flash (if key provided)")
+    log.info("FALLBACK        : Fireworks AI (if key provided)")
+    log.info("FALLBACK VISION : %s", VISION_MODEL)
+    log.info("FALLBACK TEXT   : %s", TEXT_MODEL)
     log.info("BASE_URL        : %s", BASE_URL)
     log.info("TOTAL_BUDGET    : %ds", TOTAL_BUDGET_SECS)
 
@@ -241,7 +261,7 @@ def _validate_styles(requested) -> list[str]:
         return list(STYLES)
     return valid
 
-# ── Style prompts (rewritten for strong differentiation) ─────────────────────
+# ── Style prompts (enhanced for better accuracy and style matching) ─────────────────────
 
 STYLE_SYSTEM_PROMPTS = {
     "formal": (
@@ -250,7 +270,9 @@ STYLE_SYSTEM_PROMPTS = {
         "Use present tense, active voice, no contractions, no first-person. "
         "Do not use filler phrases like 'we see', 'the video shows', or 'one can observe'. "
         "Cover the setting, subjects, sequence of actions, and outcome with specific concrete details. "
-        "Output ONLY the caption paragraph. No labels, no preamble."
+        "Include specific visual elements like colors, movements, clothing, expressions, and environmental details. "
+        "Focus on accuracy and completeness of visual information. "
+        "Output ONLY the caption paragraph. No labels, no preamble, no reasoning, no planning notes. /no_think"
     ),
     "sarcastic": (
         "You write captions in a dry, ironic, lightly mocking tone. "
@@ -258,7 +280,8 @@ STYLE_SYSTEM_PROMPTS = {
         "Be subtly sarcastic — undercut the obvious, treat the mundane as mildly absurd. "
         "Do not be mean-spirited or over-the-top; keep it dry and lightly mocking throughout. "
         "Every sentence should reference a specific real visual detail from the video. "
-        "Output ONLY the caption paragraph. No labels, no preamble."
+        "Use understatement and subtle irony to highlight contrasts between expectations and reality. "
+        "Output ONLY the caption paragraph. No labels, no preamble, no reasoning, no planning notes. /no_think"
     ),
     "humorous_tech": (
         "You write funny captions that incorporate technology or programming references. "
@@ -266,7 +289,8 @@ STYLE_SYSTEM_PROMPTS = {
         "Make it genuinely funny by connecting real visual events in the video to tech or programming concepts — "
         "such as debugging, deployment, git, APIs, crashes, or software development in general. "
         "The humour should feel natural, not forced — the tech references should fit the visual context. "
-        "Output ONLY the caption paragraph. No labels, no preamble."
+        "Use puns, analogies, or metaphors that relate visual actions to tech experiences. "
+        "Output ONLY the caption paragraph. No labels, no preamble, no reasoning, no planning notes. /no_think"
     ),
     "humorous_non_tech": (
         "You write funny captions using everyday humour with no technical jargon whatsoever. "
@@ -274,11 +298,12 @@ STYLE_SYSTEM_PROMPTS = {
         "Make it genuinely funny through relatable observations, absurdist comparisons, or light wordplay — "
         "the kind of humour anyone can appreciate regardless of background. "
         "Every joke must be grounded in a specific real visual detail from the video. "
-        "Output ONLY the caption paragraph. No labels, no preamble."
+        "Use analogies to daily life, gentle exaggeration, or unexpected connections between visual elements. "
+        "Output ONLY the caption paragraph. No labels, no preamble, no reasoning, no planning notes. /no_think"
     ),
 }
 
-# ── Description system prompt (rewritten for narrative prose) ────────────────
+# ── Description system prompt (enhanced for better accuracy) ────────────────
 
 DESCRIBE_SYSTEM = (
     "You are a forensic video analyst and documentary narrator. "
@@ -295,19 +320,21 @@ DESCRIBE_SYSTEM = (
     "8. NOTABLE DETAILS: any text on screen, signs, brand names, or unusual elements\n"
     "Be exhaustive and specific. Every sentence must contain at least one concrete detail — actual colour, actual object, actual direction of movement. "
     "Vague descriptions like 'a person does something' are useless and score zero. "
+    "Focus on accuracy, precision, and completeness. "
     "Write 6–8 paragraphs of narrative prose. /no_think"
 )
 
 def build_describe_prompt() -> str:
     return (
         "These frames are ordered chronologically from the very start to the very end of the video clip."
-        "\n\nAnalyse every frame in sequence and write an exhaustive narrative description covering: "
+        "\n\nAnalyze every frame in sequence and write an exhaustive narrative description covering: "
         "the exact setting and environment, every visible subject with complete appearance details (clothing colours, physical features, expressions), "
         "the full chronological sequence of all actions from start to finish (what moves, in which direction, at what speed, how subjects interact), "
         "the key climactic moment, how the video ends, the atmosphere and mood, "
         "and any text or signs visible. "
         "Every sentence must contain at least one specific concrete detail. "
         "Do not describe only the opening frame — cover the entire video. "
+        "Focus on accuracy, precision, and completeness of visual information. "
         "Write 6–8 paragraphs of narrative prose. /no_think"
     )
 
@@ -316,12 +343,15 @@ def _caption_user_prompt(description: str, style: str) -> str:
     if len(description) > 6000:
         cut = description.rfind('. ', 0, 6000)
         description = description[:cut + 1] if cut > 3000 else description[:6000]
-    return (
-        f"Video description:\n{description}\n\n"
-        f"Write a {style_display} caption of 5 to 6 sentences. "
-        "Every sentence must reference a specific visual detail from the description. "
-        "Output ONLY the caption paragraph. No labels, no preamble, no extra text."
-    )
+    
+    # Enhanced prompt with stronger style emphasis and clearer instructions
+    prompt_parts = [
+        f"Video description:\n{description}",
+        f"INSTRUCTION: Write a {style_display} caption following the style guidelines precisely.",
+        f"STYLE REQUIREMENTS FOR {style.upper()}: {STYLE_SYSTEM_PROMPTS[style]}"
+    ]
+    
+    return "\n\n".join(prompt_parts)
 
 # ── Caption output cleaning ───────────────────────────────────────────────────
 
@@ -330,11 +360,14 @@ _PREAMBLE_RE = re.compile(
     r"^(?:"
     r"(?:here(?:'s| is)(?: a| the)?(?: \w+)? caption[:\-]?\s*)"
     r"|(?:caption[:\-]\s*)"
-    r"|(?:formal(?:\s+caption)?[:\-]\s*)"
-    r"|(?:sarcastic(?:\s+caption)?[:\-]\s*)"
-    r"|(?:humorous(?:[_\s]\w+)?(?:\s+caption)?[:\-]\s*)"
+    r"|(?:formal(?:\s+caption)?[:\-]?\s*)"
+    r"|(?:sarcastic(?:\s+caption)?[:\-]?\s*)"
+    r"|(?:humorous(?:[_\s]\w+)?(?:\s+caption)?[:\-]?\s*)"
     r"|(?:sure[!,]?\s+here(?:'s| is)[^:]*:\s*)"
     r"|(?:of course[!,]?\s+here[^:]*:\s*)"
+    r"|(?:as per your request:\s*)"
+    r"|(?:the \w+ caption:\s*)"
+    r"|(?:generated \w+ caption:\s*)"
     r")",
     re.IGNORECASE,
 )
@@ -354,6 +387,8 @@ def clean_caption(text: str) -> str:
         r"^Let me ", r"^I need to ", r"^Key details", r"^Sentence \d",
         r"^Draft:", r"^Check:", r"^Constraints:", r"^Now I need",
         r"^The user wants", r"^\d+\.\s+Setting", r"^Let's draft",
+        r"^Wait,", r"^Revised ", r"^Visual details", r"^copy-pasted",
+        r"^\- yes", r"^\- no", r"^\\n", r"^Check that",
     ]
     lines = text.strip().splitlines()
     has_reasoning = any(
@@ -396,6 +431,144 @@ def clean_caption(text: str) -> str:
 
 # ── Fireworks API ─────────────────────────────────────────────────────────────
 
+# -- Gemini API ----------------------------------------------------------------
+
+class GeminiQuotaError(Exception):
+    pass
+
+class GeminiUnavailableError(Exception):
+    pass
+
+
+def call_gemini_video(
+    system_prompt: str,
+    video_url: str,
+    text_prompt: str,
+    *,
+    temperature: float = 0.1,
+    max_tokens: int = 4000,
+) -> str:
+    """
+    Call Gemini 2.5 Flash with a direct video URL.
+    Gemini processes the video natively — no frame extraction needed.
+    Uses file_data with the video URL directly.
+    """
+    global _gemini_quota_hit
+    if not gemini_available():
+        raise GeminiUnavailableError("Gemini not available")
+
+    # Detect mime type from URL extension
+    url_lower = video_url.lower().split('?')[0]
+    if url_lower.endswith('.webm'):
+        mime_type = 'video/webm'
+    elif url_lower.endswith('.mov'):
+        mime_type = 'video/quicktime'
+    elif url_lower.endswith('.avi'):
+        mime_type = 'video/avi'
+    elif url_lower.endswith('.mkv'):
+        mime_type = 'video/x-matroska'
+    else:
+        mime_type = 'video/mp4'
+
+    payload = {
+        "system_instruction": {"parts": [{"text": system_prompt}]},
+        "contents": [{
+            "role": "user",
+            "parts": [
+                {"file_data": {"mime_type": mime_type, "file_uri": video_url}},
+                {"text": text_prompt},
+            ],
+        }],
+        "generationConfig": {"temperature": temperature, "maxOutputTokens": max_tokens},
+    }
+    url = f"{GEMINI_BASE}/models/{GEMINI_MODEL}:generateContent?key={GEMINI_KEY}"
+    
+    # Add more robust error handling and retry logic
+    for attempt in range(3):
+        try:
+            resp = SESSION.post(url, json=payload, timeout=VISION_TIMEOUT)
+            if resp.status_code == 429:
+                _gemini_quota_hit = True
+                raise GeminiQuotaError(f"Gemini quota exhausted: {resp.text[:200]}")
+            if resp.status_code in (401, 403):
+                raise GeminiUnavailableError(f"Gemini auth error {resp.status_code}")
+            if not resp.ok:
+                raise GeminiUnavailableError(f"Gemini error {resp.status_code}: {resp.text[:200]}")
+            data = resp.json()
+            text = data["candidates"][0]["content"]["parts"][0]["text"]
+            return re.sub(r"<think>[\s\S]*?</think>", "", text, flags=re.IGNORECASE).strip()
+        except Exception as e:
+            log.warning("Attempt %d failed: %s", attempt + 1, e)
+            time.sleep(2 ** attempt)
+
+
+def call_gemini_vision(
+    system_prompt: str,
+    frame_paths: list,
+    text_prompt: str,
+    *,
+    temperature: float = 0.1,
+    max_tokens: int = 6000,
+) -> str:
+    """Call Gemini 2.5 Flash with inline base64 images + text prompt (fallback when no URL)."""
+    global _gemini_quota_hit
+    if not gemini_available():
+        raise GeminiUnavailableError("Gemini not available")
+
+    parts = []
+    for fp in frame_paths:
+        b64 = base64.b64encode(fp.read_bytes()).decode()
+        parts.append({"inline_data": {"mime_type": "image/jpeg", "data": b64}})
+    parts.append({"text": text_prompt})
+
+    payload = {
+        "system_instruction": {"parts": [{"text": system_prompt}]},
+        "contents": [{"role": "user", "parts": parts}],
+        "generationConfig": {"temperature": temperature, "maxOutputTokens": max_tokens},
+    }
+    url = f"{GEMINI_BASE}/models/{GEMINI_MODEL}:generateContent?key={GEMINI_KEY}"
+    resp = SESSION.post(url, json=payload, timeout=VISION_TIMEOUT)
+    if resp.status_code == 429:
+        _gemini_quota_hit = True
+        raise GeminiQuotaError(f"Gemini quota exhausted: {resp.text[:200]}")
+    if resp.status_code in (401, 403):
+        raise GeminiUnavailableError(f"Gemini auth error {resp.status_code}")
+    resp.raise_for_status()
+    text = resp.json()["candidates"][0]["content"]["parts"][0]["text"]
+    return re.sub(r"<think>[\s\S]*?</think>", "", text, flags=re.IGNORECASE).strip()
+
+
+def call_gemini_text(
+    system_prompt: str,
+    user_text: str,
+    *,
+    temperature: float = 0.7,
+    max_tokens: int = 800,
+) -> str:
+    """Call Gemini 2.5 Flash for text-only generation."""
+    global _gemini_quota_hit
+    if not gemini_available():
+        raise GeminiUnavailableError("Gemini not available")
+
+    payload = {
+        "system_instruction": {"parts": [{"text": system_prompt}]},
+        "contents": [{"role": "user", "parts": [{"text": user_text}]}],
+        "generationConfig": {"temperature": temperature, "maxOutputTokens": max_tokens},
+    }
+    url = f"{GEMINI_BASE}/models/{GEMINI_MODEL}:generateContent?key={GEMINI_KEY}"
+    resp = SESSION.post(url, json=payload, timeout=API_TIMEOUT)
+    if resp.status_code == 429:
+        _gemini_quota_hit = True
+        raise GeminiQuotaError(f"Gemini quota exhausted: {resp.text[:200]}")
+    if resp.status_code in (401, 403):
+        raise GeminiUnavailableError(f"Gemini auth error {resp.status_code}")
+    resp.raise_for_status()
+    text = resp.json()["candidates"][0]["content"]["parts"][0]["text"]
+    return re.sub(r"<think>[\s\S]*?</think>", "", text, flags=re.IGNORECASE).strip()
+
+
+# -- Fireworks API (fallback) --------------------------------------------------
+
 def call_fireworks(
     messages: list[dict],
     *,
@@ -417,6 +590,10 @@ def call_fireworks(
         "temperature": temperature,
         "max_tokens": max_tokens,
     }
+    # Disable thinking/reasoning for models that support it (e.g. Kimi K2.6)
+    # This prevents chain-of-thought leaking into caption output
+    if "kimi" in model or "k2" in model:
+        payload["thinking"] = {"type": "disabled"}
 
     try:
         resp = SESSION.post(
@@ -754,59 +931,102 @@ def analyze_frame_parts(frame_parts: list[dict]) -> dict:
 
 def local_caption_from_description(description: str, style: str, analysis: dict | None) -> str:
     """Create a template-style caption from description/analysis when API isn't available."""
-    color = analysis.get("dominant_color") if analysis else "neutral tones"
-    motion = analysis.get("motion_level") if analysis else "some motion"
-    scenes = analysis.get("scene_changes") if analysis else 0
+    color = analysis.get("dominant_color") if analysis else "various colors"
+    motion = analysis.get("motion_level") if analysis else "moderate motion"
+    scenes = analysis.get("scene_changes") if analysis else "several scene changes"
 
+    # Create more detailed and style-appropriate fallbacks
     if style == "formal":
+        # Extract key details from description for formal tone
         lines = [
-            f"A {color} scene unfolds with {motion} and {scenes} scene changes.",
-            "Subjects move through the space with clear, observable actions.",
-            "Lighting and environment suggest a natural, documentary tone.",
-            "Events progress in a straightforward chronological sequence.",
-            "The clip ends with the main action resolving or pausing, leaving a clear final state."
+            f"The video presents a scene featuring {color} hues with {motion}.",
+            f"The footage captures subjects engaging in activities across {scenes}.",
+            f"The setting appears to be a realistic portrayal of everyday occurrences.",
+            f"The composition emphasizes natural lighting and authentic moments.",
+            f"The sequence concludes with a clear resolution of the presented scenario."
         ]
         return " ".join(lines)
 
-    if style == "sarcastic":
+    elif style == "sarcastic":
+        # Create subtly sarcastic commentary
         lines = [
-            f"In this thrilling {color}-themed masterpiece, something moves.{''}",
-            f"There's {motion}, which is exactly what you'd expect at 0:00.",
-            "A surprising plot twist: people continue to do the things they do.",
-            "The mood is consistent and mildly unimpressed.",
-            "Clock out — the scene ends with unsurprising finality."
+            f"In this groundbreaking production, we observe typical {motion} in a {color}-dominated environment.",
+            f"The plot thickens as approximately {scenes} happen, keeping viewers on the edge of their seats.",
+            f"One might say the production values are 'adequate' for this particular display of human activity.",
+            f"Experts agree that this represents a standard example of the genre.",
+            f"Critics will likely praise the innovative approach to depicting ordinary circumstances."
         ]
         return " ".join(lines)
 
-    if style == "humorous_tech":
+    elif style == "humorous_tech":
+        # Tech-themed humor based on description
         lines = [
-            f"Patch notes: fixed a {color} regression causing {motion} across {scenes} scenes.",
-            "This deployment experiences minor race conditions between subjects.",
-            "Log shows repeated retries until behavior stabilizes.",
-            "Unit tests would probably pass if we cared more about timing.",
-            "Roll forward; commit message: 'works on my machine.'"
+            f"Build log: video service experiencing unexpected {motion} with {color} theme deployed successfully.",
+            f"Debugging session reveals {scenes} concurrent processes executing in real-time.",
+            f"API integration complete - user engagement metrics showing promising results.",
+            f"Deployment pipeline handling edge cases with standard efficiency protocols.",
+            f"Performance review indicates optimal levels of human activity processing."
         ]
         return " ".join(lines)
 
     # humorous_non_tech
+    # Create everyday humor without technical jargon
     lines = [
-        f"Imagine a {color} backdrop where people awkwardly navigate {motion}.",
-        "It's like watching someone try to find parking on a busy day.",
-        "Every small action feels slightly heroic and oddly relatable.",
-        "The clip builds gentle, everyday tension and then relaxes.",
-        "It ends with a satisfying little resolution — nothing explosive, just human." 
+        f"Picture this: a {color}-tinged moment filled with {motion} and {scenes} to boot.",
+        f"It's like watching paint dry, if the paint was somehow alive and moving.",
+        f"Everyday magic happening right before our eyes, nothing to see here.",
+        f"The universe conspired to bring us this slice of perfectly ordinary life.",
+        f"And thus another chapter in the epic saga of things doing things unfolds."
     ]
     return " ".join(lines)
 
 # ── Two-pass captioning ───────────────────────────────────────────────────────
 
-def describe_video(frame_parts: list[dict]) -> str:
+def describe_video(frame_parts: list[dict], frame_paths: list | None = None, video_url: str | None = None) -> str:
     """
-    First pass: detailed narrative description from frames.
-    Uses vision model with very low temperature for factual accuracy.
-    Uses VISION_TIMEOUT (90s) — longer than caption calls because the multimodal
-    payload (up to 20 base64 JPEGs) takes more time to upload and process.
+    First pass: detailed narrative description.
+    Priority:
+      1. Gemini 2.5 Flash with direct video URL (native video understanding, no frames needed)
+      2. Gemini 2.5 Flash with base64 frames (if URL not available)
+      3. Fireworks MiniMax M3 with base64 frames (fallback)
     """
+    # --- Gemini primary: direct video URL (best quality) ---
+    if gemini_available() and video_url:
+        try:
+            log.info("Vision pass: Gemini 2.5 Flash native video (URL: %s...)", video_url[:60])
+            description = call_gemini_video(
+                DESCRIBE_SYSTEM, video_url, build_describe_prompt(),
+                temperature=0.1, max_tokens=4000,
+            )
+            if description:
+                log.info("Vision pass: Gemini native video SUCCESS")
+                return description
+        except GeminiQuotaError as e:
+            log.warning("Gemini quota hit during vision pass: %s — falling back", e)
+        except GeminiUnavailableError:
+            pass
+        except Exception as e:
+            log.warning("Gemini native video failed (%s) — trying frames fallback", e)
+
+    # --- Gemini secondary: base64 frames ---
+    if gemini_available() and frame_paths:
+        try:
+            log.info("Vision pass: Gemini 2.5 Flash with frames")
+            description = call_gemini_vision(
+                DESCRIBE_SYSTEM, frame_paths, build_describe_prompt(),
+                temperature=0.1, max_tokens=4000,
+            )
+            if description:
+                return description
+        except GeminiQuotaError as e:
+            log.warning("Gemini quota hit during vision pass: %s — falling back to Fireworks", e)
+        except GeminiUnavailableError:
+            pass
+        except Exception as e:
+            log.warning("Gemini frames failed (%s) — falling back to Fireworks", e)
+
+    # --- Fireworks fallback ---
+    log.info("Vision pass: Fireworks %s (fallback)", VISION_MODEL.split('/')[-1])
     messages = [
         {"role": "system", "content": DESCRIBE_SYSTEM},
         {
@@ -820,7 +1040,6 @@ def describe_video(frame_parts: list[dict]) -> str:
     description = call_fireworks(
         messages, model=VISION_MODEL, max_tokens=3000, temperature=0.1, timeout=VISION_TIMEOUT,
     )
-    # Strip thinking tags that vision models sometimes leak
     description = re.sub(r"<think>[\s\S]*?</think>", "", description, flags=re.IGNORECASE).strip()
     if not description:
         log.warning("Vision model returned empty description — using fallback context")
@@ -830,43 +1049,63 @@ def describe_video(frame_parts: list[dict]) -> str:
 
 def generate_caption(style: str, description: str, analysis: dict | None = None) -> str:
     """
-    Second pass: styled caption from description only — no frames, text model.
-    Per-style temperature for optimal accuracy/creativity balance.
-    Retries up to 5 times, detecting placeholder/empty responses.
+    Second pass: styled caption from description only.
+    Tries Gemini 2.5 Flash first, falls back to Fireworks on quota/error.
     """
     temp = STYLE_TEMPERATURES.get(style, 0.7)
-    messages = [
-        {"role": "system", "content": STYLE_SYSTEM_PROMPTS[style]},
-        {"role": "user", "content": _caption_user_prompt(description, style)},
-    ]
+    user_prompt = _caption_user_prompt(description, style)
 
     _PLACEHOLDER_RE = re.compile(
-        r"caption text only|output the caption|nothing else|your \d[^.]*sentence|summary here",
-        re.IGNORECASE,
+        r"caption text only|output the caption|nothing else|your \d[^.]*sentence|summary here"
+        r"|^Sentence \d|^Let me |^I need to |^Wait,|^Check that|^Visual details|^Revised "
+        r"|\\n[0-9]\.|\.\s*-\s*yes|\.\s*-\s*no|not able to generate|failed to generate",
+        re.IGNORECASE | re.MULTILINE,
     )
 
     last_caption = ""
     for attempt in range(5):
         try:
-            raw = call_fireworks(messages, model=TEXT_MODEL, max_tokens=800, temperature=temp)
+            # --- Gemini primary ---
+            if gemini_available():
+                try:
+                    raw = call_gemini_text(
+                        STYLE_SYSTEM_PROMPTS[style], user_prompt,
+                        temperature=temp, max_tokens=1500,
+                    )
+                except GeminiQuotaError as e:
+                    log.warning("[%s] Gemini quota hit: %s — switching to Fireworks", style, e)
+                    raw = call_fireworks(
+                        [{"role": "system", "content": STYLE_SYSTEM_PROMPTS[style]},
+                         {"role": "user", "content": user_prompt}],
+                        model=TEXT_MODEL, max_tokens=1500, temperature=temp,
+                    )
+                except GeminiUnavailableError:
+                    raw = call_fireworks(
+                        [{"role": "system", "content": STYLE_SYSTEM_PROMPTS[style]},
+                         {"role": "user", "content": user_prompt}],
+                        model=TEXT_MODEL, max_tokens=1500, temperature=temp,
+                    )
+            else:
+                # --- Fireworks fallback ---
+                raw = call_fireworks(
+                    [{"role": "system", "content": STYLE_SYSTEM_PROMPTS[style]},
+                     {"role": "user", "content": user_prompt}],
+                    model=TEXT_MODEL, max_tokens=1500, temperature=temp,
+                )
+
             caption = clean_caption(raw)
-            # Reject if empty, too short, or echoing prompt instructions
-            if len(caption) >= 40 and not _PLACEHOLDER_RE.search(caption):
+            if len(caption) >= 40 and not _PLACEHOLDER_RE.search(caption) and caption.strip():
                 return caption
             last_caption = caption
             log.warning("[%s] Attempt %d: caption invalid (%d chars) — retrying",
                         style, attempt + 1, len(caption))
         except Exception as exc:
             log.warning("[%s] Attempt %d failed: %s", style, attempt + 1, exc)
-            # If the API fails repeatedly, use a local template-based fallback
             if attempt == 0 and isinstance(exc, RuntimeError):
-                # immediate local fallback when API unreachable
                 return local_caption_from_description(description, style, analysis)
-        # Slight temperature nudge on retry to break out of bad patterns
         temp = min(temp + 0.05, 0.95)
         time.sleep(1.0 * (attempt + 1))
 
-    # All attempts exhausted — return best we got, or a safe local fallback
     if len(last_caption) >= 20:
         return last_caption
     return local_caption_from_description(description, style, analysis)
@@ -882,51 +1121,58 @@ def process_task(task: dict, tmpdir: Path) -> dict:
     log.info("[%s] Starting — styles: %s | budget remaining: %.0fs",
              task_id, styles, budget_remaining())
 
-    # Try streaming frames directly from URL first (no full download needed).
-    # Falls back to full download only if URL streaming fails.
-    frames_dir = tmpdir / f"{task_id}_frames"
+    # If Gemini is available, try native video URL first — no frames needed at all.
+    # Only extract frames if Gemini is unavailable or as fallback payload for Fireworks.
+    frame_parts = []
     frame_paths = []
+    analysis = None
 
+    if not gemini_available():
+        # Gemini unavailable — must extract frames for Fireworks vision
+        frames_dir = tmpdir / f"{task_id}_frames"
+        try:
+            log.info("[%s] Streaming frames from URL (Fireworks path)", task_id)
+            frame_paths = extract_frames_from_url(video_url, frames_dir)
+        except Exception as exc:
+            log.warning("[%s] URL streaming failed (%s) — falling back to full download", task_id, exc)
+
+        if not frame_paths:
+            log.info("[%s] Falling back to full download", task_id)
+            video_path = tmpdir / f"{task_id}.mp4"
+            download_video(video_url, video_path)
+            frame_paths = extract_frames(video_path, frames_dir)
+            video_path.unlink(missing_ok=True)
+
+        if not frame_paths:
+            raise RuntimeError("No frames could be extracted from the video")
+
+        frame_parts = encode_frames(frame_paths)
+        analysis = analyze_frame_parts(frame_parts)
+    else:
+        log.info("[%s] Gemini available — using native video URL (no frame extraction)", task_id)
+        # Still extract frames as fallback payload in case Gemini quota hits mid-task
+        frames_dir = tmpdir / f"{task_id}_frames"
+        try:
+            frame_paths = extract_frames_from_url(video_url, frames_dir)
+            frame_parts = encode_frames(frame_paths)
+            analysis = analyze_frame_parts(frame_parts)
+        except Exception as exc:
+            log.warning("[%s] Frame extraction failed (%s) — Gemini-only mode", task_id, exc)
+            frame_paths = []
+            frame_parts = []
+            analysis = None
+
+    log.info("[%s] Describing — primary: Gemini 2.5 Flash native video", task_id)
     try:
-        log.info("[%s] Streaming frames from URL", task_id)
-        frame_paths = extract_frames_from_url(video_url, frames_dir)
-    except Exception as exc:
-        log.warning("[%s] URL streaming failed (%s) — falling back to full download", task_id, exc)
-
-    if not frame_paths:
-        # Fallback: download full file then extract
-        log.info("[%s] Falling back to full download", task_id)
-        video_path = tmpdir / f"{task_id}.mp4"
-        download_video(video_url, video_path)
-        frame_paths = extract_frames(video_path, frames_dir)
-        video_path.unlink(missing_ok=True)
-
-    if not frame_paths:
-        raise RuntimeError("No frames could be extracted from the video")
-
-    # Encode frames to base64
-    frame_parts = encode_frames(frame_paths)
-
-    # Analyze frames for a lightweight local fallback (dominant color, motion)
-    analysis = analyze_frame_parts(frame_parts)
-
-    # Clean up JPEG files — only base64 payloads needed now
-    shutil.rmtree(frames_dir, ignore_errors=True)
-
-    # Vision description pass — protect against vision/API failures and
-    # continue with a safe fallback description so caption generation
-    # can still produce sensible defaults instead of causing a full task
-    # failure which would lead to error placeholders in results.json.
-    log.info("[%s] Describing — %d frames, model: %s",
-             task_id, len(frame_parts), VISION_MODEL.split("/")[-1])
-    try:
-        description = describe_video(frame_parts)
+        description = describe_video(frame_parts, frame_paths, video_url)
         log.info("[%s] Description preview: %.120s...", task_id, description)
     except Exception as exc:
         log.warning("[%s] Vision description failed (%s) — using fallback description", task_id, exc)
         description = "A short generic description: a video clip with unknown details."
 
-    del frame_parts  # free memory
+    # Clean up frames after vision pass
+    shutil.rmtree(tmpdir / f"{task_id}_frames", ignore_errors=True)
+    del frame_parts
 
     # Caption pass — all requested styles in parallel
     log.info("[%s] Generating %d captions | budget remaining: %.0fs",
