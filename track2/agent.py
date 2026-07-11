@@ -440,6 +440,29 @@ class GeminiUnavailableError(Exception):
     pass
 
 
+def extract_gemini_text(payload: dict) -> str:
+    """Extract the first usable text response from Gemini payloads.
+
+    Gemini responses may return multiple text parts, inline data, or a single text block.
+    This helper collects all textual parts in order and strips any thinking tags.
+    """
+    candidates = payload.get("candidates") or []
+    if not candidates:
+        raise ValueError("Gemini response did not include any candidates")
+
+    parts = candidates[0].get("content", {}).get("parts") or []
+    texts = []
+    for part in parts:
+        if isinstance(part, dict) and isinstance(part.get("text"), str):
+            texts.append(part["text"])
+
+    if not texts:
+        raise ValueError("Gemini response did not contain any text parts")
+
+    text = "".join(texts).strip()
+    return re.sub(r"<think>[\s\S]*?</think>", "", text, flags=re.IGNORECASE).strip()
+
+
 def call_gemini_video(
     system_prompt: str,
     video_url: str,
@@ -495,8 +518,7 @@ def call_gemini_video(
             if not resp.ok:
                 raise GeminiUnavailableError(f"Gemini error {resp.status_code}: {resp.text[:200]}")
             data = resp.json()
-            text = data["candidates"][0]["content"]["parts"][0]["text"]
-            return re.sub(r"<think>[\s\S]*?</think>", "", text, flags=re.IGNORECASE).strip()
+            return extract_gemini_text(data)
         except Exception as e:
             log.warning("Attempt %d failed: %s", attempt + 1, e)
             time.sleep(2 ** attempt)
@@ -534,8 +556,7 @@ def call_gemini_vision(
     if resp.status_code in (401, 403):
         raise GeminiUnavailableError(f"Gemini auth error {resp.status_code}")
     resp.raise_for_status()
-    text = resp.json()["candidates"][0]["content"]["parts"][0]["text"]
-    return re.sub(r"<think>[\s\S]*?</think>", "", text, flags=re.IGNORECASE).strip()
+    return extract_gemini_text(resp.json())
 
 
 def call_gemini_text(
@@ -563,8 +584,7 @@ def call_gemini_text(
     if resp.status_code in (401, 403):
         raise GeminiUnavailableError(f"Gemini auth error {resp.status_code}")
     resp.raise_for_status()
-    text = resp.json()["candidates"][0]["content"]["parts"][0]["text"]
-    return re.sub(r"<think>[\s\S]*?</think>", "", text, flags=re.IGNORECASE).strip()
+    return extract_gemini_text(resp.json())
 
 
 # -- Fireworks API (fallback) --------------------------------------------------
