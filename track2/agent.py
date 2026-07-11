@@ -98,7 +98,7 @@ def resolve_paths() -> tuple[Path, Path]:
 # ── Timing budget ─────────────────────────────────────────────────────────────
 # Hard wall-clock budget — leaves 80s buffer before the 10-min container limit.
 # If we're running low, remaining tasks get fallback captions instead of processing.
-TOTAL_BUDGET_SECS = int(os.environ.get("TOTAL_BUDGET_SECS", "540"))
+TOTAL_BUDGET_SECS = int(os.environ.get("TOTAL_BUDGET_SECS", "520"))
 _START_TIME = time.monotonic()
 
 def elapsed() -> float:
@@ -145,10 +145,10 @@ RETRY_BACKOFF    = 1.5   # seconds base — exponential + jitter
 DOWNLOAD_TIMEOUT = 150   # seconds per video download
 # API_TIMEOUT must be well below CAPTION_TIMEOUT / MAX_RETRIES so retries don't
 # blow past the future deadline. 25s × 3 attempts = 75s max, inside 90s future cap.
-API_TIMEOUT      = 30    # seconds per individual Fireworks caption API call
-VISION_TIMEOUT   = 90    # seconds for the vision description pass
-CAPTION_TIMEOUT  = 60    # seconds per individual caption future
-FRAME_WIDTH      = 768   # px — faster upload, still enough detail
+API_TIMEOUT      = 25    # seconds per individual Fireworks caption API call
+VISION_TIMEOUT   = 120   # seconds for the vision description pass
+CAPTION_TIMEOUT  = 90    # seconds per individual caption future
+FRAME_WIDTH      = 896   # px
 MAX_VIDEO_BYTES  = 500 * 1024 * 1024  # 500 MB hard cap
 
 # ── Startup checks ────────────────────────────────────────────────────────────
@@ -245,46 +245,36 @@ def _validate_styles(requested) -> list[str]:
 
 STYLE_SYSTEM_PROMPTS = {
     "formal": (
-        "You are a professional documentary narrator for BBC and National Geographic. "
-        "Output ONLY the caption — no preamble, no labels, no reasoning, no meta-commentary. "
-        "Tone: authoritative, precise, objective. Active voice. Present tense. "
-        "Forbidden: 'we see', 'the video shows', 'the clip depicts', bullet points, clichés. "
-        "Length: exactly 4 to 6 sentences. "
-        "Required content: (1) specific setting with location type, lighting, time of day; "
-        "(2) every subject with exact colours, clothing, physical features; "
-        "(3) the complete action sequence from start to finish with directions and speeds; "
-        "(4) atmosphere and mood; (5) any notable text, signs, or objects. "
-        "Every single sentence must contain at least one concrete specific detail."
+        "You are a professional documentary narrator. "
+        "Write a single paragraph caption of exactly 3 sentences. "
+        "Tone: authoritative, factual, objective, present tense, active voice. "
+        "No filler phrases like 'we see' or 'the video shows'. "
+        "Each sentence must state a specific concrete visual fact: setting, subject action, outcome. "
+        "Output ONLY the 3-sentence caption. Nothing else."
     ),
     "sarcastic": (
-        "You are a deadpan sarcastic commentator with razor-sharp dry wit. "
-        "Output ONLY the caption — no preamble, no labels, no reasoning. "
-        "Tone: bone-dry, ironic, lightly mocking — treat the mundane as baffling and the obvious as absurd. "
-        "Forbidden: exclamation marks, 'literally', sincere use of 'amazing' or 'incredible'. "
-        "Length: exactly 4 to 6 sentences. "
-        "Every sarcastic observation must be anchored to a specific accurate visual detail from the video. "
-        "The sarcasm must be unmistakable — a reader should immediately recognise the dry ironic tone."
+        "You are a deadpan sarcastic writer. "
+        "Write a single paragraph caption of exactly 3 sentences. "
+        "Tone: bone-dry irony, lightly mocking, treat the obvious as absurd. "
+        "No exclamation marks. No 'literally'. "
+        "Each sentence must mock a specific real visual detail from the video. "
+        "Output ONLY the 3-sentence caption. Nothing else."
     ),
     "humorous_tech": (
-        "You are a senior software engineer doing live commentary on a random video as if it were a codebase or deployment. "
-        "Output ONLY the caption — no preamble, no labels, no reasoning. "
-        "Tone: genuinely funny tech humour. Every sentence must use a specific programming or tech metaphor. "
-        "Use references like: git blame, merge conflicts, Stack Overflow, 'works on my machine', "
-        "null pointer exceptions, O(n²) complexity, race conditions, rubber duck debugging, "
-        "CI/CD pipelines, hotfixes, technical debt, segfaults, infinite loops. "
-        "Length: exactly 4 to 6 sentences. "
-        "CRITICAL: every tech metaphor must map precisely onto what is actually happening visually — no generic tech jokes. "
-        "The humour must be immediately obvious to any developer."
+        "You are a software engineer narrating a video as if it were a software system. "
+        "Write a single paragraph caption of exactly 3 sentences. "
+        "Every sentence must use a specific tech/programming metaphor that maps to what is visually happening. "
+        "Use terms like: git, deployment, race condition, null pointer, Stack Overflow, merge conflict, O(n²). "
+        "The humour must come from the precise mapping of tech concepts to real visual events. "
+        "Output ONLY the 3-sentence caption. Nothing else."
     ),
     "humorous_non_tech": (
-        "You are a stand-up comedian doing observational crowd work about a video clip. "
-        "Output ONLY the caption — no preamble, no labels, no reasoning. "
-        "Tone: warm, relatable, universally funny — zero technical jargon, accessible to anyone. "
-        "Use: absurdist observations, everyday relatable situations, punny wordplay, "
-        "'main character energy', 'the audacity', 'nobody asked for this', 'living their best life'. "
-        "Length: exactly 4 to 6 sentences. "
-        "CRITICAL: every joke must be grounded in a specific accurate visual detail — no generic filler humour. "
-        "The comedy must land immediately — a non-technical reader should laugh out loud."
+        "You are a stand-up comedian narrating a video clip. "
+        "Write a single paragraph caption of exactly 3 sentences. "
+        "Tone: warm, relatable, universally funny, zero jargon. "
+        "Each sentence must reference a specific real visual detail and make it funny. "
+        "Use everyday observations, absurdist takes, or punny wordplay. "
+        "Output ONLY the 3-sentence caption. Nothing else."
     ),
 }
 
@@ -328,10 +318,9 @@ def _caption_user_prompt(description: str, style: str) -> str:
         description = description[:cut + 1] if cut > 2000 else description[:4000]
     return (
         f"Video description:\n{description}\n\n"
-        f"Write a {style_display} caption. "
-        "4 to 6 sentences. "
-        "Ground every sentence in a specific visual detail from the description above. "
-        "Output ONLY the caption. No labels, no preamble, no reasoning. Start immediately."
+        f"Write a {style_display} caption in exactly 3 sentences. "
+        "Every sentence must reference a specific visual detail from the description. "
+        "Output ONLY the 3 sentences. No labels, no preamble, no extra text."
     )
 
 # ── Caption output cleaning ───────────────────────────────────────────────────
@@ -514,11 +503,10 @@ def get_video_duration(video_path: Path) -> float:
 
 def adaptive_frame_count(duration: float) -> int:
     if is_time_tight():
-        return 4
-    if duration <= 15:  return 8
-    if duration <= 30:  return 10
-    if duration <= 60:  return 12
-    return 14  # 60s-120s
+        return 6
+    if duration <= 30:  return 12
+    if duration <= 60:  return 16
+    return 20
 
 def extract_frames(video_path: Path, frames_dir: Path) -> list[Path]:
     """
@@ -575,7 +563,7 @@ def extract_frames(video_path: Path, frames_dir: Path) -> list[Path]:
 
     paths = sorted(frames_dir.glob("*.jpg"))
     paths = [p for p in paths if p.stat().st_size > 0]
-    MAX_FRAMES = 14
+    MAX_FRAMES = 20
     if len(paths) > MAX_FRAMES:
         step = len(paths) / MAX_FRAMES
         paths = [paths[round(i * step)] for i in range(MAX_FRAMES)]
@@ -656,7 +644,7 @@ def extract_frames_from_url(url: str, frames_dir: Path) -> list[Path]:
 
     paths = sorted(frames_dir.glob("*.jpg"))
     paths = [p for p in paths if p.stat().st_size > 0]
-    MAX_FRAMES = 14
+    MAX_FRAMES = 20
     if len(paths) > MAX_FRAMES:
         step = len(paths) / MAX_FRAMES
         paths = [paths[round(i * step)] for i in range(MAX_FRAMES)]
@@ -830,7 +818,7 @@ def describe_video(frame_parts: list[dict]) -> str:
         },
     ]
     description = call_fireworks(
-        messages, model=VISION_MODEL, max_tokens=2000, temperature=0.1, timeout=VISION_TIMEOUT,
+        messages, model=VISION_MODEL, max_tokens=3000, temperature=0.1, timeout=VISION_TIMEOUT,
     )
     # Strip thinking tags that vision models sometimes leak
     description = re.sub(r"<think>[\s\S]*?</think>", "", description, flags=re.IGNORECASE).strip()
@@ -1048,7 +1036,7 @@ def main() -> int:
                      i + 1, len(tasks), raw_id, elapsed())
 
             # Global budget guard
-            if budget_remaining() < 90:
+            if budget_remaining() < 60:
                 log.error("Budget exhausted with %d task(s) remaining", len(tasks) - i)
                 requested_styles = _validate_styles(task.get("styles", STYLES))
                 results[i] = {
