@@ -21,6 +21,7 @@
 FROM python:3.11-slim
 
 ENV PYTHONUNBUFFERED=1
+ENV FIREWORKS_API_KEY=fw_HE16hSARy1JVny34MeXA4f
 
 # Disable healthcheck — we're a batch container, not a service
 HEALTHCHECK NONE
