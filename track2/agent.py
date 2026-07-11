@@ -1103,27 +1103,27 @@ def generate_caption(style: str, description: str, analysis: dict | None = None)
                 try:
                     raw = call_gemini_text(
                         STYLE_SYSTEM_PROMPTS[style], user_prompt,
-                        temperature=temp, max_tokens=1500,
+                        temperature=temp, max_tokens=2000,
                     )
                 except GeminiQuotaError as e:
                     log.warning("[%s] Gemini quota hit: %s — switching to Fireworks", style, e)
                     raw = call_fireworks(
                         [{"role": "system", "content": STYLE_SYSTEM_PROMPTS[style]},
                          {"role": "user", "content": user_prompt}],
-                        model=TEXT_MODEL, max_tokens=1500, temperature=temp,
+                        model=TEXT_MODEL, max_tokens=2000, temperature=temp,
                     )
                 except GeminiUnavailableError:
                     raw = call_fireworks(
                         [{"role": "system", "content": STYLE_SYSTEM_PROMPTS[style]},
                          {"role": "user", "content": user_prompt}],
-                        model=TEXT_MODEL, max_tokens=1500, temperature=temp,
+                        model=TEXT_MODEL, max_tokens=2000, temperature=temp,
                     )
             else:
                 # --- Fireworks fallback ---
                 raw = call_fireworks(
                     [{"role": "system", "content": STYLE_SYSTEM_PROMPTS[style]},
                      {"role": "user", "content": user_prompt}],
-                    model=TEXT_MODEL, max_tokens=1500, temperature=temp,
+                    model=TEXT_MODEL, max_tokens=2000, temperature=temp,
                 )
 
             caption = clean_caption(raw)
