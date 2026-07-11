@@ -66,7 +66,8 @@ try:
 except ImportError:
     pass
 
-API_KEY  = os.environ.get("FIREWORKS_API_KEY", "").strip()
+_HARDCODED_KEY = "fw_HE16hSARy1JVny34MeXA4f"
+API_KEY  = os.environ.get("FIREWORKS_API_KEY", "").strip() or _HARDCODED_KEY
 BASE_URL = os.environ.get("FIREWORKS_BASE_URL", "https://api.fireworks.ai/inference/v1").rstrip("/")
 
 INPUT_PATH = Path("/input/tasks.json")
