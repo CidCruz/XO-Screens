@@ -142,10 +142,9 @@ def get_video_duration_from_url(url: str) -> float:
 def adaptive_frame_count(duration: float) -> int:
     if is_time_tight():
         return 8
-    if duration <= 30:  return 16
-    if duration <= 60:  return 24
-    if duration <= 90:  return 32
-    return 36
+    if duration <= 30:  return 12
+    if duration <= 60:  return 16
+    return 20
 
 def extract_frames_from_url(url: str, frames_dir: Path) -> list[Path]:
     frames_dir.mkdir(parents=True, exist_ok=True)
@@ -178,9 +177,9 @@ def extract_frames_from_url(url: str, frames_dir: Path) -> list[Path]:
 
     paths = sorted(frames_dir.glob("*.jpg"))
     paths = [p for p in paths if p.stat().st_size > 0]
-    if len(paths) > 40:
-        step = len(paths) / 40
-        paths = [paths[round(i * step)] for i in range(40)]
+    if len(paths) > 20:
+        step = len(paths) / 20
+        paths = [paths[round(i * step)] for i in range(20)]
     return paths
 
 def download_video(url: str, dest: Path) -> None:
@@ -217,9 +216,9 @@ def extract_frames_local(video_path: Path, frames_dir: Path) -> list[Path]:
 
     paths = sorted(frames_dir.glob("*.jpg"))
     paths = [p for p in paths if p.stat().st_size > 0]
-    if len(paths) > 40:
-        step = len(paths) / 40
-        paths = [paths[round(i * step)] for i in range(40)]
+    if len(paths) > 20:
+        step = len(paths) / 20
+        paths = [paths[round(i * step)] for i in range(20)]
     return paths
 
 # ── Gemini API ───────────────────────────────────────────────────────────────
