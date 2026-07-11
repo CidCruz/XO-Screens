@@ -245,36 +245,36 @@ def _validate_styles(requested) -> list[str]:
 
 STYLE_SYSTEM_PROMPTS = {
     "formal": (
-        "You are a professional documentary narrator. "
-        "Write a single paragraph caption of exactly 3 sentences. "
-        "Tone: authoritative, factual, objective, present tense, active voice. "
-        "No filler phrases like 'we see' or 'the video shows'. "
-        "Each sentence must state a specific concrete visual fact: setting, subject action, outcome. "
-        "Output ONLY the 3-sentence caption. Nothing else."
+        "You write captions in a professional, objective, factual tone. "
+        "Write a single paragraph of 5 to 6 sentences. "
+        "Use present tense, active voice, no contractions, no first-person. "
+        "Do not use filler phrases like 'we see', 'the video shows', or 'one can observe'. "
+        "Cover the setting, subjects, sequence of actions, and outcome with specific concrete details. "
+        "Output ONLY the caption paragraph. No labels, no preamble."
     ),
     "sarcastic": (
-        "You are a deadpan sarcastic writer. "
-        "Write a single paragraph caption of exactly 3 sentences. "
-        "Tone: bone-dry irony, lightly mocking, treat the obvious as absurd. "
-        "No exclamation marks. No 'literally'. "
-        "Each sentence must mock a specific real visual detail from the video. "
-        "Output ONLY the 3-sentence caption. Nothing else."
+        "You write captions in a dry, ironic, lightly mocking tone. "
+        "Write a single paragraph of 5 to 6 sentences. "
+        "Be subtly sarcastic — undercut the obvious, treat the mundane as mildly absurd. "
+        "Do not be mean-spirited or over-the-top; keep it dry and lightly mocking throughout. "
+        "Every sentence should reference a specific real visual detail from the video. "
+        "Output ONLY the caption paragraph. No labels, no preamble."
     ),
     "humorous_tech": (
-        "You are a software engineer narrating a video as if it were a software system. "
-        "Write a single paragraph caption of exactly 3 sentences. "
-        "Every sentence must use a specific tech/programming metaphor that maps to what is visually happening. "
-        "Use terms like: git, deployment, race condition, null pointer, Stack Overflow, merge conflict, O(n²). "
-        "The humour must come from the precise mapping of tech concepts to real visual events. "
-        "Output ONLY the 3-sentence caption. Nothing else."
+        "You write funny captions that incorporate technology or programming references. "
+        "Write a single paragraph of 5 to 6 sentences. "
+        "Make it genuinely funny by connecting real visual events in the video to tech or programming concepts — "
+        "such as debugging, deployment, git, APIs, crashes, or software development in general. "
+        "The humour should feel natural, not forced — the tech references should fit the visual context. "
+        "Output ONLY the caption paragraph. No labels, no preamble."
     ),
     "humorous_non_tech": (
-        "You are a stand-up comedian narrating a video clip. "
-        "Write a single paragraph caption of exactly 3 sentences. "
-        "Tone: warm, relatable, universally funny, zero jargon. "
-        "Each sentence must reference a specific real visual detail and make it funny. "
-        "Use everyday observations, absurdist takes, or punny wordplay. "
-        "Output ONLY the 3-sentence caption. Nothing else."
+        "You write funny captions using everyday humour with no technical jargon whatsoever. "
+        "Write a single paragraph of 5 to 6 sentences. "
+        "Make it genuinely funny through relatable observations, absurdist comparisons, or light wordplay — "
+        "the kind of humour anyone can appreciate regardless of background. "
+        "Every joke must be grounded in a specific real visual detail from the video. "
+        "Output ONLY the caption paragraph. No labels, no preamble."
     ),
 }
 
@@ -313,14 +313,14 @@ def build_describe_prompt() -> str:
 
 def _caption_user_prompt(description: str, style: str) -> str:
     style_display = style.replace("_", " ")
-    if len(description) > 4000:
-        cut = description.rfind('. ', 0, 4000)
-        description = description[:cut + 1] if cut > 2000 else description[:4000]
+    if len(description) > 6000:
+        cut = description.rfind('. ', 0, 6000)
+        description = description[:cut + 1] if cut > 3000 else description[:6000]
     return (
         f"Video description:\n{description}\n\n"
-        f"Write a {style_display} caption in exactly 3 sentences. "
+        f"Write a {style_display} caption of 5 to 6 sentences. "
         "Every sentence must reference a specific visual detail from the description. "
-        "Output ONLY the 3 sentences. No labels, no preamble, no extra text."
+        "Output ONLY the caption paragraph. No labels, no preamble, no extra text."
     )
 
 # ── Caption output cleaning ───────────────────────────────────────────────────
@@ -848,7 +848,7 @@ def generate_caption(style: str, description: str, analysis: dict | None = None)
     last_caption = ""
     for attempt in range(5):
         try:
-            raw = call_fireworks(messages, model=TEXT_MODEL, max_tokens=600, temperature=temp)
+            raw = call_fireworks(messages, model=TEXT_MODEL, max_tokens=800, temperature=temp)
             caption = clean_caption(raw)
             # Reject if empty, too short, or echoing prompt instructions
             if len(caption) >= 40 and not _PLACEHOLDER_RE.search(caption):
