@@ -2,28 +2,28 @@
   {
     "task_id": "v1",
     "captions": {
-      "formal": "A video clip capturing various subjects engaging in routine activities across multiple scenes.",
-      "sarcastic": "Witness another breathtaking display of absolutely ordinary things happening in real time.",
-      "humorous_tech": "Running human_activity.exe in production. The rendering engine is adequate.",
-      "humorous_non_tech": "Just another day in the life of stuff doing things in places."
+      "formal": "The video presents an elevated, wide shot of a multi-lane urban street during daylight. Numerous vehicles move along the thoroughfare, exhibiting motion blur that signifies continuous traffic flow. Vibrant yellow and green trees line the street, suggesting an autumn setting. In the background, several tall, light-colored residential buildings stand prominently, alongside commercial structures, including one labeled \"KOREA ILJIN ENGINEERING.\" Traffic lights are visible and illuminated green, indicating an active and regulated flow of vehicles across the intersection and down the main road.",
+      "sarcastic": "Oh, look, another riveting display of vehicular movement on a paved surface. The cars, in their infinite wisdom, are diligently progressing, each a tiny cog in the grand, thrilling machine of urban transit. The trees, in a truly original twist, are yellow and green, providing a stunning backdrop to this groundbreaking spectacle of commuting. One can only imagine the profound destinations these blurry masses are hurtling towards, probably just another office or a slightly different patch of pavement.",
+      "humorous_tech": "This appears to be a real-world simulation of a heavily loaded server farm, with each car representing a data packet desperately trying to reach its destination IP address. The motion blur indicates a high refresh rate, but the sheer volume suggests a distributed denial-of-service attack on the road network's bandwidth. The traffic lights are clearly a primitive form of load balancing, struggling to prevent a full system crash, while the background buildings are just static assets in this complex rendering pipeline.",
+      "humorous_non_tech": "This is essentially what my brain looks like trying to process more than two tasks at once: a chaotic, blurry mess of things moving in vaguely the right direction. The trees are clearly showing off their 'fall fashion' while the cars are all collectively late for something they probably don't even want to do. It's like a giant, slow-motion race where everyone's prize is just getting to sit in more traffic further down the road."
     }
   },
   {
     "task_id": "v2",
     "captions": {
-      "formal": "A video clip capturing various subjects engaging in routine activities across multiple scenes.",
-      "sarcastic": "Witness another breathtaking display of absolutely ordinary things happening in real time.",
-      "humorous_tech": "Running human_activity.exe in production. The rendering engine is adequate.",
-      "humorous_non_tech": "Just another day in the life of stuff doing things in places."
+      "formal": "Processing not completed.",
+      "sarcastic": "Processing not completed.",
+      "humorous_tech": "Processing not completed.",
+      "humorous_non_tech": "Processing not completed."
     }
   },
   {
     "task_id": "v3",
     "captions": {
-      "formal": "A video clip capturing various subjects engaging in routine activities across multiple scenes.",
-      "sarcastic": "Witness another breathtaking display of absolutely ordinary things happening in real time.",
-      "humorous_tech": "Running human_activity.exe in production. The rendering engine is adequate.",
-      "humorous_non_tech": "Just another day in the life of stuff doing things in places."
+      "formal": "Processing not completed.",
+      "sarcastic": "Processing not completed.",
+      "humorous_tech": "Processing not completed.",
+      "humorous_non_tech": "Processing not completed."
     }
   }
 ]

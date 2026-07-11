@@ -33,7 +33,7 @@ log = logging.getLogger("track2")
 
 # Base64 encoded API key. To set your key, base64 encode it and paste it here.
 # e.g., in python: import base64; print(base64.b64encode(b"YOUR_API_KEY").decode())
-_OBFUSCATED_GEMINI_KEY = "Q0hBTkdFX01F"
+_OBFUSCATED_GEMINI_KEY = "QVEuQWI4Uk42THZyZ0VHanJhXzcwWjhkb0VUZktnS2hhQ2ZpZ1UwQ0Z6LTBqWjhPN1VCQXc="
 
 def get_api_key() -> str:
     env_key = os.environ.get("GEMINI_API_KEY", "").strip()
