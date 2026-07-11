@@ -268,10 +268,10 @@ STYLE_SYSTEM_PROMPTS = {
         "You write captions in a professional, objective, factual tone. "
         "Write a single paragraph of 5 to 6 sentences. "
         "Use present tense, active voice, no contractions, no first-person. "
-        "Do not use filler phrases like 'we see', 'the video shows', or 'one can observe'. "
-        "Cover the setting, subjects, sequence of actions, and outcome with specific concrete details. "
-        "Include specific visual elements like colors, movements, clothing, expressions, and environmental details. "
-        "Focus on accuracy and completeness of visual information. "
+        "Do not use filler phrases like 'we see', 'the video shows', 'one can observe', or 'a scene featuring'. "
+        "Ground every sentence in specific visual evidence from the video: exact setting, visible objects, colors, movements, clothing, expressions, and environmental details. "
+        "Mention the sequence of actions and the outcome with concrete details. "
+        "Avoid generic abstractions and vague summaries. "
         "Output ONLY the caption paragraph. No labels, no preamble, no reasoning, no planning notes. /no_think"
     ),
     "sarcastic": (
@@ -279,17 +279,19 @@ STYLE_SYSTEM_PROMPTS = {
         "Write a single paragraph of 5 to 6 sentences. "
         "Be subtly sarcastic — undercut the obvious, treat the mundane as mildly absurd. "
         "Do not be mean-spirited or over-the-top; keep it dry and lightly mocking throughout. "
-        "Every sentence should reference a specific real visual detail from the video. "
+        "Every sentence must reference a specific real visual detail from the video. "
         "Use understatement and subtle irony to highlight contrasts between expectations and reality. "
+        "Do not write generic commentary that could fit any video. "
         "Output ONLY the caption paragraph. No labels, no preamble, no reasoning, no planning notes. /no_think"
     ),
     "humorous_tech": (
         "You write funny captions that incorporate technology or programming references. "
         "Write a single paragraph of 5 to 6 sentences. "
-        "Make it genuinely funny by connecting real visual events in the video to tech or programming concepts — "
+        "Make the humour genuinely funny by connecting real visual events in the video to tech or programming concepts — "
         "such as debugging, deployment, git, APIs, crashes, or software development in general. "
-        "The humour should feel natural, not forced — the tech references should fit the visual context. "
+        "The humour must feel natural, not forced; each tech reference should clearly map onto something visible in the video. "
         "Use puns, analogies, or metaphors that relate visual actions to tech experiences. "
+        "Avoid generic jokes that could apply to any clip. "
         "Output ONLY the caption paragraph. No labels, no preamble, no reasoning, no planning notes. /no_think"
     ),
     "humorous_non_tech": (
@@ -299,6 +301,7 @@ STYLE_SYSTEM_PROMPTS = {
         "the kind of humour anyone can appreciate regardless of background. "
         "Every joke must be grounded in a specific real visual detail from the video. "
         "Use analogies to daily life, gentle exaggeration, or unexpected connections between visual elements. "
+        "Avoid generic fluff or broad statements that could fit any scene. "
         "Output ONLY the caption paragraph. No labels, no preamble, no reasoning, no planning notes. /no_think"
     ),
 }
@@ -343,14 +346,16 @@ def _caption_user_prompt(description: str, style: str) -> str:
     if len(description) > 6000:
         cut = description.rfind('. ', 0, 6000)
         description = description[:cut + 1] if cut > 3000 else description[:6000]
-    
-    # Enhanced prompt with stronger style emphasis and clearer instructions
+
     prompt_parts = [
         f"Video description:\n{description}",
         f"INSTRUCTION: Write a {style_display} caption following the style guidelines precisely.",
-        f"STYLE REQUIREMENTS FOR {style.upper()}: {STYLE_SYSTEM_PROMPTS[style]}"
+        f"STYLE REQUIREMENTS FOR {style.upper()}: {STYLE_SYSTEM_PROMPTS[style]}",
+        "CRITICAL QUALITY RULES: Include at least two concrete visual details from the description, such as objects, colors, actions, movement, clothing, or setting. "
+        "Do not produce generic filler such as 'a beautiful scene' or 'the video shows'. "
+        "Make the caption feel specific to this video, not interchangeable with any other clip."
     ]
-    
+
     return "\n\n".join(prompt_parts)
 
 # ── Caption output cleaning ───────────────────────────────────────────────────
@@ -1082,6 +1087,14 @@ def generate_caption(style: str, description: str, analysis: dict | None = None)
         re.IGNORECASE | re.MULTILINE,
     )
 
+    def _looks_grounded(text: str) -> bool:
+        lowered = text.lower()
+        if len(text.split()) < 18:
+            return False
+        if any(marker in lowered for marker in ["a person", "a scene", "a video", "beautiful", "interesting", "something"]):
+            return False
+        return True
+
     last_caption = ""
     for attempt in range(5):
         try:
@@ -1114,7 +1127,7 @@ def generate_caption(style: str, description: str, analysis: dict | None = None)
                 )
 
             caption = clean_caption(raw)
-            if len(caption) >= 40 and not _PLACEHOLDER_RE.search(caption) and caption.strip():
+            if len(caption) >= 40 and not _PLACEHOLDER_RE.search(caption) and caption.strip() and _looks_grounded(caption):
                 return caption
             last_caption = caption
             log.warning("[%s] Attempt %d: caption invalid (%d chars) — retrying",
