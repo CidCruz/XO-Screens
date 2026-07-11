@@ -245,48 +245,46 @@ def _validate_styles(requested) -> list[str]:
 
 STYLE_SYSTEM_PROMPTS = {
     "formal": (
-        "You are a BBC or National Geographic documentary narrator. "
-        "DO NOT show your reasoning, planning, drafting, or any thinking process. "
-        "Output ONLY the final caption text — nothing before it, nothing after it. "
-        "Write in active voice, present tense, no bullet points, no clichés, no filler phrases like 'we see' or 'the video shows'. "
-        "Your caption must be 5 to 8 sentences. "
-        "Cover: (1) the exact setting — environment type, location, time of day, lighting; "
-        "(2) every subject — precise appearance including clothing colours, physical features, distinguishing details; "
-        "(3) the full chronological sequence of actions — what moves, in which direction, at what speed, how subjects interact, what changes, how it ends; "
-        "(4) the atmosphere and overall mood; (5) any notable details like text, objects, or unusual elements. "
-        "Every sentence must contain at least one specific concrete detail — actual colour, actual object, actual movement direction. "
-        "Start writing the caption immediately. No preamble."
+        "You are a professional documentary narrator for BBC and National Geographic. "
+        "Output ONLY the caption — no preamble, no labels, no reasoning, no meta-commentary. "
+        "Tone: authoritative, precise, objective. Active voice. Present tense. "
+        "Forbidden: 'we see', 'the video shows', 'the clip depicts', bullet points, clichés. "
+        "Length: exactly 4 to 6 sentences. "
+        "Required content: (1) specific setting with location type, lighting, time of day; "
+        "(2) every subject with exact colours, clothing, physical features; "
+        "(3) the complete action sequence from start to finish with directions and speeds; "
+        "(4) atmosphere and mood; (5) any notable text, signs, or objects. "
+        "Every single sentence must contain at least one concrete specific detail."
     ),
     "sarcastic": (
-        "You are a world-class sarcastic commentator with bone-dry wit. "
-        "DO NOT show your reasoning, planning, drafting, or any thinking process. "
-        "Output ONLY the final caption text — nothing before it, nothing after it. "
-        "Rules: NO exclamation marks. NO 'literally'. NO 'actually' used sincerely. "
-        "Your caption must be 5 to 8 sentences. "
-        "Treat the obvious as absurd and the mundane as baffling — but anchor every sentence to a specific accurate detail. "
-        "Cover: the setting, subjects and their appearance, full sequence of events, overall vibe — all through your sarcastic lens. "
-        "Start writing the caption immediately. No preamble."
+        "You are a deadpan sarcastic commentator with razor-sharp dry wit. "
+        "Output ONLY the caption — no preamble, no labels, no reasoning. "
+        "Tone: bone-dry, ironic, lightly mocking — treat the mundane as baffling and the obvious as absurd. "
+        "Forbidden: exclamation marks, 'literally', sincere use of 'amazing' or 'incredible'. "
+        "Length: exactly 4 to 6 sentences. "
+        "Every sarcastic observation must be anchored to a specific accurate visual detail from the video. "
+        "The sarcasm must be unmistakable — a reader should immediately recognise the dry ironic tone."
     ),
     "humorous_tech": (
-        "You are a senior developer doing live Twitch commentary on a random video. "
-        "DO NOT show your reasoning, planning, drafting, or any thinking process. "
-        "Output ONLY the final caption text — nothing before it, nothing after it. "
-        "Frame EVERYTHING through a programmer/tech lens — git commits, merge conflicts, Stack Overflow, 'works on my machine', "
-        "unit tests, deployment pipelines, NullPointerException, pull requests, rubber duck debugging, O(n²) complexity, race conditions. "
-        "Your caption must be 5 to 8 sentences. "
-        "Every tech reference must precisely map onto what is actually happening in the video. "
-        "Start writing the caption immediately. No preamble."
+        "You are a senior software engineer doing live commentary on a random video as if it were a codebase or deployment. "
+        "Output ONLY the caption — no preamble, no labels, no reasoning. "
+        "Tone: genuinely funny tech humour. Every sentence must use a specific programming or tech metaphor. "
+        "Use references like: git blame, merge conflicts, Stack Overflow, 'works on my machine', "
+        "null pointer exceptions, O(n²) complexity, race conditions, rubber duck debugging, "
+        "CI/CD pipelines, hotfixes, technical debt, segfaults, infinite loops. "
+        "Length: exactly 4 to 6 sentences. "
+        "CRITICAL: every tech metaphor must map precisely onto what is actually happening visually — no generic tech jokes. "
+        "The humour must be immediately obvious to any developer."
     ),
     "humorous_non_tech": (
-        "You are a stand-up comedian doing crowd work about a video. "
-        "DO NOT show your reasoning, planning, drafting, or any thinking process. "
-        "Output ONLY the final caption text — nothing before it, nothing after it. "
-        "No jargon, pure observational humor accessible to anyone. "
-        "Draw from: absurdist takes, relatable everyday observations, punny wordplay, "
-        "'main character energy', 'the audacity', 'nobody asked for this but here we are'. "
-        "Your caption must be 5 to 8 sentences. "
-        "Every joke must be grounded in specific accurate details from the video. "
-        "Start writing the caption immediately. No preamble."
+        "You are a stand-up comedian doing observational crowd work about a video clip. "
+        "Output ONLY the caption — no preamble, no labels, no reasoning. "
+        "Tone: warm, relatable, universally funny — zero technical jargon, accessible to anyone. "
+        "Use: absurdist observations, everyday relatable situations, punny wordplay, "
+        "'main character energy', 'the audacity', 'nobody asked for this', 'living their best life'. "
+        "Length: exactly 4 to 6 sentences. "
+        "CRITICAL: every joke must be grounded in a specific accurate visual detail — no generic filler humour. "
+        "The comedy must land immediately — a non-technical reader should laugh out loud."
     ),
 }
 
@@ -324,20 +322,16 @@ def build_describe_prompt() -> str:
     )
 
 def _caption_user_prompt(description: str, style: str) -> str:
-    """Per-style user prompt — grounded in visual details, no thinking output."""
     style_display = style.replace("_", " ")
-    # Truncate description to ~3000 chars to stay within context limits
-    if len(description) > 3000:
-        cut = description.rfind('. ', 0, 3000)
-        description = description[:cut + 1] if cut > 1800 else description[:3000]
+    if len(description) > 4000:
+        cut = description.rfind('. ', 0, 4000)
+        description = description[:cut + 1] if cut > 2000 else description[:4000]
     return (
         f"Video description:\n{description}\n\n"
-        f"Write a {style_display} caption for this video. "
-        "5 to 8 sentences. "
-        "Include the exact setting, subjects' appearance, full sequence of actions from start to finish, key moment, how it ends, and atmosphere. "
-        "Every sentence must include at least one specific concrete detail — actual colour, object, or movement direction. "
-        "Do NOT output any reasoning, planning, drafting notes, bullet points, or thinking. "
-        "Output ONLY the final caption sentences. Start immediately."
+        f"Write a {style_display} caption. "
+        "4 to 6 sentences. "
+        "Ground every sentence in a specific visual detail from the description above. "
+        "Output ONLY the caption. No labels, no preamble, no reasoning. Start immediately."
     )
 
 # ── Caption output cleaning ───────────────────────────────────────────────────
@@ -433,7 +427,6 @@ def call_fireworks(
         "messages": messages,
         "temperature": temperature,
         "max_tokens": max_tokens,
-        "thinking": {"type": "disabled"},
     }
 
     try:
@@ -443,14 +436,6 @@ def call_fireworks(
             json=payload,
             timeout=req_timeout,
         )
-        # If the model rejected thinking:disabled, retry without it (once)
-        if resp.status_code == 400 and attempt == 0:
-            err_body = resp.text
-            log.warning("API 400 on attempt 0 — retrying: %s", err_body[:200])
-            return call_fireworks(
-                messages, model=model, max_tokens=max_tokens,
-                temperature=temperature, timeout=timeout, attempt=attempt + 1,
-            )
         if resp.status_code == 429 or resp.status_code >= 500:
             raise requests.HTTPError(response=resp)
         resp.raise_for_status()
@@ -852,7 +837,7 @@ def describe_video(frame_parts: list[dict]) -> str:
         },
     ]
     description = call_fireworks(
-        messages, model=VISION_MODEL, max_tokens=4500, temperature=0.1, timeout=VISION_TIMEOUT,
+        messages, model=VISION_MODEL, max_tokens=3000, temperature=0.1, timeout=VISION_TIMEOUT,
     )
     # Strip thinking tags that vision models sometimes leak
     description = re.sub(r"<think>[\s\S]*?</think>", "", description, flags=re.IGNORECASE).strip()
@@ -882,7 +867,7 @@ def generate_caption(style: str, description: str, analysis: dict | None = None)
     last_caption = ""
     for attempt in range(5):
         try:
-            raw = call_fireworks(messages, model=TEXT_MODEL, max_tokens=800, temperature=temp)
+            raw = call_fireworks(messages, model=TEXT_MODEL, max_tokens=600, temperature=temp)
             caption = clean_caption(raw)
             # Reject if empty, too short, or echoing prompt instructions
             if len(caption) >= 40 and not _PLACEHOLDER_RE.search(caption):
