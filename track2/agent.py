@@ -235,8 +235,10 @@ Styles:
 4. "humorous_non_tech": Funny, everyday humor with no technical jargon. Relatable observations, absurdist comparisons.
 
 RULES:
-- Generate 1 cohesive paragraph (4-6 sentences) for EACH requested style.
-- The captions MUST be highly accurate to the video content. Mention specific colors, objects, movements, and resolutions. Generic captions will score ZERO.
+- CRITICAL: The very first sentence of EVERY caption MUST be a highly accurate, 1-sentence summary of the core subject, setting, and main action (e.g., "An office worker sits at a desktop computer in a modern open-plan office.").
+- After the first summary sentence, the rest of the paragraph (3-4 sentences) must heavily lean into the requested style/tone.
+- Generate 1 cohesive paragraph for EACH requested style.
+- Mention specific colors, objects, movements. Generic captions score ZERO.
 - You MUST output ONLY valid JSON.
 - The JSON object must contain keys EXACTLY matching the requested styles.
 
