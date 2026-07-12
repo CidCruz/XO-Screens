@@ -3,4 +3,5 @@
 apikey.txt
 tools/
 token/credits usage/*.json
+token/credits usage/translations/
 test/output/*.json

@@ -1,11 +1,7 @@
 """
 Track 2 — Video Captioning Agent
 XO-Screens | AMD Developer Hackathon: ACT II
-<<<<<<< Updated upstream
-Single-Pass Fusion (Vision + Style + AMD Strict Guidelines).
-=======
 Two-Pass Fireworks implementation (Vision -> Style).
->>>>>>> Stashed changes
 """
 
 import os
@@ -137,6 +133,7 @@ def start_usage_log(input_path: Path, output_path: Path) -> None:
             "vision": VISION_MODEL,
             "process": PROCESS_MODEL,
         },
+        "translation_files": [],
         "totals": {
             "calls": 0,
             "prompt_tokens": 0,
@@ -322,6 +319,7 @@ def extract_frames_from_url(url: str, frames_dir: Path) -> list[Path]:
     except Exception as e:
         log.warning("ffmpeg stream failed: %s", e)
 
+    # Scene changes
     scene_pattern = str(frames_dir / "scene_%04d.jpg")
     scene_cmd = [
         "ffmpeg", "-y", "-nostdin", "-i", url,
@@ -379,35 +377,15 @@ def extract_frames_local(video_path: Path, frames_dir: Path) -> list[Path]:
         paths = [paths[round(i * step)] for i in range(20)]
     return paths
 
-<<<<<<< Updated upstream
-# ── Gemini API (Single-Pass Fusion) ───────────────────────────────────────────────────────────────
-=======
 # ── Fireworks API (Two-Pass DescribeX Mimic) ─────────────────────────────────────────────────────────────
->>>>>>> Stashed changes
 
-SYSTEM_PROMPT = """You are an expert video analyst and master copywriter. You will be shown a sequence of representative frames from a short video. Your task is to analyze the video and generate captions in multiple specific styles.
+VISION_PROMPT = """You are a precise visual analyst. You will be shown {frame_count} representative frames sampled from a short video. Your task is to produce a structured, factual understanding of the video content.
 
-First, internally observe the video across these 7 dimensions to ground your understanding:
-1. Scene / Setting
-2. Subjects (people, animals, objects)
-3. Actions happening
-4. Environment (indoor/outdoor, time of day)
-5. Mood / Tone
-6. Key Visual Elements (colors, overlays)
-7. Temporal Flow
+Analyze the frames and provide a detailed description covering ALL of the following categories:
 
-Then, using this factual understanding, generate one caption for EACH of the requested styles:
-1. **formal** — Professional, objective, factual tone. Suitable for business or news.
-2. **sarcastic** — Dry, ironic, lightly mocking. Poke fun at the situation.
-3. **humorous_tech** — Funny, with technology, programming, or developer references. Use analogies to software/hardware.
-4. **humorous_non_tech** — Funny, everyday relatable humor with NO technical jargon.
+1. **Scene / Setting**
+   Where is this taking place? Describe the location, venue, or environment visible in the frames.
 
-<<<<<<< Updated upstream
-CRITICAL REQUIREMENTS:
-- EACH caption MUST be exactly 2 to 4 sentences long. (1 sentence is an automatic failure).
-- Ensure high factual accuracy. Do NOT hallucinate details not present in the frames.
-- Output ONLY a valid JSON object containing keys exactly matching the requested styles.
-=======
 2. **Subjects**
    Who or what is visible? Describe people, animals, objects, or other focal subjects. Note their appearance, positioning, and any distinguishing features.
 
@@ -434,6 +412,35 @@ IMPORTANT INSTRUCTIONS:
 - Write in clear, concise prose. Use the numbered categories above as your structure.
 """
 
+VISION_PROMPT = """You are a precise visual analyst. You will receive {frame_count} representative image frames sampled from a short video.
+
+Your task is to translate the visual contents of those frames into a factual text file that another model can use to write captions.
+
+Critical rules:
+- Describe ONLY what is visible in the provided image frames.
+- Ignore the numbering, labels, and text in this instruction prompt. Do not describe the numeral "1", list numbers, or the concept of counting.
+- Do not invent mathematical, symbolic, or abstract content unless it is actually visible in the frames.
+- If you cannot inspect the image frames, output exactly: ERROR_NO_VISUAL_CONTENT
+- Do not generate captions or jokes.
+
+Write a clear video translation file with these sections:
+
+Scene and setting:
+Describe the location, environment, time of day, weather, and overall visual context.
+
+Subjects and objects:
+Describe visible people, vehicles, animals, buildings, signs, objects, clothing, colors, and positions.
+
+Actions and temporal flow:
+Describe what changes from frame to frame, including movement, traffic flow, gestures, interactions, or scene cuts.
+
+Visual style and mood:
+Describe lighting, color grading, camera angle, motion blur, timelapse effects, filters, and atmosphere.
+
+Key details:
+Mention any readable text, distinctive landmarks, unusual visual elements, or important context.
+"""
+
 STYLE_PROMPT = """You are an expert caption writer. Below is a factual video translation file generated from representative video frames. Your task is to generate captions for this video in exactly four distinct styles.
 
 --- VIDEO TRANSLATION FILE ---
@@ -454,17 +461,11 @@ REQUIREMENTS:
 - Each caption MUST be 2 to 4 sentences long.
 - Output ONLY a valid JSON object with exactly these four keys: "formal", "sarcastic", "humorous_tech", "humorous_non_tech".
 - Each value must be a single string containing the caption for that style.
->>>>>>> Stashed changes
 - Do NOT wrap the JSON in markdown code fences.
-- Do NOT include any explanation or extra text.
+- Do NOT include any explanation, commentary, or extra text before or after the JSON.
+- Output ONLY the JSON object. Nothing else.
 """
 
-<<<<<<< Updated upstream
-def generate_captions_via_gemini(frame_paths: list[Path], styles: list[str]) -> dict:
-    api_key = get_api_key()
-    
-    parts = []
-=======
 def extract_chat_message_text(payload: dict) -> str:
     choices = payload.get("choices") or []
     if not choices:
@@ -485,6 +486,36 @@ def extract_chat_message_text(payload: dict) -> str:
         return "".join(chunks).strip()
 
     return ""
+
+def looks_invalid_video_translation(text: str) -> bool:
+    normalized = re.sub(r"\s+", " ", (text or "").strip().lower())
+    if len(normalized) < 120:
+        return True
+    invalid_markers = (
+        "error_no_visual_content",
+        "cannot inspect",
+        "can't inspect",
+        "cannot see",
+        "can't see",
+        "no image",
+        "no visual",
+        "numeral one",
+        "number one",
+        "integer",
+        "multiplicative identity",
+        "counting systems",
+        "arithmetic",
+        "mathematics",
+    )
+    if any(marker in normalized for marker in invalid_markers):
+        return True
+
+    visual_terms = (
+        "scene", "frame", "video", "camera", "street", "road", "traffic",
+        "vehicle", "car", "person", "building", "indoor", "outdoor", "light",
+        "color", "movement", "motion", "object", "background", "foreground",
+    )
+    return sum(1 for term in visual_terms if term in normalized) < 3
 
 def _chat_completion(model: str, messages: list[dict], temperature: float, max_tokens: int, stage: str) -> str:
     api_key = get_api_key()
@@ -523,42 +554,15 @@ def _chat_completion(model: str, messages: list[dict], temperature: float, max_t
     raise RuntimeError("Failed to receive Fireworks chat completion.")
 
 def generate_factual_summary(frame_paths: list[Path]) -> str:
-    content = [{"type": "text", "text": VISION_PROMPT.format(frame_count=len(frame_paths))}]
->>>>>>> Stashed changes
+    content = []
     for fp in frame_paths:
         b64 = base64.b64encode(fp.read_bytes()).decode()
         content.append({
             "type": "image_url",
             "image_url": {"url": f"data:image/jpeg;base64,{b64}"},
         })
+    content.append({"type": "text", "text": VISION_PROMPT.format(frame_count=len(frame_paths))})
 
-<<<<<<< Updated upstream
-    parts.append({"text": f"Generate these styles in JSON format: {', '.join(styles)}"})
-
-    payload = {
-        "system_instruction": {"parts": [{"text": SYSTEM_PROMPT}]},
-        "contents": [{"role": "user", "parts": parts}],
-        "generationConfig": {
-            "temperature": 0.4,
-            "maxOutputTokens": 2048,
-            "response_mime_type": "application/json"
-        },
-    }
-    
-    url = f"{GEMINI_BASE}/models/{GEMINI_MODEL}:generateContent?key={api_key}"
-    
-    for attempt in range(3):
-        try:
-            resp = SESSION.post(url, json=payload, timeout=API_TIMEOUT)
-            if resp.status_code == 429:
-                time.sleep(5 * (attempt + 1))
-                continue
-            resp.raise_for_status()
-            data = resp.json()
-            text = data["candidates"][0]["content"]["parts"][0]["text"]
-            
-            # Clean up markdown if Gemini leaked it
-=======
     return _chat_completion(
         model=VISION_MODEL,
         messages=[{"role": "user", "content": content}],
@@ -570,6 +574,15 @@ def generate_factual_summary(frame_paths: list[Path]) -> str:
 def write_video_translation(frame_paths: list[Path], translation_path: Path) -> Path:
     translation = generate_factual_summary(frame_paths)
     translation_path.write_text(translation, encoding="utf-8")
+    if USAGE_LOG:
+        saved_dir = USAGE_LOG_DIR / "translations" / USAGE_LOG["run_id"]
+        saved_dir.mkdir(parents=True, exist_ok=True)
+        saved_path = saved_dir / translation_path.name
+        saved_path.write_text(translation, encoding="utf-8")
+        USAGE_LOG["translation_files"].append(str(saved_path))
+        flush_usage_log()
+    if looks_invalid_video_translation(translation):
+        raise RuntimeError("Vision translation did not describe the video frames.")
     return translation_path
 
 def generate_styled_captions(translation_path: Path, styles: list[str]) -> dict:
@@ -587,20 +600,15 @@ def generate_styled_captions(translation_path: Path, styles: list[str]) -> dict:
             )
             
             # Clean up markdown if the model wraps JSON in a code fence.
->>>>>>> Stashed changes
             if text.startswith("```"):
                 text = text.strip().split("\n", 1)[-1].rsplit("\n", 1)[0]
                 
             return json.loads(text)
         except Exception as e:
-<<<<<<< Updated upstream
-            log.warning("Gemini attempt %d failed: %s", attempt+1, e)
-=======
             log.warning("Style Pass attempt %d failed: %s", attempt + 1, e)
->>>>>>> Stashed changes
             time.sleep(2 * (attempt + 1))
             
-    raise RuntimeError("Failed to generate captions.")
+    raise RuntimeError("Failed to generate style captions.")
 
 def fallback_captions(styles: list[str]) -> dict:
     fallbacks = {
@@ -630,17 +638,12 @@ def process_task(task: dict, tmpdir: Path) -> dict:
         if not frame_paths:
             raise RuntimeError("No frames could be extracted.")
             
-<<<<<<< Updated upstream
-        log.info("[%s] Calling Gemini Single-Pass Fusion with %d frames...", task_id, len(frame_paths))
-        captions = generate_captions_via_gemini(frame_paths, styles)
-=======
         log.info("[%s] Calling Fireworks Vision Pass with %d frames...", task_id, len(frame_paths))
         translation_path = tmpdir / f"{task_id}_video_translation.txt"
         write_video_translation(frame_paths, translation_path)
         
         log.info("[%s] Calling Fireworks Process Pass...", task_id)
         captions = generate_styled_captions(translation_path, styles)
->>>>>>> Stashed changes
         
         final_captions = {}
         for s in styles:
@@ -666,11 +669,7 @@ def startup_checks():
 
 def main() -> int:
     INPUT_PATH, OUTPUT_PATH = resolve_paths()
-<<<<<<< Updated upstream
-    log.info("=== XO-Screens Video Captioning Agent (Single-Pass Fusion) ===")
-=======
     log.info("=== XO-Screens Video Captioning Agent (Two-Pass Fireworks) ===")
->>>>>>> Stashed changes
     
     startup_checks()
 
