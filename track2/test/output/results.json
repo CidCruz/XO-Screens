@@ -2,28 +2,28 @@
   {
     "task_id": "v1",
     "captions": {
-      "formal": "This elevated view captures a bustling urban thoroughfare during autumn. Vehicular traffic proceeds continuously in both directions under clear daytime conditions. The scene is characterized by vibrant yellow foliage and prominent high-rise architecture, illustrating a dynamic city environment.",
-      "sarcastic": "Behold the thrilling spectacle of a multi-lane road experiencing peak 'vehicular' excitement. Watch as countless cars, buses, and trucks daringly navigate the open asphalt, all while the traffic lights, in a stunning display of consistency, remain green. Truly, a breathtaking testament to the unyielding march of urban progress.",
-      "humorous_tech": "Witness the urban traffic algorithm in a flawless, un-throttled execution loop, processing vehicles like data packets. With optimal green light uptime, there are no visible deadlocks or segmentation faults, just a continuous, high-bandwidth flow of serialized objects. Clearly, someone optimized the real-time rendering for maximum vehicular throughput.",
-      "humorous_non_tech": "Ah, the daily ballet of urban life, where every vehicle is a star in its own little, very slow-moving show. It's a beautiful autumn day, perfect for enjoying the vibrant foliage, provided you're not stuck in one of those cars wondering if you left the oven on. Just another Tuesday, or Wednesday, or any day, really, in the great concrete jungle."
+      "formal": "This time-lapse sequence captures the dynamic flow of urban traffic on a multi-lane thoroughfare. Vehicles navigate the road amidst a backdrop of residential buildings and vibrant autumn foliage. The scene illustrates the consistent movement characteristic of a bustling city environment during daylight hours.",
+      "sarcastic": "Behold, the pinnacle of modern transportation efficiency, where every driver is clearly enjoying their scenic, high-speed journey. The artistic blur perfectly captures the exhilarating pace of urban life, especially when you're trying to get anywhere on time. It's almost as if everyone decided to go to the same place, all at once.",
+      "humorous_tech": "Observing this data stream of vehicles, it appears the 'commute.exe' process is experiencing significant I/O bottlenecks. The system's rendering of individual cars is heavily blurred, suggesting a low frame rate or perhaps a 'ghosting' effect from too many concurrent operations. Clearly, a major defragmentation of the road network is overdue to improve packet delivery.",
+      "humorous_non_tech": "Just another beautiful autumn day to contemplate the existential dread of being stuck in a metal box with hundreds of other metal boxes. Everyone's in a hurry to get somewhere, probably just to sit in another chair and wonder why they left the first one. It's a symphony of engines and brake lights, playing the timeless tune of 'Are we there yet?'"
     }
   },
   {
     "task_id": "v2",
     "captions": {
-      "formal": "A ginger kitten with prominent amber eyes is observed in a natural outdoor environment, characterized by dry earth and dense foliage. Initially stationary, the feline subject subsequently initiates a slow, deliberate forward movement, approaching the camera's perspective. Its tail becomes visible and slightly elevated as it continues to advance through the sun-dappled setting.",
-      "sarcastic": "Oh, look at this brave little explorer, embarking on a perilous journey across the vast expanse of... a few feet of dirt. Clearly, this is a mission of utmost importance, judging by the intense, unwavering gaze. We can only hope it makes it to its destination before naptime.",
-      "humorous_tech": "Executing `kitten.walkForward()` with 100% success rate, despite the lack of a clear `destination` parameter. This build definitely passed QA, look at that smooth animation and perfect texture mapping. Pretty sure this is a new 'cat.exe' update, and it's already demanding all available processing power for cuteness.",
-      "humorous_non_tech": "That moment when you're trying to look cool and mysterious, but then you remember you're just a fluffy little creature who wants snacks. The intense stare is just a warm-up for asking 'Are you going to finish that?' It's a classic approach: slow, steady, and utterly irresistible."
+      "formal": "A juvenile feline is observed navigating a natural, sun-dappled environment. The subject demonstrates a deliberate, forward movement while maintaining direct visual engagement. This behavior suggests an investigative approach within its immediate surroundings.",
+      "sarcastic": "Oh, how utterly shocking, a tiny creature is slowly moving towards the camera. One can only imagine the immense courage required for such a perilous journey through the dense undergrowth. Truly, a breathtaking display of feline bravery.",
+      "humorous_tech": "The 'Kitten.exe' program has successfully initiated its 'Approach_Human' function, albeit with a rather low processing speed. Its optical sensors are fully engaged, performing a constant 'Cute_Factor_Scan' on the target. Expect a 'Purr_Engine' activation and a request for 'Petting_Protocol' any second now.",
+      "humorous_non_tech": "Just when you thought your heart was safe, a tiny, fluffy ambush predator emerges from the bushes. It's clearly on a critical mission to melt all resistance with its undeniable cuteness. Resistance is futile; prepare for immediate surrender to its charm."
     }
   },
   {
     "task_id": "v3",
     "captions": {
-      "formal": "A professional is actively engaged in work at a modern office workstation. She demonstrates focused concentration while typing on a computer keyboard. The bright, open-plan environment supports a productive atmosphere.",
-      "sarcastic": "Witness the thrilling spectacle of modern productivity: a human being interacting with a keyboard. Clearly, groundbreaking, world-changing data is being entered, one keystroke at a time. This riveting display of focus is truly something to behold.",
-      "humorous_tech": "She's either debugging a critical production issue or meticulously crafting the perfect commit message. That intense focus suggests she's deep in the matrix, probably trying to get `npm install` to finally finish. Let's hope her code compiles on the first try.",
-      "humorous_non_tech": "That's the look of someone either sending a very important email or carefully crafting the perfect passive-aggressive reply. Or maybe she's just trying to remember her password for the fifth time today. The sheer concentration required for modern adulting is truly remarkable."
+      "formal": "A professional is observed diligently working at a computer workstation within a contemporary office setting. She is actively engaged in typing on the keyboard, demonstrating focused attention on her task.",
+      "sarcastic": "Witnessing peak productivity, or perhaps just the intense concentration required to decide which emoji best conveys \"per my last email.\" Truly groundbreaking work is being accomplished here, one keystroke at a time.",
+      "humorous_tech": "Her brain is currently compiling the most complex algorithm known to humanity, or at least debugging why `console.log(\"hello world\")` isn't working. She's either coding the next big app or just trying to force-quit a frozen browser tab.",
+      "humorous_non_tech": "She's either crafting a masterpiece of an email or desperately trying to remember if she already hit \"send.\" The sheer concentration required to navigate the digital world is truly a sight to behold."
     }
   }
 ]
