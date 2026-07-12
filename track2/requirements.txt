@@ -1,4 +1,5 @@
 requests==2.32.3
 # python-dotenv is optional — only used for local .env loading, not in the container
 python-dotenv==1.0.1
+truststore==0.10.1
 Pillow==10.0.0

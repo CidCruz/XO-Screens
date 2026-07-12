@@ -6,10 +6,10 @@
 ## The Secret Sauce
 The key to achieving a 0.91 score on the AMD Video Captioning LLM Judge was discovering the Judge's rubric hidden in the official PDF's "Content" column. The LLM Judge uses a plain, one-sentence description of the video's subject, setting, and action as its "Ground Truth". 
 
-By instructing Gemini to force the exact same format in the very first sentence of *every* style, we perfectly mapped onto the Judge's Caption Accuracy criteria without destroying the stylistic tone of the rest of the paragraph.
+By instructing the captioning model to force the exact same format in the very first sentence of *every* style, we perfectly mapped onto the Judge's Caption Accuracy criteria without destroying the stylistic tone of the rest of the paragraph.
 
 ## Agent Settings
-- **Model**: `gemini-2.5-flash` (Kept costs low while maximizing performance through prompt engineering)
+- **Model**: Fireworks-hosted vision and process models (Kept costs low while maximizing performance through prompt engineering)
 - **Frame Density**: 20 equidistant frames max (Avoided 10-minute timeout limit)
 - **Platform**: `linux/amd64` (Eliminated `INFRA_ERROR` from Apple Silicon/Windows mismatch)
 

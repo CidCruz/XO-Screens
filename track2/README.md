@@ -1,8 +1,8 @@
-# Track 2 — Video Captioning Agent
+﻿# Track 2 â€” Video Captioning Agent
 
 **XO-Screens | AMD Developer Hackathon: ACT II**
 
-An AI agent that downloads a video clip, understands what is actually happening in it visually, and generates four stylistically distinct captions — all inside a Docker container, within a 10-minute wall-clock budget.
+An AI agent that downloads a video clip, understands what is actually happening in it visually, and generates four stylistically distinct captions â€” all inside a Docker container, within a 10-minute wall-clock budget.
 
 ---
 
@@ -12,57 +12,57 @@ An AI agent that downloads a video clip, understands what is actually happening 
 
 The judging harness mounts a JSON file at `/input/tasks.json`. Each entry contains a `task_id`, a `video_url` (a direct `.mp4` link, up to 500 MB), and a list of `styles` to generate. The agent reads this file on startup and builds a work queue.
 
-Before touching any video, the agent **pre-seeds `/output/results.json`** with placeholder captions for every task. This means even if the container is killed mid-run by the 10-minute timeout, the output file already exists and is valid JSON — preventing an `OUTPUT_MISSING` or `MISSING_TASKS` disqualification.
+The agent writes `/output/results.json` after each task completes. This keeps the output focused on completed work instead of startup placeholders.
 
 ---
 
 ### 2. Download the video (streaming, 500 MB cap)
 
-The agent streams the video over HTTPS in 4 MB chunks directly to a temp file. It does not buffer the whole file in memory. A `Content-Length` HEAD check runs first — if the server reports the file is over 500 MB, the download is aborted immediately. During streaming, a running byte counter enforces the same cap even if the server lied about the size.
+The agent streams the video over HTTPS in 4 MB chunks directly to a temp file. It does not buffer the whole file in memory. A `Content-Length` HEAD check runs first â€” if the server reports the file is over 500 MB, the download is aborted immediately. During streaming, a running byte counter enforces the same cap even if the server lied about the size.
 
-The download has a 150-second timeout. If it fails, the task gets an error caption and the agent moves on — it never crashes the whole run.
+The download has a 150-second timeout. If it fails, the task gets an error caption and the agent moves on â€” it never crashes the whole run.
 
 ---
 
 ### 3. Extract frames (ffmpeg, scene-aware)
 
-**Step A — Duration probe:** `ffprobe` reads the video's format metadata to get the exact duration in seconds. This drives how many frames to extract:
+**Step A â€” Duration probe:** `ffprobe` reads the video's format metadata to get the exact duration in seconds. This drives how many frames to extract:
 
 | Duration | Target frames |
 |---|---|
-| ≤ 30 s | 8 |
-| ≤ 60 s | 12 |
+| â‰¤ 30 s | 8 |
+| â‰¤ 60 s | 12 |
 | > 60 s | 16 |
 
-**Step B — Evenly-spaced frames:** ffmpeg calculates `fps = target_frames / duration` and extracts frames at that rate. Each frame is scaled to 896 px wide (preserving aspect ratio, Lanczos filter) and saved as a JPEG at quality level 3. This gives consistent temporal coverage across the whole clip.
+**Step B â€” Evenly-spaced frames:** ffmpeg calculates `fps = target_frames / duration` and extracts frames at that rate. Each frame is scaled to 896 px wide (preserving aspect ratio, Lanczos filter) and saved as a JPEG at quality level 3. This gives consistent temporal coverage across the whole clip.
 
-**Step C — Scene-change frames (up to 4 extra):** A second ffmpeg pass uses the `select='gt(scene,0.35)'` filter. This filter computes a perceptual difference score between consecutive frames and fires whenever the score exceeds 0.35 — i.e., at hard visual cuts (a new location, a cut to a different subject, a title card appearing). Up to 4 of these scene-change frames are extracted and added to the pool.
+**Step C â€” Scene-change frames (up to 4 extra):** A second ffmpeg pass uses the `select='gt(scene,0.35)'` filter. This filter computes a perceptual difference score between consecutive frames and fires whenever the score exceeds 0.35 â€” i.e., at hard visual cuts (a new location, a cut to a different subject, a title card appearing). Up to 4 of these scene-change frames are extracted and added to the pool.
 
 **Hard cap at 20 frames:** If the combined pool exceeds 20 frames, the agent subsamples down to 20. This keeps the base64 payload to the vision model under ~1.4 MB and within context limits.
 
 ---
 
-### 4. Vision description pass — Pass 1 (MiniMax M3)
+### 4. Vision description pass â€” Pass 1 (MiniMax M3)
 
-All extracted JPEG frames are base64-encoded and assembled into a single multimodal API request. This is sent to the vision model (default: `accounts/fireworks/models/minimax-m3`, a native multimodal model with 512K context).
+All extracted JPEG frames are base64-encoded and assembled into a single multimodal API request. This is sent to the vision model configured in `model_config.json` (default: `accounts/fireworks/models/kimi-k2p6`).
 
-The system prompt instructs the model to act as a forensic video analyst and write **6–8 paragraphs of narrative prose** covering:
+The system prompt instructs the model to act as a forensic video analyst and write **6â€“8 paragraphs of narrative prose** covering:
 
-1. **Setting** — exact location type (indoor/outdoor, urban/rural, specific room type)
-2. **Subjects** — every person, animal, or significant object visible, with appearance and clothing details
-3. **Actions** — a chronological sequence of what happens, specific about movements and interactions
-4. **Atmosphere** — lighting, time of day, weather, emotional tone, pace
-5. **Notable details** — signs, text on screen, unusual elements
+1. **Setting** â€” exact location type (indoor/outdoor, urban/rural, specific room type)
+2. **Subjects** â€” every person, animal, or significant object visible, with appearance and clothing details
+3. **Actions** â€” a chronological sequence of what happens, specific about movements and interactions
+4. **Atmosphere** â€” lighting, time of day, weather, emotional tone, pace
+5. **Notable details** â€” signs, text on screen, unusual elements
 
-Temperature is set to `0.1` — as close to deterministic as possible — because this pass is purely factual. The output of this pass is the **single source of truth** that all four caption styles are generated from.
+Temperature is set to `0.1` â€” as close to deterministic as possible â€” because this pass is purely factual. The output of this pass is the **single source of truth** that all four caption styles are generated from.
 
 This design means the vision model is called **once per video**, not four times. All four caption styles share the same description. This keeps vision token costs low while maximising quality.
 
 ---
 
-### 5. Caption pass — Pass 2 (Kimi K2.6, 4× parallel)
+### 5. Caption pass â€” Pass 2 (Kimi K2.6, 4Ã— parallel)
 
-The description from Pass 1 is sent to the text model four times in parallel (one per style), each with its own system prompt and temperature. The four futures run concurrently in a `ThreadPoolExecutor`.
+The video translation file from Pass 1 is sent to the process model to produce the four requested caption tones.
 
 #### Per-style temperature
 
@@ -75,13 +75,13 @@ The description from Pass 1 is sent to the text model four times in parallel (on
 
 #### Per-style system prompts
 
-**`formal`** — BBC/National Geographic documentary narrator: active voice, present tense, no bullet points, no clichés, no filler phrases like "we see".
+**`formal`** â€” BBC/National Geographic documentary narrator: active voice, present tense, no bullet points, no clichÃ©s, no filler phrases like "we see".
 
-**`sarcastic`** — Bone-dry wit and ironic understatement. No exclamation marks (they kill the deadpan), no "literally". Sarcasm must be anchored to the specific thing shown in the video.
+**`sarcastic`** â€” Bone-dry wit and ironic understatement. No exclamation marks (they kill the deadpan), no "literally". Sarcasm must be anchored to the specific thing shown in the video.
 
-**`humorous_tech`** — Senior developer Twitch commentary. Every tech reference (git commits, merge conflicts, Stack Overflow, "works on my machine", rubber duck debugging) must map onto what is actually happening in the video.
+**`humorous_tech`** â€” Senior developer Twitch commentary. Every tech reference (git commits, merge conflicts, Stack Overflow, "works on my machine", rubber duck debugging) must map onto what is actually happening in the video.
 
-**`humorous_non_tech`** — Stand-up crowd work. Absurdist takes, relatable observations, punny wordplay, "main character energy". Accessible to anyone. Every joke grounded in the specific subject/action/setting shown.
+**`humorous_non_tech`** â€” Stand-up crowd work. Absurdist takes, relatable observations, punny wordplay, "main character energy". Accessible to anyone. Every joke grounded in the specific subject/action/setting shown.
 
 #### Output cleaning
 
@@ -95,7 +95,7 @@ Model outputs are cleaned before being written to results:
 
 ### 6. Write `/output/results.json`
 
-After each task completes, the full results array is written to disk immediately. This means partial results survive a TIMEOUT kill — the judging harness will find a valid JSON file with real captions for tasks that finished and placeholder captions for ones that didn't.
+After each task completes, the full results array is written to disk immediately. This means partial results survive a TIMEOUT kill â€” the judging harness will find a valid JSON file with real captions for tasks that finished and placeholder captions for ones that didn't.
 
 ---
 
@@ -103,52 +103,52 @@ After each task completes, the full results array is written to disk immediately
 
 ```
 /input/tasks.json
-      │
-      ▼
- Pre-seed /output/results.json with placeholders (TIMEOUT safety)
-      │
-      ▼  [for each task]
+      â”‚
+      â–¼
+ Write /output/results.json after completed tasks
+      â”‚
+      â–¼  [for each task]
  Validate task_id, video_url, styles
-      │
-      ▼
+      â”‚
+      â–¼
  Stream-download video (150s timeout, 500 MB cap)
-      │
-      ▼
+      â”‚
+      â–¼
  Extract frames (ffmpeg)
-   ├─ ffprobe → duration
-   ├─ evenly-spaced frames (8 / 12 / 16 based on duration)
-   ├─ scene-change frames (up to 4) — ffmpeg select='gt(scene,0.35)'
-   └─ subsample to ≤ 20 frames total
-      │
-      ▼
+   â”œâ”€ ffprobe â†’ duration
+   â”œâ”€ evenly-spaced frames (8 / 12 / 16 based on duration)
+   â”œâ”€ scene-change frames (up to 4) â€” ffmpeg select='gt(scene,0.35)'
+   â””â”€ subsample to â‰¤ 20 frames total
+      â”‚
+      â–¼
  Base64-encode all JPEG frames
-      │
-      ▼
- ┌─────────────────────────────────────────┐
- │  PASS 1 — Vision description             │
- │  Model: MiniMax M3                       │
- │  Input: all frames (base64)             │
- │  Temp: 0.1 (factual, deterministic)     │
- │  Output: 6–8 paragraph narrative prose  │
- └─────────────────────────────────────────┘
-      │
- ┌────┼────┬────┬────┐
- ▼    ▼    ▼    ▼    ▼
+      â”‚
+      â–¼
+ â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+ â”‚  PASS 1 â€” Vision description             â”‚
+ â”‚  Model: MiniMax M3                       â”‚
+ â”‚  Input: all frames (base64)             â”‚
+ â”‚  Temp: 0.1 (factual, deterministic)     â”‚
+ â”‚  Output: 6â€“8 paragraph narrative prose  â”‚
+ â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
+      â”‚
+ â”Œâ”€â”€â”€â”€â”¼â”€â”€â”€â”€â”¬â”€â”€â”€â”€â”¬â”€â”€â”€â”€â”
+ â–¼    â–¼    â–¼    â–¼    â–¼
 formal  sarcastic  humorous_tech  humorous_non_tech
 t=0.15  t=0.75     t=0.78         t=0.80
-      │
-      └─── all 4 run in parallel (ThreadPoolExecutor)
-      │
-      ▼
- ┌─────────────────────────────────────────┐
- │  PASS 2 — Caption generation            │
- │  Model: Kimi K2.6                       │
- │  Input: description text only          │
- │  Each style: own system prompt + temp  │
- │  Output: cleaned caption string        │
- └─────────────────────────────────────────┘
-      │
-      ▼
+      â”‚
+      â””â”€â”€â”€ all 4 run in parallel (ThreadPoolExecutor)
+      â”‚
+      â–¼
+ â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+ â”‚  PASS 2 â€” Caption generation            â”‚
+ â”‚  Model: Kimi K2.6                       â”‚
+ â”‚  Input: description text only          â”‚
+ â”‚  Each style: own system prompt + temp  â”‚
+ â”‚  Output: cleaned caption string        â”‚
+ â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
+      â”‚
+      â–¼
  Flush /output/results.json (after every task)
 ```
 
@@ -170,9 +170,9 @@ The agent never lets a timeout kill produce missing output.
 |---|---|
 | `PULL_ERROR` | `FROM --platform=linux/amd64` in Dockerfile; image built with `--platform linux/amd64` |
 | `RUNTIME_ERROR` | Every exception is caught at the task level; agent always exits 0 |
-| `OUTPUT_MISSING` | Results file written with placeholders before any task starts |
+| `OUTPUT_MISSING` | Results file written after each completed task |
 | `TIMEOUT` | 520s budget watchdog; graceful fallback captions; ffmpeg and API timeouts |
-| `MISSING_TASKS` | Every input task gets an output entry, even on error or budget exhaustion |
+| `MISSING_TASKS` | Completed tasks get output entries; errors within a task return fallback captions |
 
 ---
 
@@ -180,10 +180,10 @@ The agent never lets a timeout kill produce missing output.
 
 | Role | Default model | Why |
 |---|---|---|
-| Vision (Pass 1) | `accounts/fireworks/models/minimax-m3` | Native multimodal (text + image), 512K context. $0.30/M in, $1.20/M out. |
-| Text (Pass 2) | `accounts/fireworks/models/kimi-k2p6` | Strong instruction following and creative writing, 262K context. $0.95/M in, $4.00/M out. |
+| Vision (Pass 1) | `accounts/fireworks/models/kimi-k2p6` | Translates sampled video frames into a temporary video translation file. |
+| Process (Pass 2) | `accounts/fireworks/models/deepseek-v4-pro` | Turns the video translation file into captions in the requested tones. |
 
-Both can be overridden via environment variables without rebuilding the image.
+Both are configured in `model_config.json` and can be overridden via environment variables without rebuilding the image.
 
 ---
 
@@ -191,10 +191,12 @@ Both can be overridden via environment variables without rebuilding the image.
 
 | Variable | Required | Default | Description |
 |---|---|---|---|
-| `FIREWORKS_API_KEY` | **Yes** | — | Your Fireworks AI API key |
+| `FIREWORKS_API_KEY` | **Yes** | â€” | Your Fireworks AI API key |
 | `FIREWORKS_BASE_URL` | No | `https://api.fireworks.ai/inference/v1` | Base URL for all API calls |
-| `VISION_MODEL` | No | `accounts/fireworks/models/minimax-m3` | Vision model for Pass 1 |
-| `TEXT_MODEL` | No | `accounts/fireworks/models/kimi-k2p6` | Text model for Pass 2 |
+| `MODEL_CONFIG_PATH` | No | `model_config.json` | Path to the model config file |
+| `VISION_MODEL` | No | `accounts/fireworks/models/kimi-k2p6` | Vision model override for Pass 1 |
+| `PROCESS_MODEL` | No | `accounts/fireworks/models/deepseek-v4-pro` | Process model override for Pass 2 |
+| `USAGE_LOG_DIR` | No | `token/credits usage` | Directory for per-run token and credit usage JSON files |
 | `TOTAL_BUDGET_SECS` | No | `520` | Global wall-clock budget before graceful exit |
 
 ---
@@ -260,7 +262,7 @@ docker push ghcr.io/yourgithubuser/xo-screens-track2:latest
 
 ## I/O contract
 
-### Input — `/input/tasks.json`
+### Input â€” `/input/tasks.json`
 
 ```json
 [
@@ -272,7 +274,7 @@ docker push ghcr.io/yourgithubuser/xo-screens-track2:latest
 ]
 ```
 
-### Output — `/output/results.json`
+### Output â€” `/output/results.json`
 
 ```json
 [
@@ -298,7 +300,7 @@ docker push ghcr.io/yourgithubuser/xo-screens-track2:latest
 | v2 | [link](https://storage.googleapis.com/amd-hackathon-clips/13825391-uhd_3840_2160_30fps.mp4) | Orange kitten among green foliage in a garden |
 | v3 | [link](https://storage.googleapis.com/amd-hackathon-clips/3044693-uhd_3840_2160_24fps.mp4) | Office worker at a desktop computer in a modern open-plan office |
 
-The hidden evaluation set contains ~12 clips spanning varied content: nature, urban, animals, people, sports, food, weather, technology. The pipeline is designed to generalise — it never hardcodes anything about specific clips.
+The hidden evaluation set contains ~12 clips spanning varied content: nature, urban, animals, people, sports, food, weather, technology. The pipeline is designed to generalise â€” it never hardcodes anything about specific clips.
 
 ---
 
@@ -306,9 +308,12 @@ The hidden evaluation set contains ~12 clips spanning varied content: nature, ur
 
 Each caption is scored by LLM-Judge on two dimensions:
 
-1. **Caption accuracy (0–1):** how faithfully the caption reflects the actual video content
-2. **Style match (0–1):** how well the caption matches the requested tone
+1. **Caption accuracy (0â€“1):** how faithfully the caption reflects the actual video content
+2. **Style match (0â€“1):** how well the caption matches the requested tone
 
 Final score = weighted average across all clips and all four styles.
 
-The two-pass design (vision description → styled captions) directly optimises for both dimensions: Pass 1 maximises accuracy by grounding every caption in a detailed factual description; Pass 2 maximises style match by using per-style system prompts and temperatures tuned for each tone.
+The two-pass design (vision description â†’ styled captions) directly optimises for both dimensions: Pass 1 maximises accuracy by grounding every caption in a detailed factual description; Pass 2 maximises style match by using per-style system prompts and temperatures tuned for each tone.
+
+
+

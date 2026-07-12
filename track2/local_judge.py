@@ -4,27 +4,21 @@ Simulates the AMD AI Judge for Track 2 scoring based on PDF criteria.
 """
 
 import os
-import sys
 import json
 import time
-import base64
 import requests
 
-_OBFUSCATED_GEMINI_KEY = "QVEuQWI4Uk42THZyZ0VHanJhXzcwWjhkb0VUZktnS2hhQ2ZpZ1UwQ0Z6LTBqWjhPN1VCQXc="
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
 
 def get_api_key() -> str:
-    env_key = os.environ.get("GEMINI_API_KEY", "").strip()
-    if env_key:
-        return env_key
-    try:
-        if _OBFUSCATED_GEMINI_KEY and _OBFUSCATED_GEMINI_KEY != "Q0hBTkdFX01F":
-            return base64.b64decode(_OBFUSCATED_GEMINI_KEY).decode('utf-8')
-    except Exception:
-        pass
-    return ""
+    return os.environ.get("FIREWORKS_API_KEY", "").strip()
 
-GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta"
-GEMINI_MODEL = "gemini-2.5-flash"
+FIREWORKS_BASE_URL = os.environ.get("FIREWORKS_BASE_URL", "https://api.fireworks.ai/inference/v1").rstrip("/")
+JUDGE_MODEL = os.environ.get("JUDGE_MODEL", os.environ.get("PROCESS_MODEL", "accounts/fireworks/models/deepseek-v4-pro"))
 
 JUDGE_PROMPT = """You are an expert AI evaluator grading a Video Captioning Agent for an AMD Hackathon.
 You will evaluate the provided caption against its requested style.
@@ -56,22 +50,22 @@ Return exactly a JSON object with this format:
 def evaluate_caption(style: str, caption: str, api_key: str) -> dict:
     prompt = JUDGE_PROMPT.format(style=style, caption=caption)
     payload = {
-        "contents": [{"role": "user", "parts": [{"text": prompt}]}],
-        "generationConfig": {
-            "temperature": 0.1,
-            "response_mime_type": "application/json"
-        },
+        "model": JUDGE_MODEL,
+        "messages": [{"role": "user", "content": prompt}],
+        "temperature": 0.1,
+        "max_tokens": 1000,
     }
-    url = f"{GEMINI_BASE}/models/{GEMINI_MODEL}:generateContent?key={api_key}"
+    headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+    url = f"{FIREWORKS_BASE_URL}/chat/completions"
     
     for _ in range(3):
         try:
-            resp = requests.post(url, json=payload, timeout=30)
+            resp = requests.post(url, headers=headers, json=payload, timeout=30)
             if resp.status_code == 429:
                 time.sleep(5)
                 continue
             resp.raise_for_status()
-            text = resp.json()["candidates"][0]["content"]["parts"][0]["text"]
+            text = resp.json()["choices"][0]["message"]["content"]
             if text.startswith("```"):
                 text = text.strip().split("\n", 1)[-1].rsplit("\n", 1)[0]
             return json.loads(text)
@@ -90,7 +84,7 @@ def main():
 
     api_key = get_api_key()
     if not api_key:
-        print("GEMINI_API_KEY not found.")
+        print("FIREWORKS_API_KEY not found.")
         return
 
     print("=== XO-Screens Local LLM Judge ===")
