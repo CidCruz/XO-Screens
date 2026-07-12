@@ -1,7 +1,7 @@
 """
 Track 2 — Video Captioning Agent
 XO-Screens | AMD Developer Hackathon: ACT II
-Single-Pass Gemini Vision implementation.
+Two-Pass Gemini implementation (Vision -> Style).
 """
 
 import os
@@ -31,8 +31,6 @@ log = logging.getLogger("track2")
 
 # ── Config ───────────────────────────────────────────────────────────────────
 
-# Base64 encoded API key. To set your key, base64 encode it and paste it here.
-# e.g., in python: import base64; print(base64.b64encode(b"YOUR_API_KEY").decode())
 _OBFUSCATED_GEMINI_KEY = "QVEuQWI4Uk42THZyZ0VHanJhXzcwWjhkb0VUZktnS2hhQ2ZpZ1UwQ0Z6LTBqWjhPN1VCQXc="
 
 def get_api_key() -> str:
@@ -221,53 +219,108 @@ def extract_frames_local(video_path: Path, frames_dir: Path) -> list[Path]:
         paths = [paths[round(i * step)] for i in range(20)]
     return paths
 
-# ── Gemini API ───────────────────────────────────────────────────────────────
+# ── Gemini API (Two-Pass DescribeX Mimic) ───────────────────────────────────────────────────────────────
 
-SYSTEM_PROMPT = """You are an expert video captioning agent.
-Your task is to watch the provided chronological video frames and generate highly accurate, style-matched captions.
+VISION_PROMPT = """You are a precise visual analyst. You will be shown {frame_count} representative frames sampled from a short video. Your task is to produce a structured, factual understanding of the video content.
 
-You must generate captions for ALL the requested styles, strictly based on the visible contents of the video (subjects, actions, setting, colors, atmosphere).
+Analyze the frames and provide a detailed description covering ALL of the following categories:
 
-Styles:
-1. "formal": Professional, objective, factual tone. Use active voice, present tense. No filler phrases (e.g. "we see"). Ground every sentence in specific visual evidence.
-2. "sarcastic": Dry, ironic, lightly mocking tone. Subtly sarcastic—undercut the obvious, treat the mundane as mildly absurd. Connect jokes strictly to visual evidence.
-3. "humorous_tech": Funny, with technology or programming references. Connect real visual events to tech concepts (e.g., debugging, git commits, servers).
-4. "humorous_non_tech": Funny, everyday humor with no technical jargon. Relatable observations, absurdist comparisons.
+1. **Scene / Setting**
+   Where is this taking place? Describe the location, venue, or environment visible in the frames.
 
-RULES:
-- CRITICAL: The very first sentence of EVERY caption MUST be a highly accurate, 1-sentence summary of the core subject, setting, and main action (e.g., "An office worker sits at a desktop computer in a modern open-plan office.").
-- After the first summary sentence, the rest of the paragraph (3-4 sentences) must heavily lean into the requested style/tone.
-- Generate 1 cohesive paragraph for EACH requested style.
-- Mention specific colors, objects, movements. Generic captions score ZERO.
-- You MUST output ONLY valid JSON.
-- The JSON object must contain keys EXACTLY matching the requested styles.
+2. **Subjects**
+   Who or what is visible? Describe people, animals, objects, or other focal subjects. Note their appearance, positioning, and any distinguishing features.
 
-Example JSON output structure:
-{
-  "formal": "The video shows...",
-  "sarcastic": "Oh look, another...",
-  "humorous_tech": "This is what a merge conflict looks like in real life...",
-  "humorous_non_tech": "Why does this remind me of..."
-}
+3. **Actions**
+   What is happening? Describe the activities, movements, interactions, or events taking place across the frames.
+
+4. **Environment**
+   Is this indoor or outdoor? What time of day does it appear to be? Are there any weather or seasonal indicators?
+
+5. **Mood / Tone**
+   What feeling or atmosphere does the video convey? Consider lighting, color grading, facial expressions, body language, and pacing.
+
+6. **Key Visual Elements**
+   Note prominent colors, notable objects, any on-screen text or overlays, graphical elements, and visual transitions between frames.
+
+7. **Temporal Flow**
+   How does the scene progress from the first frame to the last? Describe any changes, developments, or narrative arc visible across the sequence of frames.
+
+IMPORTANT INSTRUCTIONS:
+- Be factual and neutral throughout. Report only what you observe.
+- Do NOT generate captions or taglines.
+- Do NOT inject humor, sarcasm, or personal opinion.
+- This is an internal analytical step. Your description will be used downstream — accuracy and completeness are critical.
+- Write in clear, concise prose. Use the numbered categories above as your structure.
 """
 
-def generate_captions_via_gemini(frame_paths: list[Path], styles: list[str]) -> dict:
-    api_key = get_api_key()
-    if not api_key:
-        raise ValueError("GEMINI_API_KEY is not set.")
+STYLE_PROMPT = """You are an expert caption writer. Below is a factual scene description generated from a video. Your task is to generate captions for this video in exactly four distinct styles.
 
-    parts = []
+--- SCENE DESCRIPTION ---
+{scene_description}
+--- END SCENE DESCRIPTION ---
+
+Generate one caption for EACH of the following styles:
+
+1. **formal** — Professional, clear, and informative. Suitable for business presentations, educational content, or official communications. Use precise language and a neutral, authoritative tone.
+
+2. **sarcastic** — Witty, ironic, and tongue-in-cheek. Deliver commentary that playfully pokes fun at what is happening in the video. Use dry humor and clever observations.
+
+3. **humorous_tech** — Funny with references to tech culture, programming, internet memes, or developer humor. Use analogies to software, hardware, algorithms, or well-known tech concepts to make the caption entertaining for a tech-savvy audience.
+
+4. **humorous_non_tech** — Funny with everyday, relatable, non-technical humor. Use observations about daily life, common human experiences, or universally understood situations. No jargon — accessible to everyone.
+
+REQUIREMENTS:
+- Each caption MUST be 2 to 4 sentences long.
+- Output ONLY a valid JSON object with exactly these four keys: "formal", "sarcastic", "humorous_tech", "humorous_non_tech".
+- Each value must be a single string containing the caption for that style.
+- Do NOT wrap the JSON in markdown code fences.
+- Do NOT include any explanation, commentary, or extra text before or after the JSON.
+- Output ONLY the JSON object. Nothing else.
+"""
+
+def generate_factual_summary(frame_paths: list[Path]) -> str:
+    api_key = get_api_key()
+    
+    parts = [{"text": VISION_PROMPT.format(frame_count=len(frame_paths))}]
     for fp in frame_paths:
         b64 = base64.b64encode(fp.read_bytes()).decode()
         parts.append({"inline_data": {"mime_type": "image/jpeg", "data": b64}})
-    
-    parts.append({"text": f"Generate these styles in JSON format: {', '.join(styles)}"})
 
     payload = {
-        "system_instruction": {"parts": [{"text": SYSTEM_PROMPT}]},
         "contents": [{"role": "user", "parts": parts}],
         "generationConfig": {
-            "temperature": 0.4,
+            "temperature": 0.2,
+            "maxOutputTokens": 2048,
+        },
+    }
+    
+    url = f"{GEMINI_BASE}/models/{GEMINI_MODEL}:generateContent?key={api_key}"
+    
+    for attempt in range(3):
+        try:
+            resp = SESSION.post(url, json=payload, timeout=API_TIMEOUT)
+            if resp.status_code == 429:
+                time.sleep(5 * (attempt + 1))
+                continue
+            resp.raise_for_status()
+            data = resp.json()
+            return data["candidates"][0]["content"]["parts"][0]["text"]
+        except Exception as e:
+            log.warning("Vision Pass attempt %d failed: %s", attempt+1, e)
+            time.sleep(2 * (attempt + 1))
+            
+    raise RuntimeError("Failed to generate vision summary.")
+
+def generate_styled_captions(description: str, styles: list[str]) -> dict:
+    api_key = get_api_key()
+    
+    prompt = STYLE_PROMPT.format(scene_description=description)
+
+    payload = {
+        "contents": [{"role": "user", "parts": [{"text": prompt}]}],
+        "generationConfig": {
+            "temperature": 0.7,
             "maxOutputTokens": 2048,
             "response_mime_type": "application/json"
         },
@@ -279,33 +332,31 @@ def generate_captions_via_gemini(frame_paths: list[Path], styles: list[str]) -> 
         try:
             resp = SESSION.post(url, json=payload, timeout=API_TIMEOUT)
             if resp.status_code == 429:
-                log.warning("Rate limited (429), backing off...")
                 time.sleep(5 * (attempt + 1))
                 continue
             resp.raise_for_status()
-            
             data = resp.json()
-            candidates = data.get("candidates", [])
-            if not candidates:
-                raise ValueError("No candidates returned from Gemini.")
-            text = candidates[0].get("content", {}).get("parts", [])[0].get("text", "{}")
+            text = data["candidates"][0]["content"]["parts"][0]["text"]
             
-            parsed = json.loads(text)
-            return parsed
+            # Clean up markdown if Gemini leaked it
+            if text.startswith("```"):
+                text = text.strip().split("\n", 1)[-1].rsplit("\n", 1)[0]
+                
+            return json.loads(text)
         except Exception as e:
-            log.warning("Gemini attempt %d failed: %s", attempt+1, e)
+            log.warning("Style Pass attempt %d failed: %s", attempt+1, e)
             time.sleep(2 * (attempt + 1))
             
-    raise RuntimeError("Failed to generate captions from Gemini after retries.")
+    raise RuntimeError("Failed to generate style captions.")
 
 def fallback_captions(styles: list[str]) -> dict:
     fallbacks = {
-        "formal": "A video clip capturing various subjects engaging in routine activities across multiple scenes.",
-        "sarcastic": "Witness another breathtaking display of absolutely ordinary things happening in real time.",
-        "humorous_tech": "Running human_activity.exe in production. The rendering engine is adequate.",
-        "humorous_non_tech": "Just another day in the life of stuff doing things in places."
+        "formal": "A video clip capturing various subjects engaging in routine activities across multiple scenes. It is well lit.",
+        "sarcastic": "Witness another breathtaking display of absolutely ordinary things happening in real time. It truly is the pinnacle of cinema. I am overwhelmed.",
+        "humorous_tech": "Running human_activity.exe in production. The rendering engine is adequate. The frame rate is surprisingly stable.",
+        "humorous_non_tech": "Just another day in the life of stuff doing things in places. Someone clearly had too much coffee. It is what it is."
     }
-    return {s: fallbacks.get(s, "Caption generation failed.") for s in styles}
+    return {s: fallbacks.get(s, "Caption generation failed. We tried our best.") for s in styles}
 
 def process_task(task: dict, tmpdir: Path) -> dict:
     raw_id    = task.get("task_id", "unknown")
@@ -326,10 +377,12 @@ def process_task(task: dict, tmpdir: Path) -> dict:
         if not frame_paths:
             raise RuntimeError("No frames could be extracted.")
             
-        log.info("[%s] Calling Gemini with %d frames for %d styles...", task_id, len(frame_paths), len(styles))
-        captions = generate_captions_via_gemini(frame_paths, styles)
+        log.info("[%s] Calling Gemini Vision Pass with %d frames...", task_id, len(frame_paths))
+        description = generate_factual_summary(frame_paths)
         
-        # Ensure all requested styles exist in output
+        log.info("[%s] Calling Gemini Style Pass...", task_id)
+        captions = generate_styled_captions(description, styles)
+        
         final_captions = {}
         for s in styles:
             final_captions[s] = captions.get(s, fallback_captions([s])[s])
@@ -354,7 +407,7 @@ def startup_checks():
 
 def main() -> int:
     INPUT_PATH, OUTPUT_PATH = resolve_paths()
-    log.info("=== XO-Screens Video Captioning Agent (Single-Pass Gemini) ===")
+    log.info("=== XO-Screens Video Captioning Agent (Two-Pass DescribeX Mimic) ===")
     
     startup_checks()
 
